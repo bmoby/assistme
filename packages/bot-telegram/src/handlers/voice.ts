@@ -9,6 +9,7 @@ import {
 import type { MemoryCategory, PublicKnowledgeCategory } from '@vibe-coder/core';
 import { isAdmin } from '../utils/auth.js';
 import { setPending } from '../utils/pending-changes.js';
+import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
 
 export function registerVoiceHandler(bot: Bot): void {
   bot.on('message:voice', async (ctx: Context) => {
@@ -38,8 +39,14 @@ export function registerVoiceHandler(bot: Bot): void {
       // Show transcription
       await ctx.reply(`📝 "${text}"`);
 
-      // Process through orchestrator
-      const result = await processWithOrchestrator(text);
+      const chatId = String(ctx.chat?.id);
+
+      // Track in conversation history
+      addMessage(chatId, 'user', text);
+      const history = formatHistoryForPrompt(chatId);
+
+      // Process through orchestrator with history
+      const result = await processWithOrchestrator(text, history);
 
       // Check if orchestrator proposed a memory/kb change
       const changeAction = result.actions.find(
@@ -47,7 +54,6 @@ export function registerVoiceHandler(bot: Bot): void {
       );
 
       if (changeAction) {
-        const chatId = String(ctx.chat?.id);
         const target = changeAction.type === 'update_memory' ? 'memory' : 'kb';
         const action = String(changeAction.data['action'] ?? 'update') as 'create' | 'update' | 'delete';
         const category = String(changeAction.data['category'] ?? '');
@@ -79,6 +85,9 @@ export function registerVoiceHandler(bot: Bot): void {
           timestamp: Date.now(),
         });
       }
+
+      // Track bot response
+      addMessage(chatId, 'assistant', result.response);
 
       await ctx.reply(result.response);
 

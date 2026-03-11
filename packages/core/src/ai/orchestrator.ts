@@ -58,17 +58,22 @@ Pour complete_task : data = { "task_title_match" }
 Pour create_client : data = { "name", "need", "budget_range", "source" }
 Pour note : data = { "content" }
 Pour update_memory : data = { "action" (create|update|delete), "category" (identity|situation|preference|relationship|lesson), "key", "content" }
-Pour update_kb : data = { "action" (create|update|delete), "category" (formation|services|faq|free_courses|general), "key", "content" }`;
+Pour update_kb : data = { "action" (create|update|delete), "category" (formation|services|faq|free_courses|general), "key", "content" }
+
+HISTORIQUE DE CONVERSATION RECENTE :
+{history}`;
 
 export interface OrchestratorResult {
   response: string;
   actions: Array<{ type: string; data: Record<string, unknown> }>;
 }
 
-export async function processWithOrchestrator(message: string): Promise<OrchestratorResult> {
+export async function processWithOrchestrator(message: string, conversationHistory?: string): Promise<OrchestratorResult> {
   // Build dynamic context from memory + live data
   const context = await buildContext();
-  const systemPrompt = ORCHESTRATOR_PROMPT.replace('{context}', context);
+  const systemPrompt = ORCHESTRATOR_PROMPT
+    .replace('{context}', context)
+    .replace('{history}', conversationHistory || '(pas d\'historique)');
 
   // Call Claude
   const response = await askClaude({

@@ -19,6 +19,7 @@ import {
   isRejection,
   type PendingChange,
 } from '../utils/pending-changes.js';
+import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
 
 async function executeChange(change: PendingChange): Promise<string> {
   if (change.target === 'memory') {
@@ -59,26 +60,36 @@ export function registerFreeText(bot: Bot): void {
     const chatId = String(ctx.chat?.id);
 
     try {
+      // Track user message in history
+      addMessage(chatId, 'user', text);
+
       // Check for pending confirmation
       const pending = getPending(chatId);
       if (pending) {
         if (isConfirmation(text)) {
           const result = await executeChange(pending);
           clearPending(chatId);
-          await ctx.reply(`✅ ${result}`);
+          const reply = `✅ ${result}`;
+          addMessage(chatId, 'assistant', reply);
+          await ctx.reply(reply);
           return;
         }
         if (isRejection(text)) {
           clearPending(chatId);
-          await ctx.reply('Annule.');
+          const reply = 'Annule.';
+          addMessage(chatId, 'assistant', reply);
+          await ctx.reply(reply);
           return;
         }
         // Neither confirm nor reject — clear pending and process as new message
         clearPending(chatId);
       }
 
-      // Normal orchestrator flow
-      const result = await processWithOrchestrator(text);
+      // Get conversation history for context
+      const history = formatHistoryForPrompt(chatId);
+
+      // Normal orchestrator flow with conversation history
+      const result = await processWithOrchestrator(text, history);
 
       // Check if orchestrator proposed a memory/kb change
       const changeAction = result.actions.find(
@@ -118,6 +129,9 @@ export function registerFreeText(bot: Bot): void {
           timestamp: Date.now(),
         });
       }
+
+      // Track bot response in history
+      addMessage(chatId, 'assistant', result.response);
 
       await ctx.reply(result.response);
     } catch (error) {
