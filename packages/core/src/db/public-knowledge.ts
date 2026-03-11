@@ -34,6 +34,23 @@ export async function getPublicKnowledgeByCategory(category: PublicKnowledgeCate
   return (data ?? []) as PublicKnowledge[];
 }
 
+export async function getPublicKnowledgeEntry(category: PublicKnowledgeCategory, key: string): Promise<PublicKnowledge | null> {
+  const db = getSupabase();
+  const { data, error } = await db
+    .from(TABLE)
+    .select()
+    .eq('category', category)
+    .eq('key', key)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    logger.error({ error, category, key }, 'Failed to get public knowledge entry');
+    throw error;
+  }
+  return data as PublicKnowledge;
+}
+
 export async function upsertPublicKnowledge(params: {
   category: PublicKnowledgeCategory;
   key: string;

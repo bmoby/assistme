@@ -6,6 +6,7 @@ import {
   upsertPublicKnowledge,
   deletePublicKnowledge,
   getMemoryEntry,
+  getPublicKnowledgeEntry,
   logger,
 } from '@vibe-coder/core';
 import type { MemoryCategory, PublicKnowledgeCategory } from '@vibe-coder/core';
@@ -93,10 +94,15 @@ export function registerFreeText(bot: Bot): void {
 
         // Look up current content for context
         let oldContent: string | null = null;
-        if (target === 'memory' && action !== 'create') {
+        if (action !== 'create') {
           try {
-            const existing = await getMemoryEntry(category as MemoryCategory, key);
-            oldContent = existing?.content ?? null;
+            if (target === 'memory') {
+              const existing = await getMemoryEntry(category as MemoryCategory, key);
+              oldContent = existing?.content ?? null;
+            } else {
+              const existing = await getPublicKnowledgeEntry(category as PublicKnowledgeCategory, key);
+              oldContent = existing?.content ?? null;
+            }
           } catch {
             // ignore
           }

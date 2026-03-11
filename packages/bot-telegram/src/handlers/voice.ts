@@ -3,9 +3,10 @@ import {
   transcribeAudio,
   processWithOrchestrator,
   getMemoryEntry,
+  getPublicKnowledgeEntry,
   logger,
 } from '@vibe-coder/core';
-import type { MemoryCategory } from '@vibe-coder/core';
+import type { MemoryCategory, PublicKnowledgeCategory } from '@vibe-coder/core';
 import { isAdmin } from '../utils/auth.js';
 import { setPending } from '../utils/pending-changes.js';
 
@@ -54,10 +55,15 @@ export function registerVoiceHandler(bot: Bot): void {
         const newContent = String(changeAction.data['content'] ?? '');
 
         let oldContent: string | null = null;
-        if (target === 'memory' && action !== 'create') {
+        if (action !== 'create') {
           try {
-            const existing = await getMemoryEntry(category as MemoryCategory, key);
-            oldContent = existing?.content ?? null;
+            if (target === 'memory') {
+              const existing = await getMemoryEntry(category as MemoryCategory, key);
+              oldContent = existing?.content ?? null;
+            } else {
+              const existing = await getPublicKnowledgeEntry(category as PublicKnowledgeCategory, key);
+              oldContent = existing?.content ?? null;
+            }
           } catch {
             // ignore
           }

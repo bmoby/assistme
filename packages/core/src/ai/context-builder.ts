@@ -97,7 +97,7 @@ export async function buildContext(): Promise<string> {
     }
     context += '\n';
 
-    // Public knowledge (keys only, for memory management)
+    // Public knowledge (full content, for memory management)
     try {
       const publicKnowledge = await getAllPublicKnowledge();
       if (publicKnowledge.length > 0) {
@@ -105,7 +105,7 @@ export async function buildContext(): Promise<string> {
         const grouped: Record<string, string[]> = {};
         for (const pk of publicKnowledge) {
           if (!grouped[pk.category]) grouped[pk.category] = [];
-          grouped[pk.category]!.push(`${pk.key}: ${pk.content.slice(0, 100)}${pk.content.length > 100 ? '...' : ''}`);
+          grouped[pk.category]!.push(`${pk.key}: ${pk.content}`);
         }
         for (const [cat, entries] of Object.entries(grouped)) {
           context += `  [${cat}]\n`;
