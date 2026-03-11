@@ -1,5 +1,13 @@
 # SPEC : Cerveau Central (Core)
 
+> **Statut Phase 1 : ✅ IMPLEMENTE**
+> Fichiers principaux :
+> - `core/src/db/` : client.ts, tasks.ts, daily-plans.ts, clients.ts, memory.ts
+> - `core/src/ai/` : client.ts, planner.ts, transcribe.ts, context-builder.ts, memory-agent.ts, orchestrator.ts
+> - `core/src/scheduler/` : index.ts
+> - `core/src/types/` : index.ts
+> - `core/src/logger.ts`
+
 ## Vue d'ensemble
 Le Cerveau Central est le package `core` du monorepo. Il contient toute la logique partagee : connexion a la base de donnees, client Claude API, moteur de priorisation, systeme de rappels et cron jobs.
 
@@ -15,7 +23,7 @@ C'est le "cerveau" : il ne parle a personne directement. Les bots (Telegram, Dis
 
 ### 1.2 Fonctions CRUD principales
 
-#### Tasks
+#### Tasks ✅ IMPLEMENTE (`core/src/db/tasks.ts`)
 ```typescript
 createTask(task: NewTask): Promise<Task>
 getTask(id: string): Promise<Task>
@@ -25,18 +33,39 @@ getTasksByStatus(status: TaskStatus): Promise<Task[]>
 getTasksByCategory(category: TaskCategory): Promise<Task[]>
 getTasksDueToday(): Promise<Task[]>
 getOverdueTasks(): Promise<Task[]>
+getActiveTasks(): Promise<Task[]>  // todo + in_progress + waiting
 getNextTask(): Promise<Task | null>  // La plus prioritaire non faite
 completeTask(id: string): Promise<Task>
 ```
 
-#### Daily Plans
+#### Daily Plans ✅ IMPLEMENTE (`core/src/db/daily-plans.ts`)
 ```typescript
-generateDailyPlan(date: Date): Promise<DailyPlan>
-getDailyPlan(date: Date): Promise<DailyPlan | null>
-updateDailyPlan(id: string, updates: Partial<DailyPlan>): Promise<DailyPlan>
+getDailyPlan(date: string): Promise<DailyPlan | null>
+saveDailyPlan(plan: { date, tasks, summary }): Promise<DailyPlan>
+updateDailyPlanReview(id: string, review: string): Promise<DailyPlan>
 ```
 
-#### Students
+#### Memory ✅ IMPLEMENTE (`core/src/db/memory.ts`)
+```typescript
+getAllMemory(): Promise<MemoryEntry[]>
+getMemoryByCategory(category: MemoryCategory): Promise<MemoryEntry[]>
+getMemoryEntry(category: MemoryCategory, key: string): Promise<MemoryEntry | null>
+upsertMemory(params: { category, key, content, source? }): Promise<MemoryEntry>
+deleteMemory(category: MemoryCategory, key: string): Promise<void>
+```
+
+#### Clients ✅ IMPLEMENTE (`core/src/db/clients.ts`)
+```typescript
+createClient(client: NewClient): Promise<Client>
+getClient(id: string): Promise<Client>
+getClientsByStatus(status: ClientStatus): Promise<Client[]>
+getClientPipeline(): Promise<Client[]>
+updateClientStatus(id: string, status: ClientStatus): Promise<Client>
+assignClientToMember(clientId: string, memberId: string): Promise<void>
+searchClientByName(name: string): Promise<Client[]>
+```
+
+#### Students ❌ PAS ENCORE (Phase 2)
 ```typescript
 getStudent(id: string): Promise<Student>
 getStudentsBySession(session: number): Promise<Student[]>
@@ -45,30 +74,20 @@ updateStudentProgress(id: string, updates: Partial<Student>): Promise<Student>
 getStudentsWithPendingExercises(): Promise<Student[]>
 ```
 
-#### Clients
-```typescript
-createClient(client: NewClient): Promise<Client>
-getClient(id: string): Promise<Client>
-getClientsByStatus(status: ClientStatus): Promise<Client[]>
-getClientPipeline(): Promise<Client[]>  // Tous les clients actifs, tries par statut
-updateClientStatus(id: string, status: ClientStatus): Promise<Client>
-assignClientToMember(clientId: string, memberId: string): Promise<void>
-```
-
-#### Team Members
+#### Team Members ❌ PAS ENCORE (Phase 3)
 ```typescript
 getAvailableMembers(): Promise<TeamMember[]>
 getMemberWorkload(id: string): Promise<{ member: TeamMember, projects: Client[] }>
 ```
 
-#### Messages
+#### Messages ❌ PAS ENCORE
 ```typescript
 logMessage(message: NewMessage): Promise<MessageLog>
 getUnhandledMessages(): Promise<MessageLog[]>
 markAsHandled(id: string): Promise<void>
 ```
 
-#### Habits
+#### Habits ❌ PAS ENCORE (Phase 4)
 ```typescript
 logHabit(habit: NewHabit): Promise<Habit>
 getHabitsForWeek(startDate: Date): Promise<Habit[]>
@@ -90,7 +109,49 @@ askClaude(params: {
 }): Promise<string>
 ```
 
-### 2.2 Fonctions IA specialisees
+### 2.2 Orchestrateur ✅ IMPLEMENTE
+
+```typescript
+// Fichier : core/src/ai/orchestrator.ts
+processWithOrchestrator(message: string): Promise<OrchestratorResult>
+// - Construit le contexte dynamique (buildContext)
+// - Envoie a Claude Sonnet avec system prompt + contexte
+// - Parse la reponse JSON (actions + response)
+// - Execute les actions : create_task, complete_task, create_client, note
+// - Lance le Memory Agent en arriere-plan
+```
+
+### 2.3 Context Builder ✅ IMPLEMENTE
+
+```typescript
+// Fichier : core/src/ai/context-builder.ts
+buildContext(): Promise<string>
+// Construit le contexte a partir de 3 couches :
+// 1. Memory (table memory : identity, situation, preference, relationship, lesson)
+// 2. Live data (tables tasks + clients)
+// 3. Temporel (date + heure locale)
+```
+
+### 2.4 Memory Agent ✅ IMPLEMENTE
+
+```typescript
+// Fichier : core/src/ai/memory-agent.ts
+runMemoryAgent(params: { message, actionsSummary }): Promise<void>
+// - Lit toute la memoire actuelle
+// - Envoie a Claude Sonnet pour analyser si mise a jour necessaire
+// - Execute les updates (create/update/delete) sur la table memory
+// - Tourne en arriere-plan (fire-and-forget), ne bloque pas la reponse
+```
+
+### 2.5 Transcription vocale ✅ IMPLEMENTE
+
+```typescript
+// Fichier : core/src/ai/transcribe.ts
+transcribeAudio(buffer: Buffer, filename: string): Promise<string>
+// - Utilise l'API Whisper (OpenAI) pour transcrire l'audio en francais
+```
+
+### 2.6 Fonctions IA specialisees (A VENIR)
 
 #### Priorisation
 ```typescript
@@ -200,19 +261,19 @@ answerFAQ(params: {
 
 ### 3.1 Cron Jobs
 
-| Job | Horaire | Action |
-|-----|---------|--------|
-| `morning-plan` | 08:30 tous les jours | Generer le plan du jour, envoyer sur Telegram |
-| `midnight-reminder` | 00:00 tous les jours | Rappel coucher sur Telegram |
-| `anti-procrastination` | 11:00 tous les jours | Si aucune tache completee -> rappel Telegram |
-| `afternoon-check` | 15:00 tous les jours | Bilan mi-journee + ajuster les priorites |
-| `evening-review` | 19:00 tous les jours | Resume de la journee, planifier demain |
-| `content-weekly` | Lundi 10:00 | Suggerer des idees de contenu |
-| `overdue-check` | Toutes les 2h | Verifier les taches en retard, alerter |
-| `client-followup` | Tous les jours 10:00 | Clients en attente de reponse > 24h |
-| `student-check` | Tous les jours 10:00 | Etudiants bloques depuis > 48h |
-| `family-reminder` | Configurable | Rappel pour appeler parents/enfants |
-| `sport-reminder` | Si pas fait depuis 3j | Rappel sport |
+| Job | Horaire | Action | Statut |
+|-----|---------|--------|--------|
+| `morning-plan` | 08:30 tous les jours | Generer le plan du jour, envoyer sur Telegram | ✅ |
+| `anti-procrastination` | 11:00 tous les jours | Si aucune tache completee -> rappel Telegram | ✅ |
+| `afternoon-check` | 14:00 tous les jours | Bilan mi-journee + ajuster les priorites | ✅ |
+| `evening-review` | 19:00 tous les jours | Resume de la journee, planifier demain | ✅ |
+| `midnight-reminder` | 00:00 tous les jours | Rappel coucher sur Telegram | ✅ |
+| `content-weekly` | Lundi 10:00 | Suggerer des idees de contenu | ❌ Phase 5 |
+| `overdue-check` | Toutes les 2h | Verifier les taches en retard, alerter | ❌ |
+| `client-followup` | Tous les jours 10:00 | Clients en attente de reponse > 24h | ❌ Phase 3 |
+| `student-check` | Tous les jours 10:00 | Etudiants bloques depuis > 48h | ❌ Phase 2 |
+| `family-reminder` | Configurable | Rappel pour appeler parents/enfants | ❌ Phase 4 |
+| `sport-reminder` | Si pas fait depuis 3j | Rappel sport | ❌ Phase 4 |
 
 ### 3.2 Systeme de rappels
 ```typescript

@@ -1,3 +1,7 @@
 export { askClaude } from './client.js';
 export { generateDailyPlan, parseUserMessage } from './planner.js';
 export { transcribeAudio } from './transcribe.js';
+export { buildContext } from './context-builder.js';
+export { runMemoryAgent } from './memory-agent.js';
+export { processWithOrchestrator } from './orchestrator.js';
+export type { OrchestratorResult } from './orchestrator.js';

@@ -7,51 +7,63 @@
 
 ---
 
-## PHASE 0 : Setup (Jour 1)
+## PHASE 0 : Setup (Jour 1) ✅ TERMINE
 > Mettre en place l'infrastructure de dev
 
-- [ ] Initialiser le monorepo (pnpm workspaces)
-- [ ] Config TypeScript, ESLint, Prettier
-- [ ] Creer le package `core`
-- [ ] Configurer Supabase (nouvelles tables, storage buckets, RLS)
-- [ ] Creer le `.env` avec toutes les cles
-- [ ] Creer le `CLAUDE.md` avec les instructions pour Claude Code
-- [ ] Setup Git + premiere commit
-- [ ] Creer le bot Telegram via @BotFather
-- [ ] Tester la connexion Supabase + Claude API
+- [x] Initialiser le monorepo (pnpm workspaces)
+- [x] Config TypeScript strict, ESM modules
+- [x] Creer le package `core`
+- [x] Configurer Supabase (tables, indexes)
+- [x] Creer le `.env` avec toutes les cles
+- [x] Creer le `CLAUDE.md` avec les instructions pour Claude Code
+- [x] Setup Git + premiere commit (pousse sur GitHub privé)
+- [x] Creer le bot Telegram via @BotFather
+- [x] Tester la connexion Supabase + Claude API
 
 **Livrable** : Monorepo fonctionnel avec core connecte a Supabase et Claude API.
 
 ---
 
-## PHASE 1 : Bot Telegram Copilote v1 (Jours 2-5)
+## PHASE 1 : Bot Telegram Copilote v1 (Jours 2-5) ✅ TERMINE
 > L'essentiel : savoir quoi faire chaque matin + capturer les taches
 
-### Jour 2-3 : Core + commandes de base
-- [ ] Core/DB : CRUD tasks, daily_plans
-- [ ] Core/AI : Fonction `generateDailyPlan()`
-- [ ] Core/AI : Fonction `parseUserMessage()` (capture intelligente)
-- [ ] Bot Telegram : Setup grammY, connexion webhook
-- [ ] Bot Telegram : Commande `/plan`
-- [ ] Bot Telegram : Commande `/next`
-- [ ] Bot Telegram : Commande `/done`
-- [ ] Bot Telegram : Commande `/add`
-- [ ] Bot Telegram : Commande `/tasks`
-- [ ] Bot Telegram : Texte libre → capture intelligente
+### Core + commandes de base ✅
+- [x] Core/DB : CRUD tasks, daily_plans, clients, memory
+- [x] Core/AI : `askClaude()` client avec choix modele (sonnet/opus)
+- [x] Core/AI : `generateDailyPlan()` + `parseUserMessage()`
+- [x] Core/AI : `transcribeAudio()` via Whisper API
+- [x] Core/AI : `buildContext()` - contexte dynamique 3 couches (memoire + live + temporel)
+- [x] Core/AI : `processWithOrchestrator()` - traitement intelligent des messages
+- [x] Core/AI : `runMemoryAgent()` - mise a jour memoire en arriere-plan
+- [x] Core/DB : `memory.ts` - CRUD table memory (getAllMemory, upsertMemory, deleteMemory, etc.)
+- [x] Bot Telegram : Setup grammY, long polling
+- [x] Bot Telegram : Commandes /start, /plan, /next, /done, /add, /tasks, /skip, /clients, /client, /newclient
+- [x] Bot Telegram : Texte libre → processWithOrchestrator()
+- [x] Bot Telegram : Vocal → Whisper transcription → processWithOrchestrator()
 
-### Jour 4 : Cron jobs
-- [ ] Core/Scheduler : Setup node-cron
-- [ ] Cron : Plan du matin (08:30)
-- [ ] Cron : Rappel coucher (00:00)
-- [ ] Cron : Anti-procrastination (11:00)
+### Cron jobs ✅
+- [x] Core/Scheduler : Setup node-cron
+- [x] Cron : Plan du matin (08:30)
+- [x] Cron : Anti-procrastination (11:00)
+- [x] Cron : Check-in 14:00
+- [x] Cron : Review 19:00
+- [x] Cron : Rappel coucher (00:00)
 
-### Jour 5 : Polish + deploy
+### Systeme de memoire intelligent ✅
+- [x] Table `memory` (5 categories: identity, situation, preference, relationship, lesson)
+- [x] Table `events` (prete pour le bus d'evenements futur)
+- [x] Seed initial ~25 entrees memoire depuis le profil utilisateur
+- [x] Memory Agent qui analyse chaque message et met a jour la memoire automatiquement
+- [x] Contexte dynamique construit a chaque requete (memoire + taches + clients + date)
+
+### Reste a faire
+- [ ] Commandes `/memory`, `/forget`, `/correct` (gestion memoire manuelle)
+- [ ] Filtrage Memory Agent (pas pour commandes, pas pour messages < 20 chars)
 - [ ] Inline keyboards (boutons)
-- [ ] Gestion d'erreurs
 - [ ] Deploy sur Railway/Fly.io
 - [ ] Test complet en conditions reelles
 
-**Livrable** : Bot Telegram operationnel avec plan quotidien, capture de taches, et rappels.
+**Livrable** : Bot Telegram operationnel avec orchestrateur intelligent, memoire evolutive, vocal, et rappels.
 
 ---
 
@@ -135,7 +147,7 @@
 ## Resume visuel
 
 ```
-Semaine 1  ████████████████  Phase 0 (Setup) + Phase 1 (Telegram)
+Semaine 1  ████████████████  Phase 0 (Setup) ✅ + Phase 1 (Telegram) ✅
 Semaine 2  ████████████████  Phase 2 (Discord) → LANCEMENT SESSION 2
 Semaine 3  ████████████████  Phase 3 (Enrichissement)
 Semaine 4  ████████████████  Phase 3 (suite)
@@ -145,9 +157,10 @@ Mois 3     ████████████████  Phase 5 (Contenu + 
 
 ---
 
-## Actions immediates (AUJOURD'HUI)
+## Actions immediates
 
 1. [ ] **Soumettre la demande Meta App Review** (2-6 semaines de delai)
-2. [ ] **Creer le bot Telegram** via @BotFather (2 min)
+2. [x] ~~Creer le bot Telegram~~ via @BotFather ✅
 3. [ ] **Creer le bot Discord** via Developer Portal (5 min)
-4. [ ] **Valider le monorepo setup** et commencer Phase 0
+4. [ ] **Tester le bot Telegram** en conditions reelles avec le systeme memoire
+5. [ ] **Commencer Phase 2** (Discord) - URGENT, session 2 dans ~2 semaines
