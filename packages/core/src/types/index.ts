@@ -226,3 +226,18 @@ export interface Reminder {
   task_id: string | null;
   created_at: string;
 }
+
+// ============================================
+// Public Knowledge Types
+// ============================================
+
+export type PublicKnowledgeCategory = 'formation' | 'services' | 'faq' | 'free_courses' | 'general';
+
+export interface PublicKnowledge {
+  id: string;
+  category: PublicKnowledgeCategory;
+  key: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}

@@ -13,17 +13,17 @@ function getOpenAI(): OpenAI {
   return openai;
 }
 
-export async function transcribeAudio(buffer: Buffer, filename: string): Promise<string> {
+export async function transcribeAudio(buffer: Buffer, filename: string, language: string = 'fr'): Promise<string> {
   const client = getOpenAI();
 
-  logger.info({ filename, size: buffer.length }, 'Transcribing audio');
+  logger.info({ filename, size: buffer.length, language }, 'Transcribing audio');
 
   const file = new File([buffer], filename, { type: 'audio/ogg' });
 
   const transcription = await client.audio.transcriptions.create({
     file,
     model: 'whisper-1',
-    language: 'fr',
+    language,
   });
 
   logger.info({ text: transcription.text.substring(0, 100) }, 'Transcription complete');

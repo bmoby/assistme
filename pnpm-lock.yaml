@@ -68,6 +68,28 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
+  packages/bot-telegram-public:
+    dependencies:
+      '@vibe-coder/core':
+        specifier: workspace:*
+        version: link:../core
+      dotenv:
+        specifier: ^17.3.1
+        version: 17.3.1
+      grammy:
+        specifier: ^1.31.0
+        version: 1.41.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20.17.0
+        version: 20.19.37
+      tsx:
+        specifier: ^4.19.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+
   packages/core:
     dependencies:
       '@anthropic-ai/sdk':
