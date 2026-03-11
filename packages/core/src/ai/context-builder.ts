@@ -1,6 +1,7 @@
 import { getAllMemory, type MemoryEntry } from '../db/memory.js';
 import { getActiveTasks } from '../db/tasks.js';
 import { getClientPipeline } from '../db/clients.js';
+import { getAllPublicKnowledge } from '../db/public-knowledge.js';
 import { logger } from '../logger.js';
 
 /**
@@ -95,6 +96,28 @@ export async function buildContext(): Promise<string> {
       }
     }
     context += '\n';
+
+    // Public knowledge (keys only, for memory management)
+    try {
+      const publicKnowledge = await getAllPublicKnowledge();
+      if (publicKnowledge.length > 0) {
+        context += `BASE DE CONNAISSANCES DU BOT PUBLIC (${publicKnowledge.length} entrees) :\n`;
+        const grouped: Record<string, string[]> = {};
+        for (const pk of publicKnowledge) {
+          if (!grouped[pk.category]) grouped[pk.category] = [];
+          grouped[pk.category]!.push(`${pk.key}: ${pk.content.slice(0, 100)}${pk.content.length > 100 ? '...' : ''}`);
+        }
+        for (const [cat, entries] of Object.entries(grouped)) {
+          context += `  [${cat}]\n`;
+          for (const e of entries) {
+            context += `  - ${e}\n`;
+          }
+        }
+        context += '\n';
+      }
+    } catch {
+      // Public knowledge table may not exist yet, ignore
+    }
 
     // Temporal
     context += `DATE ET HEURE : ${dateStr}, ${timeStr}\n`;

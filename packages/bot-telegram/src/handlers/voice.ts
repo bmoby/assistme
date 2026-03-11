@@ -2,9 +2,12 @@ import type { Bot, Context } from 'grammy';
 import {
   transcribeAudio,
   processWithOrchestrator,
+  getMemoryEntry,
   logger,
 } from '@vibe-coder/core';
+import type { MemoryCategory } from '@vibe-coder/core';
 import { isAdmin } from '../utils/auth.js';
+import { setPending } from '../utils/pending-changes.js';
 
 export function registerVoiceHandler(bot: Bot): void {
   bot.on('message:voice', async (ctx: Context) => {
@@ -36,6 +39,41 @@ export function registerVoiceHandler(bot: Bot): void {
 
       // Process through orchestrator
       const result = await processWithOrchestrator(text);
+
+      // Check if orchestrator proposed a memory/kb change
+      const changeAction = result.actions.find(
+        (a) => a.type === 'update_memory' || a.type === 'update_kb'
+      );
+
+      if (changeAction) {
+        const chatId = String(ctx.chat?.id);
+        const target = changeAction.type === 'update_memory' ? 'memory' : 'kb';
+        const action = String(changeAction.data['action'] ?? 'update') as 'create' | 'update' | 'delete';
+        const category = String(changeAction.data['category'] ?? '');
+        const key = String(changeAction.data['key'] ?? '');
+        const newContent = String(changeAction.data['content'] ?? '');
+
+        let oldContent: string | null = null;
+        if (target === 'memory' && action !== 'create') {
+          try {
+            const existing = await getMemoryEntry(category as MemoryCategory, key);
+            oldContent = existing?.content ?? null;
+          } catch {
+            // ignore
+          }
+        }
+
+        setPending(chatId, {
+          target,
+          action,
+          category,
+          key,
+          oldContent,
+          newContent: action === 'delete' ? null : newContent,
+          timestamp: Date.now(),
+        });
+      }
+
       await ctx.reply(result.response);
 
     } catch (error) {

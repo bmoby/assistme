@@ -35,11 +35,18 @@ REGLES :
 - Si il est apres 15h, suggere des taches legeres
 - Rappelle ses objectifs quand c'est pertinent
 
+GESTION DE LA MEMOIRE ET DU BOT PUBLIC :
+- Si Magomed demande de MODIFIER, AJOUTER ou SUPPRIMER quelque chose dans sa memoire perso ou dans la base du bot public → utilise update_memory ou update_kb
+- IMPORTANT : ne modifie JAMAIS directement. Propose le changement dans ta reponse pour qu'il confirme.
+- Dans ta reponse, montre clairement ce que tu vas changer : "Je vais modifier [categorie/cle] : ancien → nouveau. Tu confirmes ?"
+- Si c'est un ajout, montre : "Je vais ajouter [categorie/cle] : contenu. Tu confirmes ?"
+- Si c'est une suppression, montre : "Je vais supprimer [categorie/cle]. Tu confirmes ?"
+
 FORMAT DE REPONSE (JSON strict, PAS de markdown autour) :
 {
   "actions": [
     {
-      "type": "create_task" | "complete_task" | "create_client" | "note",
+      "type": "create_task" | "complete_task" | "create_client" | "note" | "update_memory" | "update_kb",
       "data": { ... }
     }
   ],
@@ -49,7 +56,9 @@ FORMAT DE REPONSE (JSON strict, PAS de markdown autour) :
 Pour create_task : data = { "title", "category" (client|student|content|personal|dev|team), "priority" (urgent|important|normal|low), "due_date" (YYYY-MM-DD ou null), "estimated_minutes" }
 Pour complete_task : data = { "task_title_match" }
 Pour create_client : data = { "name", "need", "budget_range", "source" }
-Pour note : data = { "content" }`;
+Pour note : data = { "content" }
+Pour update_memory : data = { "action" (create|update|delete), "category" (identity|situation|preference|relationship|lesson), "key", "content" }
+Pour update_kb : data = { "action" (create|update|delete), "category" (formation|services|faq|free_courses|general), "key", "content" }`;
 
 export interface OrchestratorResult {
   response: string;
@@ -130,8 +139,21 @@ export async function processWithOrchestrator(message: string): Promise<Orchestr
           break;
         }
         case 'note': {
-          // Notes are handled by the memory agent
           executedActions.push({ type: 'note', data: { content: action.data['content'] } });
+          break;
+        }
+        case 'update_memory':
+        case 'update_kb': {
+          // These are NOT executed directly — they are returned as pending for confirmation
+          executedActions.push({
+            type: action.type,
+            data: {
+              action: action.data['action'] ?? 'update',
+              category: action.data['category'] ?? '',
+              key: action.data['key'] ?? '',
+              content: action.data['content'] ?? '',
+            },
+          });
           break;
         }
       }
@@ -140,14 +162,17 @@ export async function processWithOrchestrator(message: string): Promise<Orchestr
     }
   }
 
-  // Run Memory Agent in background (don't wait)
-  const actionsSummary = executedActions
-    .map((a) => `${a.type}: ${JSON.stringify(a.data)}`)
-    .join('\n') || 'Aucune action';
+  // Run Memory Agent in background (don't wait) — only for non-memory-management messages
+  const hasMemoryAction = executedActions.some((a) => a.type === 'update_memory' || a.type === 'update_kb');
+  if (!hasMemoryAction) {
+    const actionsSummary = executedActions
+      .map((a) => `${a.type}: ${JSON.stringify(a.data)}`)
+      .join('\n') || 'Aucune action';
 
-  runMemoryAgent({ message, actionsSummary }).catch((err) =>
-    logger.error({ err }, 'Memory agent background error')
-  );
+    runMemoryAgent({ message, actionsSummary }).catch((err) =>
+      logger.error({ err }, 'Memory agent background error')
+    );
+  }
 
   return {
     response: parsed.response,
