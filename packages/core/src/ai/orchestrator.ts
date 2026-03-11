@@ -7,7 +7,11 @@ import {
   getActiveTasks,
 } from '../db/tasks.js';
 import { createClient } from '../db/clients.js';
+import { upsertMemory, deleteMemory } from '../db/memory.js';
+import { upsertPublicKnowledge, deletePublicKnowledge } from '../db/public-knowledge.js';
 import { logger } from '../logger.js';
+import type { MemoryCategory } from '../db/memory.js';
+import type { PublicKnowledgeCategory } from '../types/index.js';
 
 const ORCHESTRATOR_PROMPT = `Tu es le copilote personnel de Magomed, son assistant IA qui le connait parfaitement.
 
@@ -37,10 +41,10 @@ REGLES :
 
 GESTION DE LA MEMOIRE ET DU BOT PUBLIC :
 - Si Magomed demande de MODIFIER, AJOUTER ou SUPPRIMER quelque chose dans sa memoire perso ou dans la base du bot public → utilise update_memory ou update_kb
-- IMPORTANT : ne modifie JAMAIS directement. Propose le changement dans ta reponse pour qu'il confirme.
-- Dans ta reponse, montre clairement ce que tu vas changer : "Je vais modifier [categorie/cle] : ancien → nouveau. Tu confirmes ?"
-- Si c'est un ajout, montre : "Je vais ajouter [categorie/cle] : contenu. Tu confirmes ?"
-- Si c'est une suppression, montre : "Je vais supprimer [categorie/cle]. Tu confirmes ?"
+- IMPORTANT : l'action sera executee IMMEDIATEMENT. Assure-toi d'utiliser la bonne categorie et la bonne cle (key) existante.
+- Utilise EXACTEMENT les cles (key) qui existent deja dans la base. Ne change pas le nom des cles.
+- Dans ta reponse, confirme ce qui a ete modifie.
+- Si Magomed te demande de modifier et que tu n'es pas sur de quel champ il parle, demande-lui de preciser SANS inclure d'action.
 
 FORMAT DE REPONSE (JSON strict, PAS de markdown autour) :
 {
@@ -147,17 +151,50 @@ export async function processWithOrchestrator(message: string, conversationHisto
           executedActions.push({ type: 'note', data: { content: action.data['content'] } });
           break;
         }
-        case 'update_memory':
-        case 'update_kb': {
-          // These are NOT executed directly — they are returned as pending for confirmation
+        case 'update_memory': {
+          const memAction = action.data['action'] ?? 'update';
+          const memCategory = action.data['category'] as MemoryCategory;
+          const memKey = action.data['key'] ?? '';
+          const memContent = action.data['content'] ?? '';
+
+          if (memAction === 'delete') {
+            await deleteMemory(memCategory, memKey);
+            logger.info({ category: memCategory, key: memKey }, 'Memory deleted via orchestrator');
+          } else {
+            await upsertMemory({
+              category: memCategory,
+              key: memKey,
+              content: memContent,
+              source: 'admin_manual',
+            });
+            logger.info({ category: memCategory, key: memKey, content: memContent }, 'Memory updated via orchestrator');
+          }
           executedActions.push({
-            type: action.type,
-            data: {
-              action: action.data['action'] ?? 'update',
-              category: action.data['category'] ?? '',
-              key: action.data['key'] ?? '',
-              content: action.data['content'] ?? '',
-            },
+            type: 'update_memory',
+            data: { action: memAction, category: memCategory, key: memKey, content: memContent },
+          });
+          break;
+        }
+        case 'update_kb': {
+          const kbAction = action.data['action'] ?? 'update';
+          const kbCategory = action.data['category'] as PublicKnowledgeCategory;
+          const kbKey = action.data['key'] ?? '';
+          const kbContent = action.data['content'] ?? '';
+
+          if (kbAction === 'delete') {
+            await deletePublicKnowledge(kbCategory, kbKey);
+            logger.info({ category: kbCategory, key: kbKey }, 'Public knowledge deleted via orchestrator');
+          } else {
+            await upsertPublicKnowledge({
+              category: kbCategory,
+              key: kbKey,
+              content: kbContent,
+            });
+            logger.info({ category: kbCategory, key: kbKey, content: kbContent }, 'Public knowledge updated via orchestrator');
+          }
+          executedActions.push({
+            type: 'update_kb',
+            data: { action: kbAction, category: kbCategory, key: kbKey, content: kbContent },
           });
           break;
         }
