@@ -62,8 +62,9 @@ export function registerVoiceHandler(bot: Bot): void {
 
           addMessage(chatId, 'assistant', `PDF envoye : ${research.title}`);
         } catch (error) {
-          logger.error({ error, topic }, 'Research agent failed');
-          await ctx.reply('Erreur lors de la recherche. Essaie de reformuler ou redemande.');
+          const errMsg = error instanceof Error ? error.message : String(error);
+          logger.error({ err: errMsg, topic }, 'Research agent failed');
+          await ctx.reply(`Erreur lors de la recherche : ${errMsg}\nEssaie de reformuler ou redemande.`);
         }
         return;
       }
