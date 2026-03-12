@@ -1,140 +1,178 @@
-# Connexions entre composants
+# CONNEXIONS — Flux de donnees entre composants
 
-## Schema des flux de donnees
+## Architecture
 
 ```
-┌──────────────┐     webhook      ┌──────────────────┐
-│  Instagram   │ ──────────────→  │                  │
-│  (DMs)       │                  │                  │
-└──────────────┘                  │                  │
-                                  │   SERVEUR        │
-┌──────────────┐     webhook      │   BACKEND        │     ┌───────────┐
-│  Telegram    │ ←──────────────→ │   (Node.js)      │────→│ Supabase  │
-│  (Copilote)  │                  │                  │←────│ (DB +     │
-└──────────────┘                  │   packages/      │     │  Storage) │
-                                  │   - core         │     └───────────┘
-┌──────────────┐     gateway      │   - bot-telegram │
-│  Discord     │ ←──────────────→ │   - bot-discord  │     ┌───────────┐
-│  (Formateur) │                  │   - bot-instagram│────→│ Claude    │
-└──────────────┘                  │                  │←────│ API       │
-                                  └──────────────────┘     └───────────┘
-```
-
----
-
-## Flux detailles
-
-### FLUX 1 : Nouveau client depuis Instagram
-```
-1. [Instagram] DM recu
-2. [Bot Instagram] Webhook → classification IA → categorie "CLIENT"
-3. [Bot Instagram] Reponse auto : "Utilise ce lien [Bot Telegram qualification]"
-4. [Core/DB] Log message dans `messages_log`
-5. [Core/DB] Cree un lead dans `clients` (status: 'lead')
-6. [Bot Telegram] Notification : "Nouveau lead : [nom] - [resume]"
-7. [Bot Telegram qualification existant] Le client repond aux questions
-8. [Core/DB] Met a jour `clients` (status: 'qualified', qualification_data)
-9. [Bot Telegram Copilote] "Lead qualifie : [nom], besoin: [X], budget: [Y]. /proposal [nom] ?"
-10. [Utilisateur] /proposal Ahmed
-11. [Core/AI] Recherche metier + generation proposition
-12. [Bot Telegram] Envoie la proposition en PDF
-13. [Utilisateur] Envoie au client via WhatsApp (manuel)
-14. [Utilisateur] /assign Ahmed Moussa
-15. [Bot Discord] Cree thread dans #projets-clients avec brief complet
-16. [Core/DB] Met a jour `clients` (status: 'in_progress', assigned_to)
-```
-
-### FLUX 2 : Nouvel etudiant
-```
-1. [Instagram/TikTok] Message "Je veux m'inscrire aux cours"
-2. [Bot Instagram] Classification → "COURS" → Reponse auto : "pilotneuro.com"
-3. [Etudiant] Va sur pilotneuro.com, s'inscrit
-4. [Core/DB] Nouveau record dans `students` (status: 'registered')
-5. [Bot Telegram] "Nouvel inscrit : [nom]. Attente paiement."
-6. [Utilisateur] Contacte l'etudiant (WhatsApp), confirme paiement
-7. [Utilisateur] Met a jour dans Supabase ou via commande : /student [nom] paid
-8. [Core/DB] Met a jour `students` (status: 'paid')
-9. [Bot Discord] Assigne le role @Session2 a l'etudiant
-10. [Bot Discord] Message de bienvenue dans #annonces
-```
-
-### FLUX 3 : Soumission d'exercice
-```
-1. [Discord] Etudiant : /submit [lien]
-2. [Bot Discord] Log dans `student_exercises` (status: 'submitted')
-3. [Core/AI] Pre-review automatique du projet
-4. [Core/DB] Met a jour `student_exercises` (status: 'ai_reviewed', ai_review: {...})
-5. [Bot Discord] Affiche la pre-review a l'etudiant + position dans la file
-6. [Bot Telegram] Notification groupee (1x/jour) : "X exercices en attente de review"
-7. [Utilisateur] /reviews → voit la liste
-8. [Utilisateur] Review manuelle (sur Discord ou via Telegram)
-9. [Bot Discord] /approve [etudiant] ou /revision [etudiant] [feedback]
-10. [Bot Discord] Notifie l'etudiant du resultat
-```
-
-### FLUX 4 : Plan quotidien
-```
-1. [Core/Scheduler] CRON 08:30 declenche `morning-plan`
-2. [Core/DB] Recupere : taches actives, en retard, clients en attente, etudiants bloques
-3. [Core/AI] Claude API genere le plan priorise
-4. [Core/DB] Sauvegarde dans `daily_plans`
-5. [Bot Telegram] Envoie le plan avec boutons inline
-6. [Utilisateur] Clique "Commencer tache 1"
-7. [Core/DB] Met a jour `tasks` (status: 'in_progress')
-8. [Core/Scheduler] CRON 11:00 : si aucune tache commencee → rappel anti-procrastination
-9. [Core/Scheduler] CRON 15:00 : bilan mi-journee
-10. [Core/Scheduler] CRON 19:00 : review du soir
-11. [Core/Scheduler] CRON 00:00 : rappel coucher
-```
-
-### FLUX 5 : Assignation projet equipe
-```
-1. [Bot Telegram] Utilisateur : /assign Ahmed Moussa
-2. [Core/AI] Recherche automatique sur le metier d'Ahmed
-3. [Core/AI] Genere le brief structure
-4. [Core/DB] Met a jour `clients` (assigned_to: Moussa)
-5. [Bot Discord] Cree un thread dans #projets-clients
-6. [Bot Discord] Poste le brief complet avec etapes
-7. [Bot Discord] @Moussa est notifie
-8. [Core/Scheduler] Rappels periodiques sur l'avancement
-9. [Bot Discord] Moussa : /status maquette terminee
-10. [Bot Telegram] "Moussa a termine la maquette pour Ahmed. [Voir] [Valider]"
-```
-
-### FLUX 6 : Capture rapide
-```
-1. [Bot Telegram] Utilisateur envoie : "Ahmed veut un site, rappeler vendredi"
-2. [Core/AI] Claude parse : intention=new_client, nom=Ahmed, besoin=site, rappel=vendredi
-3. [Core/DB] Cree un record dans `clients` + un record dans `reminders`
-4. [Bot Telegram] Confirmation : "Client Ahmed cree. Rappel vendredi. [Modifier] [OK]"
-5. [Core/Scheduler] Vendredi → "Rappel : contacter Ahmed pour le projet site"
+┌─────────────────────┐     ┌──────────────────────┐
+│  Bot Telegram Admin  │     │  Bot Telegram Public  │
+│  (Copilote, FR)      │     │  (Audience, RU)       │
+└──────────┬──────────┘     └──────────┬───────────┘
+           │                           │
+           ▼                           ▼
+┌──────────────────────────────────────────────────┐
+│                     CORE                          │
+│                                                   │
+│  ┌──────────────┐  ┌────────────────────┐        │
+│  │ Orchestrator  │  │  Memory Manager    │        │
+│  │ (routeur)     │─▶│  (agent specialise)│        │
+│  └──────┬───────┘  └────────────────────┘        │
+│         │          ┌────────────────────┐        │
+│         ├─────────▶│  Research Agent     │        │
+│         │          └────────────────────┘        │
+│         │          ┌────────────────────┐        │
+│         ├─────────▶│  Memory Agent (bg)  │        │
+│         │          └────────────────────┘        │
+│         │          ┌────────────────────┐        │
+│         └─────────▶│  Context Builder    │        │
+│                    └────────┬───────────┘        │
+│                             │                    │
+│  ┌──────────────────────────┴─────────────────┐  │
+│  │              Supabase                       │  │
+│  │  memory | public_knowledge | tasks          │  │
+│  │  clients | daily_plans | events             │  │
+│  └─────────────────────────────────────────────┘  │
+│                                                   │
+│  ┌──────────────┐  ┌──────────────────────┐      │
+│  │  Scheduler    │  │  Transcription       │      │
+│  │  (crons)      │  │  (Whisper FR/RU)     │      │
+│  └──────────────┘  └──────────────────────┘      │
+└──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Matrice des dependances
+## Flux Principaux
 
-| Composant | Depend de | Est utilise par |
-|-----------|-----------|-----------------|
-| Core/DB | Supabase | Tous les bots |
-| Core/AI | Claude API | Tous les bots |
-| Core/Scheduler | Core/DB, Core/AI | Bot Telegram (recoit les notifications) |
-| Bot Telegram | Core/DB, Core/AI, Core/Scheduler | - |
-| Bot Discord | Core/DB, Core/AI | Bot Telegram (notifications) |
-| Bot Instagram | Core/DB, Core/AI | Bot Telegram (notifications) |
+### Flux 1 : Message Admin (Texte ou Vocal)
+
+```
+User → Bot Admin
+  → [Whisper si vocal → transcription FR]
+  → addMessage(chatId, 'user', text)
+  → formatHistoryForPrompt(chatId)
+  → processWithOrchestrator(text, history)
+    → buildContext() (memoire + live + public_knowledge + temporel)
+    → Claude Sonnet analyse message + contexte
+    → Parse JSON : { actions: [...], response: "..." }
+    → Execute actions inline (create_task, complete_task, create_client, note)
+    → Retourne actions speciales (manage_memory, start_research) au handler
+  → Bot envoie result.response
+  → Si manage_memory → appelle Memory Manager (voir flux 2)
+  → Si start_research → appelle Research Agent (voir flux 3)
+  → Memory Agent (background) si pas d'action memoire
+```
+
+### Flux 2 : Gestion Memoire (Admin uniquement)
+
+```
+User demande modification memoire/KB
+  → Orchestrator detecte intent → action manage_memory
+  → Handler appelle processMemoryRequest(userMessage, history)
+    → Charge etat complet : getAllMemory() + getAllPublicKnowledge()
+    → Claude specialise avec prompt memoire + etat complet des 2 tables
+    → Determine : table cible, action, categorie, cle, nouveau contenu
+    → Execute upsert/delete sur la bonne table
+    → Retourne confirmation avec diff (ancien → nouveau)
+  → Bot envoie le rapport du Memory Manager
+```
+
+### Flux 3 : Recherche Approfondie (Admin)
+
+```
+User demande recherche → Orchestrator → action start_research
+  → Handler appelle runResearchAgent({ topic, details, includeMemory })
+    → Si includeMemory → buildContext() pour enrichir
+    → Claude Sonnet avec prompt deep research (maxTokens 16000)
+    → Retourne texte structure libre
+  → Bot envoie rapport (split si > 4096 chars via sendLongMessage)
+```
+
+### Flux 4 : Message Public (Texte ou Vocal)
+
+```
+Utilisateur externe → Bot Public
+  → [Whisper si vocal → transcription RU]
+  → Charge public_knowledge depuis Supabase
+  → Claude avec system prompt russe + knowledge base
+  → Reponse en russe
+  → Regex detection lead : [LEAD: name="..." need="..." budget="..." urgency="..."]
+    → Si lead detecte :
+      → Strip tags de la reponse avant envoi
+      → Notification admin via fetch POST API Telegram (bot admin token)
+  → addMessage + conversation history (20 msgs, 30min TTL)
+```
+
+### Flux 5 : Crons Push (Scheduler → Bot Admin)
+
+```
+08:30  → generateDailyPlan()  → Plan matinal (URGENT / IMPORTANT / OPTIONNEL)
+11:00  → Anti-procrastination  → Si aucune tache commencee
+14:00  → Check mi-journee      → Bilan + recommandation
+19:00  → Bilan du soir         → Score productivite + priorites demain
+00:00  → Rappel sommeil        → Rappel gamifie
+```
+
+### Flux 6 : Contexte Dynamique (chaque requete orchestrateur)
+
+```
+buildContext() →
+  Couche 1 — Memoire personnelle :
+    identity, situation, preference, relationship, lesson
+  Couche 2 — Donnees live :
+    Taches actives (max 15), Pipeline clients
+  Couche 3 — Public Knowledge :
+    formation, services, faq, free_courses, general (contenu complet)
+  Couche 4 — Temporel :
+    Date/heure en francais
+→ Injecte dans system prompt de l'orchestrateur
+```
+
+### Flux 7 : Capture rapide (Admin texte libre)
+
+```
+Bot Telegram Admin : "Ahmed veut un site, budget 2000€"
+  → Orchestrator : parse avec Claude → create_client + create_task
+  → DB : nouveau client + nouvelle tache
+  → Memory Agent (background) : detecte relationship Ahmed
+  → Bot : "Client Ahmed cree. Tache ajoutee."
+```
 
 ---
 
-## Ordre de developpement (base sur les dependances)
+## Flux Futurs (Phase 3+)
+
+### Discord Formateur
 
 ```
-Semaine 1 :  Core/DB + Core/AI + Core/Scheduler (fondations)
-             ↓
-Semaine 1-2: Bot Telegram (utilise le core)
-             ↓
-Semaine 2 :  Bot Discord (utilise le core, notifie Telegram)
-             ↓
-Mois 2 :     Bot Instagram (utilise le core, notifie Telegram)
-             ↓
-Mois 3 :     Systeme contenu (utilise le core + Telegram)
+Etudiant soumet exercice → Discord /submit → Supabase queue
+  → IA pre-review → Notification admin groupee (1x/jour)
+  → Review manuelle → Feedback etudiant
+
+Formateur /assign → Telegram → Brief auto-genere
+  → Thread Discord cree → @TeamMember notifie
+  → Status updates → Resume hebdo
+```
+
+---
+
+## Matrice de Dependances
+
+| Composant | Depend de | Notifie |
+|-----------|-----------|---------|
+| Core/DB | Supabase | — |
+| Core/AI | Claude API, Core/DB | — |
+| Core/Scheduler | Core/AI, Core/DB | Bot Admin |
+| Bot Admin | Core (AI, DB, Scheduler) | — |
+| Bot Public | Core/DB, Claude API | Bot Admin (leads) |
+| Bot Discord | Core (AI, DB) | Bot Admin |
+
+## Ordre de developpement
+
+```
+Core (DB + AI + Scheduler) ✅
+  └──▶ Bot Telegram Admin ✅
+        └──▶ Bot Telegram Public ✅
+              └──▶ Agents Specialises (Memory Manager, Research) ✅
+                    └──▶ Bot Discord (Phase 3)
+                          └──▶ Systeme Contenu (Phase 4)
 ```

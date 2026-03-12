@@ -1,0 +1,234 @@
+import { askClaude } from './client.js';
+import { getAllMemory, upsertMemory, deleteMemory, type MemoryCategory, type MemoryEntry } from '../db/memory.js';
+import { getAllPublicKnowledge, upsertPublicKnowledge, deletePublicKnowledge } from '../db/public-knowledge.js';
+import type { PublicKnowledge, PublicKnowledgeCategory } from '../types/index.js';
+import { logger } from '../logger.js';
+
+export interface MemoryChange {
+  table: 'memory' | 'public_knowledge';
+  action: 'create' | 'update' | 'delete';
+  category: string;
+  key: string;
+  oldContent: string | null;
+  newContent: string | null;
+  reason: string;
+}
+
+export interface MemoryManagerResult {
+  response: string;
+  changes: MemoryChange[];
+}
+
+const MEMORY_MANAGER_PROMPT = `Tu es l'Agent Gestionnaire de Memoire de Magomed — le SEUL responsable de toute modification des bases de donnees memoire.
+
+Tu geres DEUX bases :
+
+1. MEMOIRE PERSONNELLE (table "memory")
+   Informations PRIVEES sur Magomed, invisibles du public.
+   Categories :
+   - identity = qui il est, competences, personnalite (change rarement)
+   - situation = activites en cours, objectifs, finances (change regulierement)
+   - preference = gouts, methodes, outils preferes
+   - relationship = infos sur des personnes specifiques (nom = cle)
+   - lesson = experiences, erreurs, choses apprises
+
+2. BASE DE CONNAISSANCES PUBLIQUE (table "public_knowledge")
+   Informations affichees par le bot public aux utilisateurs (en russe).
+   Categories :
+   - formation = tout sur la formation Pilote Neuro
+   - services = services proposes (sites web, etc.)
+   - faq = questions frequentes
+   - free_courses = cours gratuits (Portal, etc.)
+   - general = infos generales sur Magomed (bio publique)
+
+=== MEMOIRE PERSONNELLE (${'{memory_count}'} entrees) ===
+{memory_state}
+
+=== BASE DE CONNAISSANCES PUBLIQUE (${'{kb_count}'} entrees) ===
+{kb_state}
+
+HISTORIQUE DE CONVERSATION :
+{history}
+
+REGLES STRICTES :
+1. IDENTIFIER LA BONNE TABLE : prix, formation, services, FAQ, cours gratuits, infos publiques → public_knowledge. Infos perso sur Magomed → memory.
+2. CLES EXISTANTES : pour un update, utilise EXACTEMENT la cle existante dans la bonne categorie. JAMAIS de doublon.
+3. MODIFICATIONS CHIRURGICALES : pour un update, modifie SEULEMENT la partie concernee du contenu. Garde le reste du texte INTACT.
+4. VERIFICATION : montre l'ancien contenu et le nouveau dans ta reponse pour que Magomed voie la diff.
+5. Si tu n'es PAS SUR de ce que Magomed veut → mets "changes": [] et pose une question precise dans "response".
+6. Tu peux effectuer PLUSIEURS modifications en une seule reponse.
+7. Si Magomed demande juste de VOIR la memoire (sans modifier) → mets "changes": [] et montre les infos demandees dans "response".
+
+REPONSE (JSON strict, PAS de markdown autour) :
+{
+  "changes": [
+    {
+      "table": "memory" | "public_knowledge",
+      "action": "create" | "update" | "delete",
+      "category": "...",
+      "key": "la_cle_exacte",
+      "old_content": "contenu actuel (null si create)",
+      "new_content": "nouveau contenu COMPLET de l'entree (null si delete)",
+      "reason": "pourquoi ce changement"
+    }
+  ],
+  "response": "Message clair pour Magomed confirmant les modifications avec ancien → nouveau"
+}`;
+
+export async function processMemoryRequest(params: {
+  userMessage: string;
+  conversationHistory?: string;
+}): Promise<MemoryManagerResult> {
+  logger.info('Memory manager: processing request');
+
+  // Load full state of both tables
+  const [allMemory, allKnowledge] = await Promise.all([
+    getAllMemory(),
+    getAllPublicKnowledge().catch(() => [] as PublicKnowledge[]),
+  ]);
+
+  const memoryState = formatMemoryState(allMemory);
+  const kbState = formatKBState(allKnowledge);
+
+  const systemPrompt = MEMORY_MANAGER_PROMPT
+    .replace('{memory_count}', String(allMemory.length))
+    .replace('{memory_state}', memoryState)
+    .replace('{kb_count}', String(allKnowledge.length))
+    .replace('{kb_state}', kbState)
+    .replace('{history}', params.conversationHistory || '(pas d\'historique)');
+
+  const response = await askClaude({
+    prompt: params.userMessage,
+    systemPrompt,
+    model: 'sonnet',
+    maxTokens: 4096,
+  });
+
+  // Parse response
+  let jsonString = response.trim();
+  if (jsonString.startsWith('```')) {
+    jsonString = jsonString.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+  }
+
+  interface ParsedChange {
+    table: 'memory' | 'public_knowledge';
+    action: 'create' | 'update' | 'delete';
+    category: string;
+    key: string;
+    old_content: string | null;
+    new_content: string | null;
+    reason: string;
+  }
+
+  let parsed: { changes: ParsedChange[]; response: string };
+  try {
+    parsed = JSON.parse(jsonString);
+  } catch {
+    logger.warn({ response: jsonString.substring(0, 200) }, 'Memory manager: failed to parse JSON');
+    return {
+      response: response.replace(/```json\s*/g, '').replace(/```/g, '').trim(),
+      changes: [],
+    };
+  }
+
+  if (!parsed.changes || parsed.changes.length === 0) {
+    return { response: parsed.response, changes: [] };
+  }
+
+  // Execute changes
+  const executedChanges: MemoryChange[] = [];
+
+  for (const change of parsed.changes) {
+    try {
+      if (change.table === 'memory') {
+        const category = change.category as MemoryCategory;
+        if (change.action === 'delete') {
+          await deleteMemory(category, change.key);
+        } else {
+          await upsertMemory({
+            category,
+            key: change.key,
+            content: change.new_content ?? '',
+            source: 'memory_manager',
+          });
+        }
+      } else if (change.table === 'public_knowledge') {
+        const category = change.category as PublicKnowledgeCategory;
+        if (change.action === 'delete') {
+          await deletePublicKnowledge(category, change.key);
+        } else {
+          await upsertPublicKnowledge({
+            category,
+            key: change.key,
+            content: change.new_content ?? '',
+          });
+        }
+      }
+
+      executedChanges.push({
+        table: change.table,
+        action: change.action,
+        category: change.category,
+        key: change.key,
+        oldContent: change.old_content ?? null,
+        newContent: change.new_content ?? null,
+        reason: change.reason ?? '',
+      });
+
+      logger.info(
+        { table: change.table, action: change.action, category: change.category, key: change.key },
+        'Memory manager: change executed'
+      );
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      logger.error({ err: errMsg, change }, 'Memory manager: failed to execute change');
+    }
+  }
+
+  logger.info({ changeCount: executedChanges.length }, 'Memory manager: completed');
+
+  return {
+    response: parsed.response,
+    changes: executedChanges,
+  };
+}
+
+function formatMemoryState(entries: MemoryEntry[]): string {
+  if (entries.length === 0) return '(vide)';
+
+  const grouped: Record<string, MemoryEntry[]> = {};
+  for (const entry of entries) {
+    if (!grouped[entry.category]) grouped[entry.category] = [];
+    grouped[entry.category]!.push(entry);
+  }
+
+  let result = '';
+  for (const [category, items] of Object.entries(grouped)) {
+    result += `[${category}]\n`;
+    for (const item of items) {
+      result += `  • ${item.key}: ${item.content}\n`;
+    }
+    result += '\n';
+  }
+  return result;
+}
+
+function formatKBState(entries: PublicKnowledge[]): string {
+  if (entries.length === 0) return '(vide ou table non creee)';
+
+  const grouped: Record<string, PublicKnowledge[]> = {};
+  for (const entry of entries) {
+    if (!grouped[entry.category]) grouped[entry.category] = [];
+    grouped[entry.category]!.push(entry);
+  }
+
+  let result = '';
+  for (const [category, items] of Object.entries(grouped)) {
+    result += `[${category}]\n`;
+    for (const item of items) {
+      result += `  • ${item.key}: ${item.content}\n`;
+    }
+    result += '\n';
+  }
+  return result;
+}

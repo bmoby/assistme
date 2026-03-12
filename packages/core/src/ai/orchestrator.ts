@@ -7,11 +7,7 @@ import {
   getActiveTasks,
 } from '../db/tasks.js';
 import { createClient } from '../db/clients.js';
-import { upsertMemory, deleteMemory } from '../db/memory.js';
-import { upsertPublicKnowledge, deletePublicKnowledge } from '../db/public-knowledge.js';
 import { logger } from '../logger.js';
-import type { MemoryCategory } from '../db/memory.js';
-import type { PublicKnowledgeCategory } from '../types/index.js';
 
 const ORCHESTRATOR_PROMPT = `Tu es le copilote personnel de Magomed, son assistant IA qui le connait parfaitement.
 
@@ -40,17 +36,16 @@ REGLES :
 - Rappelle ses objectifs quand c'est pertinent
 
 GESTION DE LA MEMOIRE ET DU BOT PUBLIC :
-- Si Magomed demande de MODIFIER, AJOUTER ou SUPPRIMER quelque chose dans sa memoire perso ou dans la base du bot public → utilise update_memory ou update_kb
-- IMPORTANT : l'action sera executee IMMEDIATEMENT. Assure-toi d'utiliser la bonne categorie et la bonne cle (key) existante.
-- Utilise EXACTEMENT les cles (key) qui existent deja dans la base. Ne change pas le nom des cles.
-- Dans ta reponse, confirme ce qui a ete modifie.
-- Si Magomed te demande de modifier et que tu n'es pas sur de quel champ il parle, demande-lui de preciser SANS inclure d'action.
+- Si Magomed demande de MODIFIER, AJOUTER, SUPPRIMER ou CONSULTER quelque chose dans sa memoire perso ou dans la base du bot public → utilise manage_memory
+- Un agent specialise prendra le relais pour effectuer les modifications intelligemment
+- Dans ta reponse, dis-lui simplement que tu t'en occupes (l'agent memoire donnera les details)
+- IMPORTANT : utilise manage_memory des que la demande concerne les donnees stockees (prix, infos formation, infos perso, etc.)
 
 FORMAT DE REPONSE (JSON strict, PAS de markdown autour) :
 {
   "actions": [
     {
-      "type": "create_task" | "complete_task" | "create_client" | "note" | "update_memory" | "update_kb" | "start_research",
+      "type": "create_task" | "complete_task" | "create_client" | "note" | "manage_memory" | "start_research",
       "data": { ... }
     }
   ],
@@ -61,8 +56,7 @@ Pour create_task : data = { "title", "category" (client|student|content|personal
 Pour complete_task : data = { "task_title_match" }
 Pour create_client : data = { "name", "need", "budget_range", "source" }
 Pour note : data = { "content" }
-Pour update_memory : data = { "action" (create|update|delete), "category" (identity|situation|preference|relationship|lesson), "key", "content" }
-Pour update_kb : data = { "action" (create|update|delete), "category" (formation|services|faq|free_courses|general), "key", "content" }
+Pour manage_memory : data = { "intent": "description de ce que Magomed veut faire" }
 Pour start_research : data = { "topic", "details", "include_memory" (true/false) }
 
 AGENT DE RECHERCHE :
@@ -70,7 +64,7 @@ AGENT DE RECHERCHE :
 - AVANT de lancer, pose des questions pour bien cerner le sujet : quel angle ? quel objectif ? quel public cible ? quelle profondeur ?
 - Ne lance la recherche (start_research) QUE quand tu as assez d'info. Sinon, pose d'abord tes questions SANS action.
 - "include_memory" = true si le sujet est lie a la situation personnelle de Magomed (ses activites, son business, etc.)
-- La recherche genere un PDF qui sera envoye directement dans le chat.
+- La recherche genere un rapport detaille envoye directement dans le chat.
 
 HISTORIQUE DE CONVERSATION RECENTE :
 {history}`;
@@ -159,27 +153,13 @@ export async function processWithOrchestrator(message: string, conversationHisto
           executedActions.push({ type: 'note', data: { content: action.data['content'] } });
           break;
         }
-        case 'update_memory': {
-          const memAction = action.data['action'] ?? 'update';
-          const memCategory = action.data['category'] as MemoryCategory;
-          const memKey = action.data['key'] ?? '';
-          const memContent = action.data['content'] ?? '';
-
-          if (memAction === 'delete') {
-            await deleteMemory(memCategory, memKey);
-            logger.info({ category: memCategory, key: memKey }, 'Memory deleted via orchestrator');
-          } else {
-            await upsertMemory({
-              category: memCategory,
-              key: memKey,
-              content: memContent,
-              source: 'admin_manual',
-            });
-            logger.info({ category: memCategory, key: memKey, content: memContent }, 'Memory updated via orchestrator');
-          }
+        case 'manage_memory': {
+          // Not executed here — returned to the handler which runs the memory manager
           executedActions.push({
-            type: 'update_memory',
-            data: { action: memAction, category: memCategory, key: memKey, content: memContent },
+            type: 'manage_memory',
+            data: {
+              intent: action.data['intent'] ?? '',
+            },
           });
           break;
         }
@@ -195,29 +175,6 @@ export async function processWithOrchestrator(message: string, conversationHisto
           });
           break;
         }
-        case 'update_kb': {
-          const kbAction = action.data['action'] ?? 'update';
-          const kbCategory = action.data['category'] as PublicKnowledgeCategory;
-          const kbKey = action.data['key'] ?? '';
-          const kbContent = action.data['content'] ?? '';
-
-          if (kbAction === 'delete') {
-            await deletePublicKnowledge(kbCategory, kbKey);
-            logger.info({ category: kbCategory, key: kbKey }, 'Public knowledge deleted via orchestrator');
-          } else {
-            await upsertPublicKnowledge({
-              category: kbCategory,
-              key: kbKey,
-              content: kbContent,
-            });
-            logger.info({ category: kbCategory, key: kbKey, content: kbContent }, 'Public knowledge updated via orchestrator');
-          }
-          executedActions.push({
-            type: 'update_kb',
-            data: { action: kbAction, category: kbCategory, key: kbKey, content: kbContent },
-          });
-          break;
-        }
       }
     } catch (error) {
       logger.error({ error, action }, 'Failed to execute action');
@@ -225,7 +182,7 @@ export async function processWithOrchestrator(message: string, conversationHisto
   }
 
   // Run Memory Agent in background (don't wait) — only for non-memory-management messages
-  const hasMemoryAction = executedActions.some((a) => a.type === 'update_memory' || a.type === 'update_kb');
+  const hasMemoryAction = executedActions.some((a) => a.type === 'manage_memory');
   if (!hasMemoryAction) {
     const actionsSummary = executedActions
       .map((a) => `${a.type}: ${JSON.stringify(a.data)}`)

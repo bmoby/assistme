@@ -1,57 +1,23 @@
-# SPEC : Systeme de Memoire Intelligente
+# Systeme de Memoire Intelligente
 
-> **Statut : ✅ IMPLEMENTE** — Table memory, Memory Agent, Context Builder, seed initial. Voir fichiers : `core/src/db/memory.ts`, `core/src/ai/memory-agent.ts`, `core/src/ai/context-builder.ts`, `supabase/migrations/002_memory_and_events.sql`
+> **Statut : ✅ IMPLEMENTE** — Tables `memory` + `public_knowledge`, Memory Manager, Memory Agent, Context Builder.
 
-## Probleme
-Un fichier statique `context.ts` ne suffit pas. La situation de Magomed change :
-- Les cours se terminent, de nouveaux commencent
-- Des clients arrivent et partent
-- L'equipe evolue
-- Les objectifs changent
-- De nouvelles infos arrivent chaque jour
+## Vue d'ensemble
 
-Le systeme doit **apprendre et se mettre a jour tout seul**.
+Le systeme de memoire permet a l'assistant de connaitre Magomed profondement et d'evoluer avec lui. Deux tables distinctes gerent la memoire personnelle et les connaissances publiques.
 
 ---
 
-## Architecture de la memoire
+## Tables
 
-### 3 couches de memoire
+### Table `memory` — Memoire Personnelle
 
-```
-┌─────────────────────────────────────────────────────┐
-│  COUCHE 1 : IDENTITE (quasi permanente)             │
-│  Qui est Magomed, personnalite, fonctionnement      │
-│  Change : rarement (tous les 3-6 mois)              │
-│  Stockage : table `memory` category='identity'      │
-└─────────────────────────────────────────────────────┘
-         │
-┌─────────────────────────────────────────────────────┐
-│  COUCHE 2 : SITUATION (evolue regulierement)        │
-│  Activites en cours, equipe, objectifs, finances    │
-│  Change : chaque semaine/mois                       │
-│  Stockage : table `memory` category='situation'     │
-│  Mise a jour : automatique par l'Agent Memoire      │
-└─────────────────────────────────────────────────────┘
-         │
-┌─────────────────────────────────────────────────────┐
-│  COUCHE 3 : CONTEXTE LIVE (temps reel)              │
-│  Taches actives, clients en cours, messages recents │
-│  Change : en permanence                             │
-│  Stockage : tables existantes (tasks, clients, etc) │
-│  Lecture : a chaque requete                         │
-└─────────────────────────────────────────────────────┘
-```
-
----
-
-## Table `memory`
+Informations privees sur Magomed, invisibles du public.
 
 ```sql
-CREATE TABLE IF NOT EXISTS memory (
+CREATE TABLE memory (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  category TEXT NOT NULL
-    CHECK (category IN ('identity', 'situation', 'preference', 'relationship', 'lesson')),
+  category TEXT NOT NULL CHECK (category IN ('identity','situation','preference','relationship','lesson')),
   key TEXT NOT NULL,
   content TEXT NOT NULL,
   confidence DECIMAL DEFAULT 1.0,
@@ -62,159 +28,138 @@ CREATE TABLE IF NOT EXISTS memory (
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(category, key)
 );
-
-CREATE INDEX idx_memory_category ON memory(category);
-CREATE INDEX idx_memory_key ON memory(key);
 ```
 
-### Categories
+| Categorie | Contenu | Frequence de changement |
+|-----------|---------|------------------------|
+| `identity` | Competences, personnalite, fonctionnement | Rarement (3-6 mois) |
+| `situation` | Activites en cours, equipe, objectifs, finances | Regulierement (semaines) |
+| `preference` | Gouts, methodes, outils preferes | Quand dit explicitement |
+| `relationship` | Infos sur des personnes (nom = cle) | Au fil des conversations |
+| `lesson` | Experiences, erreurs, choses apprises | Quand un apprentissage emerge |
 
-| Categorie | Exemples | Duree de vie |
-|-----------|----------|--------------|
-| `identity` | Personnalite, competences, fonctionnement mental | Permanente |
-| `situation` | Activites en cours, equipe, objectifs, localisation | Mois |
-| `preference` | "N'aime pas les reviews micro", "veut du shadow boxing" | Permanente sauf correction |
-| `relationship` | Info sur chaque personne (client, etudiant, famille) | Mise a jour continue |
-| `lesson` | "Monday.com a echoue car trop de friction" | Permanente |
+### Table `public_knowledge` — Connaissances Publiques
 
-### Exemples de donnees
+Informations affichees par le bot public aux utilisateurs (en russe).
 
+```sql
+CREATE TABLE public_knowledge (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  category TEXT NOT NULL CHECK (category IN ('formation','services','faq','free_courses','general')),
+  key TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(category, key)
+);
 ```
-category='identity', key='expertise', content='Dev JS/TS 10+ ans, autodidacte, ex Renault/Prisma/Cegid/Cresus'
-category='identity', key='motivation_style', content='Motive par objectifs concrets et peur de perdre. Paralyse par trop de choix.'
-category='identity', key='productive_hours', content='Fenetre 10h-15h. Apres 15h ca descend.'
-category='situation', key='formation_session2', content='30 places, lancement fin mars 2026, duree 3 mois, 1200€. Syllabus a ecrire.'
-category='situation', key='equipe', content='6 membres operationnels, 1 client en cours, commission 20%'
-category='situation', key='objectifs_3mois', content='Session 2 reussie, clients reguliers pour equipe, securite financiere'
-category='preference', key='outils', content='Zero friction obligatoire. Push > Pull. Pas de Monday.com.'
-category='relationship', key='frere_jordanie', content='Bot Telegram livraison gateaux, quasi fini, ~1 jour de travail'
-category='lesson', key='session1_logistique', content='Google Drive = chaos autorisations. Supabase Storage a la place.'
+
+| Categorie | Contenu | Exemples |
+|-----------|---------|----------|
+| `formation` | Tout sur Pilote Neuro | prix, programme, duree, format, resultats |
+| `services` | Services proposes | creation de sites, tarifs, processus |
+| `faq` | Questions frequentes | experience requise, langue, garantie |
+| `free_courses` | Cours gratuits | Portal, lien Telegram |
+| `general` | Infos publiques sur Magomed | bio, parcours, reseaux |
+
+---
+
+## Agents qui gerent la memoire
+
+### Memory Manager (On-Demand) ✅
+
+**Fichier** : `packages/core/src/ai/memory-manager.ts`
+**Declenchement** : Quand l'admin demande une modification (action `manage_memory`).
+
+**Responsabilites :**
+- Seul agent autorise a modifier `memory` ET `public_knowledge` sur demande explicite
+- Charge l'etat complet des deux tables avant chaque operation
+- Identifie automatiquement la bonne table et la bonne cle
+- Modifications chirurgicales (change uniquement la partie concernee)
+- Confirme avec diff (ancien → nouveau)
+
+**Flow :**
+```
+Admin : "Change le prix a 2500"
+  → Orchestrateur detecte intent memoire → action manage_memory
+  → Handler appelle processMemoryRequest()
+    → Charge : memory + public_knowledge (etat complet)
+    → Claude analyse : c'est public_knowledge.formation.pricing
+    → Ancien : "2997€ payable en 3 fois"
+    → Nouveau : "2500€ payable en 3 fois"
+    → Execute upsert
+  → Bot : "Modifie : pricing (formation) — 2997€ → 2500€"
+```
+
+### Memory Agent (Background) ✅
+
+**Fichier** : `packages/core/src/ai/memory-agent.ts`
+**Declenchement** : Automatique apres chaque message (fire-and-forget).
+
+**Responsabilites :**
+- Detecte automatiquement les changements de situation
+- Ne modifie que la table `memory` (pas `public_knowledge`)
+- Ne se declenche pas si `manage_memory` a ete execute
+- Silencieux (pas de reponse utilisateur)
+
+**Flow :**
+```
+Admin : "J'ai signe un nouveau client pour 5000€"
+  → Orchestrateur : cree le client (action inline)
+  → Memory Agent (background) :
+    → Detecte : info sur situation financiere
+    → Upsert memory.situation.current_clients
 ```
 
 ---
 
-## Agent Memoire
+## Context Builder ✅
 
-### Role
-Ecoute tout ce que Magomed dit (vocal, texte) et met a jour la memoire automatiquement.
+**Fichier** : `packages/core/src/ai/context-builder.ts`
 
-### Fonctionnement
-A chaque message traite par le bot, l'Agent Memoire se pose ces questions :
-1. Est-ce que ce message contient une info qui change ma connaissance de la situation ?
-2. Est-ce que quelque chose que je savais est maintenant obsolete ?
-3. Est-ce qu'il y a une nouvelle personne, un nouveau fait, une nouvelle preference ?
+Construit le contexte dynamique injecte dans chaque requete orchestrateur.
 
-### Implementation
-Apres chaque traitement de message, un appel IA secondaire (leger, Haiku ou Sonnet) :
+### 4 Couches
 
 ```
-System prompt :
-"Tu es l'Agent Memoire. Tu analyses le message de Magomed et determines
-si la memoire doit etre mise a jour.
+buildContext() →
 
-MEMOIRE ACTUELLE :
-[injection de toutes les entrees memory]
+  Couche 1 — Memoire Personnelle :
+    QUI EST MAGOMED : [identity]
+    SITUATION ACTUELLE : [situation]
+    PREFERENCES : [preference]
+    PERSONNES CONNUES : [relationship]
+    LECONS APPRISES : [lesson]
 
-MESSAGE DE MAGOMED :
-[le message transcrit]
+  Couche 2 — Donnees Live :
+    TACHES ACTIVES (max 15, avec priorite et deadline)
+    CLIENTS (pipeline avec statut et besoin)
 
-ACTIONS DEJA PRISES :
-[les actions du processMessage]
+  Couche 3 — Public Knowledge :
+    BASE DE CONNAISSANCES DU BOT PUBLIC
+    Contenu COMPLET (pas tronque) pour permettre la gestion
 
-Reponds en JSON :
-{
-  "updates": [
-    {
-      "action": "create" | "update" | "delete",
-      "category": "...",
-      "key": "...",
-      "content": "...",
-      "reason": "..."
-    }
-  ]
-}
-
-Si rien a mettre a jour, reponds : { "updates": [] }
-Sois selectif : ne mets a jour que quand c'est significatif."
-```
-
-### Quand l'Agent Memoire s'execute
-- Apres chaque message vocal (info riche)
-- Apres chaque message texte (si > 20 caracteres)
-- PAS pour les commandes (/plan, /tasks, etc.)
-- En arriere-plan (n'attend pas la reponse pour repondre a l'utilisateur)
-
----
-
-## Construction du contexte a chaque requete
-
-Au lieu d'un fichier statique, le systeme construit le contexte dynamiquement :
-
-```typescript
-async function buildContext(): Promise<string> {
-  // Couche 1 : Identite (depuis memory)
-  const identity = await getMemoryByCategory('identity');
-
-  // Couche 2 : Situation (depuis memory)
-  const situation = await getMemoryByCategory('situation');
-  const preferences = await getMemoryByCategory('preference');
-  const lessons = await getMemoryByCategory('lesson');
-
-  // Couche 3 : Live (depuis les tables operationnelles)
-  const activeTasks = await getActiveTasks();
-  const clients = await getClientPipeline();
-  const now = new Date();
-
-  return `
-IDENTITE :
-${identity.map(m => `- ${m.key}: ${m.content}`).join('\n')}
-
-SITUATION ACTUELLE :
-${situation.map(m => `- ${m.key}: ${m.content}`).join('\n')}
-
-PREFERENCES :
-${preferences.map(m => `- ${m.key}: ${m.content}`).join('\n')}
-
-LECONS APPRISES :
-${lessons.map(m => `- ${m.key}: ${m.content}`).join('\n')}
-
-DONNEES LIVE :
-- ${activeTasks.length} taches actives
-${activeTasks.slice(0, 10).map(t => `  - [${t.priority}] ${t.title}`).join('\n')}
-- ${clients.length} clients dans le pipeline
-${clients.map(c => `  - ${c.name} [${c.status}]`).join('\n')}
-- Date: ${now.toLocaleDateString('fr-FR')} ${now.toLocaleTimeString('fr-FR')}
-  `;
-}
+  Couche 4 — Temporel :
+    DATE ET HEURE en francais
 ```
 
 ---
 
-## Migration des donnees statiques
+## Securite
 
-> **Statut : ✅ FAIT** — Les donnees statiques ont ete converties en ~25 entrees INSERT dans `002_memory_and_events.sql` et injectees dans la table `memory`. Le fichier `context.ts` statique est deprecie et sera supprime une fois le systeme confirme en production. Toute modification future passe par l'Agent Memoire automatiquement ou par commande manuelle (a implementer).
-
----
-
-## Commandes de gestion memoire (Telegram)
-
-> **Statut : ❌ PAS ENCORE IMPLEMENTE** — A faire dans une prochaine iteration.
-
-| Commande | Action |
-|----------|--------|
-| `/memory` | Voir un resume de ce que le bot sait |
-| `/memory identity` | Voir la couche identite |
-| `/memory situation` | Voir la couche situation |
-| `/forget [key]` | Supprimer une entree |
-| `/correct [key] [nouveau contenu]` | Corriger une info |
+- **Bot Admin uniquement** peut modifier la memoire (via Memory Manager ou commande /kb)
+- **Bot Public** lit uniquement `public_knowledge` (aucune ecriture)
+- **Memory Agent** ecrit uniquement dans `memory` (pas `public_knowledge`)
+- Les modifications sont loguees avec leur source (`memory_manager`, `memory_agent`, `admin_manual`)
 
 ---
 
-## Cout estime
+## Cout
 
-- Agent Memoire (Sonnet) : ~500 tokens input + 200 output par message = ~$0.003/message
-- Construction du contexte : ~1000 tokens = ~$0.003/message
-- Total par message : ~$0.008 (le processMessage principal + memoire + contexte)
-- 30 messages/jour = ~$0.24/jour = ~$7/mois
+| Operation | Cout/requete |
+|-----------|-------------|
+| Memory Manager (on-demand) | ~$0.006 |
+| Memory Agent (background) | ~$0.003 |
+| Context Builder | $0 (lecture DB) |
 
-Acceptable pour la valeur apportee.
+Budget memoire : ~$5/mois pour 30 messages/jour.

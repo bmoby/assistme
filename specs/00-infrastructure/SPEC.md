@@ -1,6 +1,7 @@
-# SPEC : Infrastructure Partagee
+# 00 — Infrastructure Partagee
 
 ## Vue d'ensemble
+
 Infrastructure commune a tous les composants du systeme. Definit la base de donnees, l'hebergement, les API partagees et les conventions.
 
 ---
@@ -8,22 +9,12 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 ## 1. Base de donnees (Supabase)
 
 ### 1.1 Instance
-- **Instance existante** : Deja en place (utilisee pour inscriptions etudiants + paiements)
-- **Action** : Etendre le schema existant avec les nouvelles tables
+- **Instance existante** : Supabase avec PostgreSQL
+- **Migrations** : `supabase/migrations/` (001_initial.sql, 002_memory_and_events.sql, 003_public_knowledge.sql)
 
-### 1.2 Schema de la base de donnees
+### 1.2 Schema
 
-#### Table `profiles` (utilisateur principal)
-```sql
-- id UUID PRIMARY KEY
-- name TEXT
-- role TEXT ('admin')
-- telegram_chat_id TEXT
-- settings JSONB (preferences de notifications, horaires, etc.)
-- created_at TIMESTAMPTZ
-```
-
-#### Table `tasks`
+#### Table `tasks` ✅
 ```sql
 - id UUID PRIMARY KEY
 - title TEXT NOT NULL
@@ -32,252 +23,220 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 - priority TEXT ('urgent', 'important', 'normal', 'low')
 - status TEXT ('todo', 'in_progress', 'waiting', 'done', 'cancelled')
 - due_date TIMESTAMPTZ
-- due_time TEXT (heure specifique si necessaire)
+- due_time TEXT
 - estimated_minutes INTEGER
 - completed_at TIMESTAMPTZ
-- source TEXT ('telegram', 'discord', 'instagram', 'auto', 'manual')
-- related_id UUID (lien vers client, student, etc.)
+- source TEXT ('telegram', 'discord', 'orchestrator', 'auto', 'manual')
+- related_id UUID
 - related_type TEXT ('client', 'student', 'team_member', 'content')
 - notes TEXT
-- created_at TIMESTAMPTZ
-- updated_at TIMESTAMPTZ
+- created_at, updated_at TIMESTAMPTZ
 ```
 
-#### Table `daily_plans`
+#### Table `daily_plans` ✅
 ```sql
 - id UUID PRIMARY KEY
 - date DATE UNIQUE
-- plan JSONB (liste ordonnee de taches avec horaires)
+- plan JSONB
 - status TEXT ('generated', 'active', 'completed')
-- review TEXT (bilan de fin de journee)
-- productivity_score INTEGER (1-10, auto-evalue)
+- review TEXT
+- productivity_score INTEGER (1-10)
 - created_at TIMESTAMPTZ
 ```
 
-#### Table `students` (etendre l'existant)
+#### Table `memory` ✅
+```sql
+- id UUID PRIMARY KEY
+- category TEXT ('identity', 'situation', 'preference', 'relationship', 'lesson')
+- key TEXT NOT NULL
+- content TEXT NOT NULL
+- confidence DECIMAL DEFAULT 1.0
+- source TEXT DEFAULT 'conversation'
+- last_confirmed TIMESTAMPTZ
+- expires_at TIMESTAMPTZ
+- created_at, updated_at TIMESTAMPTZ
+- UNIQUE(category, key)
+```
+
+#### Table `public_knowledge` ✅
+```sql
+- id UUID PRIMARY KEY
+- category TEXT ('formation', 'services', 'faq', 'free_courses', 'general')
+- key TEXT NOT NULL
+- content TEXT NOT NULL
+- created_at, updated_at TIMESTAMPTZ
+- UNIQUE(category, key)
+```
+
+#### Table `events` ✅ (creee, pas encore active)
+```sql
+- id UUID PRIMARY KEY
+- type TEXT NOT NULL
+- source TEXT NOT NULL
+- target TEXT
+- data JSONB
+- status TEXT ('pending', 'processed', 'failed')
+- created_at, processed_at TIMESTAMPTZ
+```
+
+#### Table `clients` ✅
 ```sql
 - id UUID PRIMARY KEY
 - name TEXT NOT NULL
 - phone TEXT
-- email TEXT
-- telegram_id TEXT
-- discord_id TEXT
-- session INTEGER (1, 2, ...)
-- status TEXT ('interested', 'registered', 'paid', 'active', 'completed', 'dropped')
-- payment_status TEXT ('pending', 'partial', 'paid')
-- payment_amount DECIMAL
-- payment_method TEXT ('bank_transfer', 'crypto')
-- payment_details JSONB (echeances, dates, montants)
-- enrolled_at TIMESTAMPTZ
-- completed_at TIMESTAMPTZ
-- notes TEXT
-- created_at TIMESTAMPTZ
-- updated_at TIMESTAMPTZ
-```
-
-#### Table `student_exercises`
-```sql
-- id UUID PRIMARY KEY
-- student_id UUID REFERENCES students(id)
-- module INTEGER
-- exercise_number INTEGER
-- submission_url TEXT
-- submission_type TEXT ('link', 'file', 'discord_message')
-- submitted_at TIMESTAMPTZ
-- ai_review JSONB (pre-review automatique)
-- manual_review TEXT (review du formateur)
-- status TEXT ('submitted', 'ai_reviewed', 'reviewed', 'approved', 'revision_needed')
-- reviewed_at TIMESTAMPTZ
-- feedback TEXT
-- created_at TIMESTAMPTZ
-```
-
-#### Table `clients`
-```sql
-- id UUID PRIMARY KEY
-- name TEXT NOT NULL
-- phone TEXT
-- source TEXT ('instagram', 'tiktok', 'telegram', 'referral')
-- business_type TEXT (metier du client)
-- need TEXT (description du besoin)
-- budget_range TEXT ('500-1000', '1000-2000', '2000-3000', '3000+')
+- source TEXT ('telegram', 'referral', 'conversation')
+- business_type TEXT
+- need TEXT
+- budget_range TEXT
 - status TEXT ('lead', 'qualified', 'proposal_sent', 'accepted', 'in_progress', 'delivered', 'paid')
-- qualification_data JSONB (donnees du bot telegram)
+- qualification_data JSONB
 - proposal_url TEXT
 - assigned_to UUID REFERENCES team_members(id)
 - project_deadline TIMESTAMPTZ
 - amount DECIMAL
 - commission_amount DECIMAL
 - notes TEXT
-- created_at TIMESTAMPTZ
-- updated_at TIMESTAMPTZ
+- created_at, updated_at TIMESTAMPTZ
 ```
 
-#### Table `team_members`
+#### Table `students` (Phase 3)
 ```sql
 - id UUID PRIMARY KEY
-- name TEXT NOT NULL
-- discord_id TEXT
-- telegram_id TEXT
-- phone TEXT
+- name, phone, email, telegram_id, discord_id
+- session INTEGER
+- status TEXT ('interested', 'registered', 'paid', 'active', 'completed', 'dropped')
+- payment_status, payment_amount, payment_method, payment_details
+- enrolled_at, completed_at, notes
+- created_at, updated_at
+```
+
+#### Table `student_exercises` (Phase 3)
+```sql
+- id UUID PRIMARY KEY
+- student_id UUID REFERENCES students(id)
+- module INTEGER, exercise_number INTEGER
+- submission_url TEXT, submission_type TEXT
+- submitted_at TIMESTAMPTZ
+- ai_review JSONB, manual_review TEXT
+- status TEXT ('submitted', 'ai_reviewed', 'reviewed', 'approved', 'revision_needed')
+- reviewed_at, feedback
+- created_at
+```
+
+#### Table `team_members` (Phase 3)
+```sql
+- id UUID PRIMARY KEY
+- name, discord_id, telegram_id, phone
 - skills JSONB
 - availability TEXT ('available', 'busy', 'unavailable')
-- current_project_id UUID
-- total_projects INTEGER DEFAULT 0
-- notes TEXT
-- created_at TIMESTAMPTZ
-- updated_at TIMESTAMPTZ
+- current_project_id UUID, total_projects INTEGER
+- notes, created_at, updated_at
 ```
 
-#### Table `messages_log`
+#### Table `content_ideas` (Phase 4)
 ```sql
 - id UUID PRIMARY KEY
-- platform TEXT ('instagram', 'tiktok', 'telegram', 'whatsapp', 'discord')
-- sender_name TEXT
-- sender_id TEXT
-- message_text TEXT
-- category TEXT ('client', 'student', 'social', 'technical', 'vip', 'unknown')
-- auto_response TEXT (reponse envoyee automatiquement)
-- requires_manual BOOLEAN DEFAULT false
-- handled BOOLEAN DEFAULT false
-- handled_at TIMESTAMPTZ
-- created_at TIMESTAMPTZ
-```
-
-#### Table `content_ideas`
-```sql
-- id UUID PRIMARY KEY
-- title TEXT NOT NULL
-- topic TEXT
-- angle TEXT
-- type TEXT ('educational', 'demo', 'storytelling', 'tutorial')
-- platform TEXT ('instagram', 'tiktok', 'both')
+- title, topic, angle, type, platform
 - key_points JSONB
 - status TEXT ('idea', 'researched', 'scripted', 'filmed', 'published')
-- published_at TIMESTAMPTZ
-- published_url TEXT
-- engagement JSONB (vues, likes, commentaires)
-- created_at TIMESTAMPTZ
+- published_at, published_url, engagement JSONB
+- created_at
 ```
 
-#### Table `habits`
+#### Table `habits` (Phase 4)
 ```sql
 - id UUID PRIMARY KEY
-- date DATE
-- wake_up_time TIMESTAMPTZ
-- sleep_time TIMESTAMPTZ
-- work_start TIMESTAMPTZ
-- work_end TIMESTAMPTZ
-- sport_done BOOLEAN DEFAULT false
-- sport_duration INTEGER (minutes)
-- tasks_completed INTEGER
-- tasks_total INTEGER
-- mood INTEGER (1-5)
-- notes TEXT
-- created_at TIMESTAMPTZ
+- date DATE, wake_up_time, sleep_time, work_start, work_end
+- sport_done BOOLEAN, sport_duration INTEGER
+- tasks_completed, tasks_total, mood INTEGER (1-5)
+- notes, created_at
 ```
 
-#### Table `reminders`
+#### Table `reminders` (Phase 3)
 ```sql
 - id UUID PRIMARY KEY
-- message TEXT NOT NULL
-- trigger_at TIMESTAMPTZ
+- message TEXT, trigger_at TIMESTAMPTZ
 - repeat TEXT ('once', 'daily', 'weekly', 'custom')
 - repeat_config JSONB
 - channel TEXT ('telegram', 'discord')
 - status TEXT ('active', 'sent', 'cancelled')
 - task_id UUID REFERENCES tasks(id)
-- created_at TIMESTAMPTZ
+- created_at
 ```
 
 ### 1.3 Supabase Storage
-- **Bucket `course-videos`** : Videos des cours enregistrees
-- **Bucket `course-resources`** : PDFs, documents, supports de cours
+- **Bucket `course-videos`** : Videos des cours
+- **Bucket `course-resources`** : PDFs, documents, supports
 - **Bucket `exercise-submissions`** : Fichiers soumis par les etudiants
-- **Bucket `client-proposals`** : Propositions clients (PDF)
-- **Acces** : Policies RLS pour securiser par role
-
-### 1.4 Supabase Edge Functions
-- Utilisees pour les webhooks (Instagram, Telegram)
-- Ou comme alternative legere au serveur Node.js pour certaines fonctions
+- **Bucket `client-proposals`** : Propositions clients
 
 ---
 
-## 2. Serveur Backend (Orchestrateur)
+## 2. Stack Technique
 
-### 2.1 Stack
-- **Runtime** : Node.js 20+ avec TypeScript
-- **Framework** : Fastify (leger, performant) ou Hono (ultra-leger)
-- **ORM** : Supabase JS Client (pas besoin d'ORM externe)
-- **Cron** : node-cron pour les taches planifiees
-- **File structure** : Monorepo avec workspaces
+| Composant | Technologie |
+|-----------|-------------|
+| Runtime | Node.js 20+ |
+| Langage | TypeScript strict, ESM modules |
+| DB | Supabase (PostgreSQL + Storage) |
+| IA | Claude API (@anthropic-ai/sdk) |
+| Transcription | OpenAI Whisper API |
+| Bot Telegram | grammY |
+| Bot Discord | discord.js |
+| Cron | node-cron |
+| Validation | Zod |
+| Logging | pino |
+| Monorepo | pnpm workspaces |
+| Dev | tsx |
 
-### 2.2 Hebergement
-- **Option 1** : Railway (simple, auto-deploy depuis Git)
-- **Option 2** : Fly.io (plus de controle, bon free tier)
-- **Option 3** : VPS (Hetzner, ~5€/mois, controle total)
-- **Recommandation** : Railway pour demarrer rapidement, migrer si besoin
-
-### 2.3 Structure du monorepo
+### Structure du monorepo
 ```
 vibe-coder/
 ├── packages/
-│   ├── core/              # Logique partagee (DB, Claude API, utils)
-│   │   ├── src/
-│   │   │   ├── db/        # Client Supabase, queries
-│   │   │   ├── ai/        # Client Claude API, prompts
-│   │   │   ├── scheduler/ # Cron jobs, rappels
-│   │   │   └── types/     # Types TypeScript partages
-│   │   └── package.json
-│   ├── bot-telegram/      # Bot Telegram Copilote
-│   │   ├── src/
-│   │   └── package.json
-│   ├── bot-discord/       # Bot Discord Formateur
-│   │   ├── src/
-│   │   └── package.json
-│   └── bot-instagram/     # Bot Instagram Filtre
-│       ├── src/
-│       └── package.json
-├── specs/                 # Specifications (ce dossier)
-├── docs/                  # Documentation
-├── package.json           # Workspace root
-├── tsconfig.json          # Config TypeScript partagee
-├── CLAUDE.md              # Instructions Claude Code
-└── .env                   # Variables d'environnement
+│   ├── core/                  # Logique partagee (DB, AI, Scheduler, Types)
+│   ├── bot-telegram/          # Bot Admin Copilote (FR)
+│   ├── bot-telegram-public/   # Bot Public (RU)
+│   ├── bot-discord/           # Bot Formateur (Phase 3)
+│   └── bot-instagram/         # Reserve (non developpe)
+├── supabase/
+│   └── migrations/            # SQL migrations
+├── specs/                     # Specifications
+├── docs/                      # Documentation
+├── CLAUDE.md                  # Instructions Claude Code
+└── .env                       # Variables d'environnement
 ```
+
+### Hebergement
+- **Option recommandee** : Railway (simple, auto-deploy depuis Git)
+- **Alternative** : Fly.io ou VPS Hetzner (~5€/mois)
 
 ---
 
 ## 3. APIs externes
 
-### 3.1 Claude API (Anthropic)
-- **Usage** : Raisonnement, classification messages, generation propositions, pre-review code, FAQ
-- **Modeles** :
-  - `claude-sonnet-4-6` : Taches rapides (classification, reponses courtes, FAQ)
-  - `claude-opus-4-6` : Taches complexes (propositions clients, recherche metier, plans)
-- **Cle API** : Variable d'environnement `ANTHROPIC_API_KEY`
-- **Budget estime** : ~$20-50/mois selon usage
+### Claude API (Anthropic) ✅
+- Modeles : Sonnet (rapide, ~$0.003-0.01/requete), Opus (complexe), Haiku (ultra-leger)
+- Variable : `ANTHROPIC_API_KEY`
+- Budget : ~$15-20/mois
 
-### 3.2 Telegram Bot API
-- **Usage** : Bot Copilote (interface principale)
-- **Token** : Via @BotFather
-- **Gratuit** et sans limite significative
+### OpenAI Whisper API ✅
+- Transcription audio multi-langue (FR, RU)
+- Variable : `OPENAI_API_KEY`
 
-### 3.3 Discord API
-- **Usage** : Bot Formateur (etudiants + equipe)
-- **Token** : Via Discord Developer Portal
-- **Gratuit**
+### Telegram Bot API ✅
+- 2 bots : admin (FR) + public (RU)
+- Variables : `TELEGRAM_BOT_TOKEN`, `PUBLIC_BOT_TOKEN`
+- Gratuit
 
-### 3.4 Meta Graph API (Instagram)
-- **Usage** : Bot Filtre (DMs Instagram)
-- **Prerequis** : Compte Instagram Business + Page Facebook + Meta Developer App
-- **App Review** : 2-6 semaines (⚠️ SOUMETTRE MAINTENANT)
-- **Limite** : 200 DMs/heure, fenetre 24h
-- **Gratuit** (API elle-meme)
+### Discord API (Phase 3)
+- Bot Formateur
+- Variable : `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`
+- Gratuit
 
 ---
 
 ## 4. Variables d'environnement
+
 ```env
 # Supabase
 SUPABASE_URL=
@@ -287,19 +246,24 @@ SUPABASE_SERVICE_ROLE_KEY=
 # Claude API
 ANTHROPIC_API_KEY=
 
-# Telegram
+# OpenAI (Whisper)
+OPENAI_API_KEY=
+
+# Telegram Admin Bot
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_ADMIN_CHAT_ID=
 
-# Discord
+# Telegram Public Bot
+PUBLIC_BOT_TOKEN=
+
+# Discord (Phase 3)
 DISCORD_BOT_TOKEN=
 DISCORD_GUILD_ID=
 
-# Instagram (Meta)
-META_APP_ID=
-META_APP_SECRET=
-META_ACCESS_TOKEN=
-INSTAGRAM_ACCOUNT_ID=
+# URLs
+PILOTE_NEURO_URL=
+PORTAL_URL=
+TELEGRAM_GROUP_URL=
 
 # Server
 NODE_ENV=production
@@ -308,30 +272,24 @@ PORT=3000
 
 ---
 
-## 5. Conventions de developpement
+## 5. Conventions
 
-### 5.1 Code
-- TypeScript strict mode
-- ESLint + Prettier
-- Pas de `any`, typage explicite
+### Code
+- TypeScript strict mode, pas de `any`
+- ESM imports (`import`/`export`)
 - Fonctions pures quand possible
-- Gestion d'erreurs avec types Result
+- Gestion d'erreurs explicite, pas de catches silencieux
+- Toutes les queries DB via `packages/core/src/db/`
+- Tous les appels Claude via `packages/core/src/ai/`
 
-### 5.2 Git
-- Branch principale : `main`
-- Branches feature : `feat/nom-de-la-feature`
-- Branches fix : `fix/nom-du-fix`
+### Git
+- Branche principale : `main`
+- Branches feature : `feat/nom`
+- Branches fix : `fix/nom`
 - Commits conventionnels : `feat:`, `fix:`, `docs:`, `chore:`
 
-### 5.3 Tests
-- Tests unitaires pour la logique core (Vitest)
-- Tests d'integration pour les bots (optionnel, phase 2)
-
----
-
-## 6. Securite
-- Toutes les cles en variables d'environnement
-- RLS Supabase active sur toutes les tables
-- Validation des inputs sur tous les webhooks
-- Rate limiting sur les endpoints publics
+### Securite
+- Cles en variables d'environnement uniquement
+- Jamais de `.env` dans Git
+- Validation des inputs sur endpoints publics
 - Pas de donnees sensibles dans les logs

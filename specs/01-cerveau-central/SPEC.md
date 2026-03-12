@@ -1,332 +1,207 @@
-# SPEC : Cerveau Central (Core)
+# 01 — Cerveau Central (Core)
 
-> **Statut Phase 1 : ✅ IMPLEMENTE**
-> Fichiers principaux :
-> - `core/src/db/` : client.ts, tasks.ts, daily-plans.ts, clients.ts, memory.ts
-> - `core/src/ai/` : client.ts, planner.ts, transcribe.ts, context-builder.ts, memory-agent.ts, orchestrator.ts
-> - `core/src/scheduler/` : index.ts
-> - `core/src/types/` : index.ts
-> - `core/src/logger.ts`
+> **Statut : ✅ Phase 1 + 2 IMPLEMENTEES**
 
-## Vue d'ensemble
-Le Cerveau Central est le package `core` du monorepo. Il contient toute la logique partagee : connexion a la base de donnees, client Claude API, moteur de priorisation, systeme de rappels et cron jobs.
+**Package** : `packages/core`
+**Entry point** : `src/index.ts`
 
-C'est le "cerveau" : il ne parle a personne directement. Les bots (Telegram, Discord, Instagram) l'utilisent comme librairie.
+Le cerveau central contient toute la logique partagee : base de donnees, IA, scheduling, types.
+Tous les bots en dependent via `@vibe-coder/core`.
 
 ---
 
-## 1. Module : Database (`core/src/db/`)
+## 1. Module Database (`src/db/`)
 
-### 1.1 Client Supabase
-- Initialisation du client Supabase avec service role key
-- Export des fonctions typees pour chaque table
+Client Supabase unique (`src/db/client.ts`) utilise par tous les modules.
 
-### 1.2 Fonctions CRUD principales
-
-#### Tasks ✅ IMPLEMENTE (`core/src/db/tasks.ts`)
-```typescript
-createTask(task: NewTask): Promise<Task>
-getTask(id: string): Promise<Task>
-updateTask(id: string, updates: Partial<Task>): Promise<Task>
-deleteTask(id: string): Promise<void>
-getTasksByStatus(status: TaskStatus): Promise<Task[]>
-getTasksByCategory(category: TaskCategory): Promise<Task[]>
-getTasksDueToday(): Promise<Task[]>
-getOverdueTasks(): Promise<Task[]>
-getActiveTasks(): Promise<Task[]>  // todo + in_progress + waiting
-getNextTask(): Promise<Task | null>  // La plus prioritaire non faite
-completeTask(id: string): Promise<Task>
-```
-
-#### Daily Plans ✅ IMPLEMENTE (`core/src/db/daily-plans.ts`)
-```typescript
-getDailyPlan(date: string): Promise<DailyPlan | null>
-saveDailyPlan(plan: { date, tasks, summary }): Promise<DailyPlan>
-updateDailyPlanReview(id: string, review: string): Promise<DailyPlan>
-```
-
-#### Memory ✅ IMPLEMENTE (`core/src/db/memory.ts`)
-```typescript
-getAllMemory(): Promise<MemoryEntry[]>
-getMemoryByCategory(category: MemoryCategory): Promise<MemoryEntry[]>
-getMemoryEntry(category: MemoryCategory, key: string): Promise<MemoryEntry | null>
-upsertMemory(params: { category, key, content, source? }): Promise<MemoryEntry>
-deleteMemory(category: MemoryCategory, key: string): Promise<void>
-```
-
-#### Clients ✅ IMPLEMENTE (`core/src/db/clients.ts`)
-```typescript
-createClient(client: NewClient): Promise<Client>
-getClient(id: string): Promise<Client>
-getClientsByStatus(status: ClientStatus): Promise<Client[]>
-getClientPipeline(): Promise<Client[]>
-updateClientStatus(id: string, status: ClientStatus): Promise<Client>
-assignClientToMember(clientId: string, memberId: string): Promise<void>
-searchClientByName(name: string): Promise<Client[]>
-```
-
-#### Students ❌ PAS ENCORE (Phase 2)
-```typescript
-getStudent(id: string): Promise<Student>
-getStudentsBySession(session: number): Promise<Student[]>
-getStudentsByStatus(status: StudentStatus): Promise<Student[]>
-updateStudentProgress(id: string, updates: Partial<Student>): Promise<Student>
-getStudentsWithPendingExercises(): Promise<Student[]>
-```
-
-#### Team Members ❌ PAS ENCORE (Phase 3)
-```typescript
-getAvailableMembers(): Promise<TeamMember[]>
-getMemberWorkload(id: string): Promise<{ member: TeamMember, projects: Client[] }>
-```
-
-#### Messages ❌ PAS ENCORE
-```typescript
-logMessage(message: NewMessage): Promise<MessageLog>
-getUnhandledMessages(): Promise<MessageLog[]>
-markAsHandled(id: string): Promise<void>
-```
-
-#### Habits ❌ PAS ENCORE (Phase 4)
-```typescript
-logHabit(habit: NewHabit): Promise<Habit>
-getHabitsForWeek(startDate: Date): Promise<Habit[]>
-getHabitStreak(habitType: string): Promise<number>
-```
+| Fichier | Table | Statut |
+|---------|-------|--------|
+| `tasks.ts` | tasks | ✅ createTask, completeTask, getActiveTasks, getTasksByCategory, etc. |
+| `daily-plans.ts` | daily_plans | ✅ createDailyPlan, getTodayPlan, updatePlanStatus |
+| `memory.ts` | memory | ✅ getAllMemory, getMemoryByCategory, getMemoryEntry, upsertMemory, deleteMemory |
+| `public-knowledge.ts` | public_knowledge | ✅ getAllPublicKnowledge, getByCategory, getEntry, upsert, delete |
+| `clients.ts` | clients | ✅ createClient, getClientPipeline, updateClientStatus |
+| `students.ts` | students | ❌ Phase 3 |
+| `exercises.ts` | student_exercises | ❌ Phase 3 |
+| `team.ts` | team_members | ❌ Phase 3 |
+| `messages.ts` | messages_log | ❌ Futur |
+| `habits.ts` | habits | ❌ Futur |
 
 ---
 
-## 2. Module : AI (`core/src/ai/`)
+## 2. Module AI (`src/ai/`)
 
-### 2.1 Client Claude API
+### 2.1 Client Claude API ✅ (`client.ts`)
+
 ```typescript
-// Client generique
 askClaude(params: {
   prompt: string
   systemPrompt?: string
-  model?: 'sonnet' | 'opus'
+  model?: 'sonnet' | 'opus' | 'haiku'
   maxTokens?: number
 }): Promise<string>
 ```
 
-### 2.2 Orchestrateur ✅ IMPLEMENTE
+### 2.2 Orchestrateur ✅ (`orchestrator.ts`)
+
+Routeur principal. Recoit un message + historique → decide + execute + repond.
 
 ```typescript
-// Fichier : core/src/ai/orchestrator.ts
-processWithOrchestrator(message: string): Promise<OrchestratorResult>
-// - Construit le contexte dynamique (buildContext)
-// - Envoie a Claude Sonnet avec system prompt + contexte
-// - Parse la reponse JSON (actions + response)
-// - Execute les actions : create_task, complete_task, create_client, note
-// - Lance le Memory Agent en arriere-plan
+processWithOrchestrator(message: string, conversationHistory?: string): Promise<OrchestratorResult>
 ```
 
-### 2.3 Context Builder ✅ IMPLEMENTE
+**Flow :**
+1. `buildContext()` — charge memoire + live + public_knowledge + temporel
+2. Claude Sonnet avec system prompt + contexte + historique
+3. Parse JSON : `{ actions: [...], response: "..." }`
+4. Execute actions inline : `create_task`, `complete_task`, `create_client`, `note`
+5. Retourne actions speciales au handler : `manage_memory`, `start_research`
+6. Lance Memory Agent en background (si pas d'action memoire)
+
+**Actions supportees :**
+
+| Action | Execution | Description |
+|--------|-----------|-------------|
+| `create_task` | Inline (orchestrateur) | Cree tache avec titre, categorie, priorite, deadline |
+| `complete_task` | Inline (orchestrateur) | Complete tache par match de titre |
+| `create_client` | Inline (orchestrateur) | Cree lead avec nom, besoin, budget, source |
+| `note` | Inline (log seulement) | Note informative |
+| `manage_memory` | Delegue au handler → Memory Manager | Toute operation memoire/KB |
+| `start_research` | Delegue au handler → Research Agent | Recherche approfondie |
+
+### 2.3 Memory Manager ✅ (`memory-manager.ts`)
+
+Agent specialise pour toutes les operations sur `memory` et `public_knowledge`.
 
 ```typescript
-// Fichier : core/src/ai/context-builder.ts
-buildContext(): Promise<string>
-// Construit le contexte a partir de 3 couches :
-// 1. Memory (table memory : identity, situation, preference, relationship, lesson)
-// 2. Live data (tables tasks + clients)
-// 3. Temporel (date + heure locale)
+processMemoryRequest(params: {
+  userMessage: string
+  conversationHistory?: string
+}): Promise<MemoryManagerResult>
 ```
 
-### 2.4 Memory Agent ✅ IMPLEMENTE
+**Flow :**
+1. Charge etat complet : `getAllMemory()` + `getAllPublicKnowledge()`
+2. Claude specialise avec etat complet + demande utilisateur
+3. Determine table, action, categorie, cle, contenu
+4. Execute modifications chirurgicales (upsert/delete)
+5. Retourne confirmation avec diff (ancien → nouveau)
+
+**Regles :**
+- Identifie automatiquement la bonne table (prix/formation/services → `public_knowledge`, perso → `memory`)
+- Utilise les cles existantes, jamais de doublons
+- Change uniquement la partie concernee du contenu
+- Si incertain, pose une question au lieu de modifier
+
+### 2.4 Research Agent ✅ (`research-agent.ts`)
+
+Recherches approfondies, rapports structures en texte libre.
 
 ```typescript
-// Fichier : core/src/ai/memory-agent.ts
-runMemoryAgent(params: { message, actionsSummary }): Promise<void>
-// - Lit toute la memoire actuelle
-// - Envoie a Claude Sonnet pour analyser si mise a jour necessaire
-// - Execute les updates (create/update/delete) sur la table memory
-// - Tourne en arriere-plan (fire-and-forget), ne bloque pas la reponse
+runResearchAgent(params: {
+  topic: string
+  details: string
+  includeMemory?: boolean
+}): Promise<ResearchResult>  // { content: string }
 ```
 
-### 2.5 Transcription vocale ✅ IMPLEMENTE
+- maxTokens 16000 pour rapports complets
+- Prompt encourage l'exhaustivite (pas de limite de profondeur)
+- Optionnel : inclut contexte memoire via `buildContext()`
+- Texte structure (titres, emojis, paragraphes detailles)
+
+### 2.5 Memory Agent Background ✅ (`memory-agent.ts`)
+
+Analyse automatiquement chaque message pour detecter des changements de situation.
 
 ```typescript
-// Fichier : core/src/ai/transcribe.ts
-transcribeAudio(buffer: Buffer, filename: string): Promise<string>
-// - Utilise l'API Whisper (OpenAI) pour transcrire l'audio en francais
-```
-
-### 2.6 Fonctions IA specialisees (A VENIR)
-
-#### Priorisation
-```typescript
-// Genere le plan du jour en analysant toutes les taches, deadlines, contexte
-generateDailyPlan(params: {
-  tasks: Task[]
-  overdueTasks: Task[]
-  clients: Client[]
-  studentsNeedingAttention: Student[]
-  habits: Habit[]
-  dayOfWeek: string
-}): Promise<DailyPlan>
-```
-
-**System prompt de priorisation :**
-```
-Tu es l'assistant personnel de Magomed. Tu connais sa situation :
-- Fenetre productive : 10h-15h (proteger absolument)
-- Il fonctionne avec des objectifs concrets et des victoires rapides
-- Il est motive par la peur de perdre quelque chose
-- Il est paralyse quand il a trop de choix
-- Il a besoin qu'on decide pour lui quand il hesite
-
-Regles de priorisation :
-1. URGENT + avec deadline proche = en premier
-2. Les taches qui debloquent d'autres personnes (equipe, clients, etudiants)
-3. Maximum 3 taches "rouges" par jour (sinon paralysie)
-4. Toujours commencer par une tache rapide (<15 min) pour lancer la dynamique
-5. Apres 15h : taches legeres (reponses, review, planification)
-6. Integrer le sport si pas fait depuis 3+ jours
-```
-
-#### Classification de messages
-```typescript
-classifyMessage(params: {
-  text: string
-  senderName: string
-  platform: string
-}): Promise<{
-  category: 'client' | 'student' | 'social' | 'technical' | 'vip' | 'unknown'
-  confidence: number
-  suggestedResponse: string
-  requiresManual: boolean
-}>
-```
-
-#### Recherche metier client
-```typescript
-researchClientBusiness(params: {
-  businessType: string
-  clientNeed: string
-  additionalContext?: string
-}): Promise<{
-  industryOverview: string
-  competitors: string[]
-  suggestedFeatures: string[]
-  technicalRecommendations: string
-  estimatedBudget: string
-}>
-```
-
-#### Generation de proposition
-```typescript
-generateProposal(params: {
-  client: Client
-  research: BusinessResearch
-  teamMember?: TeamMember
-}): Promise<{
-  proposalText: string
-  features: string[]
-  timeline: string
-  budgetBreakdown: string
-}>
-```
-
-#### Pre-review de code/projet
-```typescript
-reviewStudentProject(params: {
-  projectUrl: string
-  exerciseRequirements: string
-  studentLevel: string
-}): Promise<{
-  structureOk: boolean
-  mainIssues: string[]
-  suggestions: string[]
-  score: number
-  summary: string
-}>
-```
-
-#### FAQ automatique
-```typescript
-answerFAQ(params: {
-  question: string
-  context: 'pre_sale' | 'student' | 'technical'
-  knowledgeBase: string[]  // Reponses precedentes similaires
-}): Promise<{
-  answer: string
-  confidence: number
-  shouldEscalate: boolean
-}>
-```
-
----
-
-## 3. Module : Scheduler (`core/src/scheduler/`)
-
-### 3.1 Cron Jobs
-
-| Job | Horaire | Action | Statut |
-|-----|---------|--------|--------|
-| `morning-plan` | 08:30 tous les jours | Generer le plan du jour, envoyer sur Telegram | ✅ |
-| `anti-procrastination` | 11:00 tous les jours | Si aucune tache completee -> rappel Telegram | ✅ |
-| `afternoon-check` | 14:00 tous les jours | Bilan mi-journee + ajuster les priorites | ✅ |
-| `evening-review` | 19:00 tous les jours | Resume de la journee, planifier demain | ✅ |
-| `midnight-reminder` | 00:00 tous les jours | Rappel coucher sur Telegram | ✅ |
-| `content-weekly` | Lundi 10:00 | Suggerer des idees de contenu | ❌ Phase 5 |
-| `overdue-check` | Toutes les 2h | Verifier les taches en retard, alerter | ❌ |
-| `client-followup` | Tous les jours 10:00 | Clients en attente de reponse > 24h | ❌ Phase 3 |
-| `student-check` | Tous les jours 10:00 | Etudiants bloques depuis > 48h | ❌ Phase 2 |
-| `family-reminder` | Configurable | Rappel pour appeler parents/enfants | ❌ Phase 4 |
-| `sport-reminder` | Si pas fait depuis 3j | Rappel sport | ❌ Phase 4 |
-
-### 3.2 Systeme de rappels
-```typescript
-createReminder(params: {
+runMemoryAgent(params: {
   message: string
-  triggerAt: Date
-  repeat?: RepeatConfig
-  channel: 'telegram' | 'discord'
-  taskId?: string
-}): Promise<Reminder>
-
-processReminders(): Promise<void>  // Appele toutes les minutes par un cron
+  actionsSummary: string
+}): Promise<void>
 ```
 
-### 3.3 Event Bus (interne)
-Systeme simple d'evenements pour connecter les modules :
+- Fire-and-forget (pas de reponse utilisateur)
+- Ne se declenche PAS si `manage_memory` a ete execute
+- Categories : identity, situation, preference, relationship, lesson
+- Ne met a jour que pour des changements significatifs
+
+### 2.6 Context Builder ✅ (`context-builder.ts`)
+
+Construit le contexte dynamique injecte dans le system prompt.
+
 ```typescript
-// Evenements emis
-'task:created' -> Mettre a jour le plan du jour si urgent
-'task:completed' -> Feliciter + donner la tache suivante
-'client:new_lead' -> Notifier sur Telegram
-'client:status_changed' -> Mettre a jour le pipeline
-'student:exercise_submitted' -> Lancer pre-review IA
-'student:stuck' -> Alerter sur Telegram
-'message:received' -> Classifier + router
-'habit:sport_done' -> Feliciter
-'habit:no_sport_3days' -> Rappeler
+buildContext(): Promise<string>
+```
+
+**4 couches :**
+1. Memoire personnelle (identity, situation, preference, relationship, lesson)
+2. Donnees live (taches actives max 15, pipeline clients)
+3. Public Knowledge (contenu complet pour gestion)
+4. Temporel (date/heure en francais)
+
+### 2.7 Transcription ✅ (`transcribe.ts`)
+
+```typescript
+transcribeAudio(buffer: Buffer, filename: string, language: string = 'fr'): Promise<string>
+```
+
+- OpenAI Whisper API
+- Langues : `fr` (admin bot), `ru` (public bot)
+- Formats : .ogg (Telegram voice), .mp3, .wav
+
+### 2.8 Planner ✅ (`planner.ts`)
+
+```typescript
+generateDailyPlan(params): Promise<DailyPlan>
+parseUserMessage(message: string): Promise<ParsedMessage>
 ```
 
 ---
 
-## 4. Module : Types (`core/src/types/`)
+## 3. Module Scheduler (`src/scheduler/`)
 
-### 4.1 Types partages
-Toutes les interfaces TypeScript correspondant aux tables Supabase + les types metier.
-
-```typescript
-// Exemples
-type TaskCategory = 'client' | 'student' | 'content' | 'personal' | 'dev' | 'team'
-type TaskPriority = 'urgent' | 'important' | 'normal' | 'low'
-type TaskStatus = 'todo' | 'in_progress' | 'waiting' | 'done' | 'cancelled'
-type ClientStatus = 'lead' | 'qualified' | 'proposal_sent' | 'accepted' | 'in_progress' | 'delivered' | 'paid'
-type StudentStatus = 'interested' | 'registered' | 'paid' | 'active' | 'completed' | 'dropped'
-// ... etc
-```
+| Cron | Heure | Action | Statut |
+|------|-------|--------|--------|
+| Plan matinal | 08:30 | Genere plan du jour → push Telegram | ✅ |
+| Anti-procrastination | 11:00 | Si aucune tache commencee → rappel | ✅ |
+| Check mi-journee | 14:00 | Bilan + recommandation | ✅ |
+| Bilan du soir | 19:00 | Score productivite + priorites demain | ✅ |
+| Rappel sommeil | 00:00 | Rappel gamifie | ✅ |
+| Veille contenu | Lundi 10:00 | Suggestions contenu | ❌ Phase 4 |
+| Student check | Quotidien 10:00 | Etudiants bloques > 48h | ❌ Phase 3 |
+| Client followup | Quotidien 10:00 | Clients en attente > 24h | ❌ Phase 3 |
 
 ---
 
-## 5. Dependances principales
+## 4. Module Types (`src/types/index.ts`)
+
+Types TypeScript stricts pour toutes les tables Supabase :
+Task, DailyPlan, Client, Student, StudentExercise, TeamMember, MessageLog, ContentIdea, Habit, Reminder, PublicKnowledge.
+
+---
+
+## 5. Exports (`src/index.ts`)
+
+```typescript
+export * from './types/index.js';
+export * from './db/index.js';
+export * from './ai/index.js';
+export * as scheduler from './scheduler/index.js';
+export { logger } from './logger.js';
+```
+
+Tous les bots importent depuis `@vibe-coder/core`.
+
+---
+
+## 6. Dependances
+
 ```json
 {
   "@supabase/supabase-js": "^2.x",
   "@anthropic-ai/sdk": "latest",
+  "openai": "^4.x",
   "node-cron": "^3.x",
   "zod": "^3.x",
   "pino": "^8.x"

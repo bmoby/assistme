@@ -7,3 +7,5 @@ export { processWithOrchestrator } from './orchestrator.js';
 export type { OrchestratorResult } from './orchestrator.js';
 export { runResearchAgent } from './research-agent.js';
 export type { ResearchResult } from './research-agent.js';
+export { processMemoryRequest } from './memory-manager.js';
+export type { MemoryManagerResult, MemoryChange } from './memory-manager.js';

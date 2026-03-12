@@ -1,144 +1,120 @@
-# Roadmap de Developpement
+# ROADMAP — Vibe Coder
 
-## Contexte
-- Session 2 des cours dans ~2 semaines
-- 1 seul developpeur (Magomed) assiste par Claude Code
-- Stack : TypeScript, Supabase, grammY, discord.js, Claude API
+Systeme multi-bots connectes a un cerveau central (Supabase + Claude API).
+Developpement par phases, chaque phase livre un composant fonctionnel.
 
 ---
 
-## PHASE 0 : Setup (Jour 1) ✅ TERMINE
-> Mettre en place l'infrastructure de dev
+## Phase 0 — Infrastructure ✅
 
-- [x] Initialiser le monorepo (pnpm workspaces)
+*Jour 1 — Termine*
+
+- [x] Initialiser le monorepo pnpm workspaces
 - [x] Config TypeScript strict, ESM modules
 - [x] Creer le package `core`
-- [x] Configurer Supabase (tables, indexes)
-- [x] Creer le `.env` avec toutes les cles
-- [x] Creer le `CLAUDE.md` avec les instructions pour Claude Code
-- [x] Setup Git + premiere commit (pousse sur GitHub privé)
-- [x] Creer le bot Telegram via @BotFather
-- [x] Tester la connexion Supabase + Claude API
+- [x] Configurer Supabase (tables, indexes, migrations)
+- [x] Variables d'environnement (.env)
+- [x] Setup Git + GitHub prive
+- [x] Creer le bot Telegram admin via @BotFather
+- [x] Tester connexion Supabase + Claude API
 
 **Livrable** : Monorepo fonctionnel avec core connecte a Supabase et Claude API.
 
 ---
 
-## PHASE 1 : Bot Telegram Copilote v1 (Jours 2-5) ✅ TERMINE
-> L'essentiel : savoir quoi faire chaque matin + capturer les taches
+## Phase 1 — Cerveau Central + Bot Telegram Admin ✅
 
-### Core + commandes de base ✅
-- [x] Core/DB : CRUD tasks, daily_plans, clients, memory
-- [x] Core/AI : `askClaude()` client avec choix modele (sonnet/opus)
-- [x] Core/AI : `generateDailyPlan()` + `parseUserMessage()`
-- [x] Core/AI : `transcribeAudio()` via Whisper API
-- [x] Core/AI : `buildContext()` - contexte dynamique 3 couches (memoire + live + temporel)
-- [x] Core/AI : `processWithOrchestrator()` - traitement intelligent des messages
-- [x] Core/AI : `runMemoryAgent()` - mise a jour memoire en arriere-plan
-- [x] Core/DB : `memory.ts` - CRUD table memory (getAllMemory, upsertMemory, deleteMemory, etc.)
-- [x] Bot Telegram : Setup grammY, long polling
-- [x] Bot Telegram : Commandes /start, /plan, /next, /done, /add, /tasks, /skip, /clients, /client, /newclient
-- [x] Bot Telegram : Texte libre → processWithOrchestrator()
-- [x] Bot Telegram : Vocal → Whisper transcription → processWithOrchestrator()
+*Jours 2-5 — Termine*
 
-### Cron jobs ✅
-- [x] Core/Scheduler : Setup node-cron
-- [x] Cron : Plan du matin (08:30)
-- [x] Cron : Anti-procrastination (11:00)
-- [x] Cron : Check-in 14:00
-- [x] Cron : Review 19:00
-- [x] Cron : Rappel coucher (00:00)
+### Core (`packages/core`)
+- [x] Client Claude API generique (Sonnet / Opus / Haiku)
+- [x] Client Supabase + CRUD : tasks, daily_plans, memory, clients
+- [x] Orchestrateur : analyse message → actions → reponse
+- [x] Context Builder dynamique (4 couches : memoire + live + public_knowledge + temporel)
+- [x] Memory Agent background (auto-update memoire apres chaque message)
+- [x] Transcription audio via Whisper (multi-langue FR/RU)
+- [x] Scheduler : crons push (plan matinal, anti-procrastination, bilan soir)
+- [x] Logger pino + Types TypeScript complets
 
-### Systeme de memoire intelligent ✅
-- [x] Table `memory` (5 categories: identity, situation, preference, relationship, lesson)
-- [x] Table `events` (prete pour le bus d'evenements futur)
-- [x] Seed initial ~25 entrees memoire depuis le profil utilisateur
-- [x] Memory Agent qui analyse chaque message et met a jour la memoire automatiquement
-- [x] Contexte dynamique construit a chaque requete (memoire + taches + clients + date)
+### Bot Telegram Admin (`packages/bot-telegram`)
+- [x] Authentification admin (ADMIN_TELEGRAM_ID)
+- [x] Commandes : /start, /plan, /next, /done, /add, /tasks, /skip, /clients, /kb
+- [x] Capture libre texte → orchestrateur
+- [x] Messages vocaux → Whisper FR → orchestrateur
+- [x] Historique de conversation (in-memory, 20 msgs, 1h TTL)
+- [x] Crons push : plan matinal 08:30, anti-procrastination 11:00, check 14:00, bilan 19:00, rappel sommeil 00:00
+- [x] Splitting messages longs (>4096 chars)
 
-### Reste a faire
-- [ ] Commandes `/memory`, `/forget`, `/correct` (gestion memoire manuelle)
-- [ ] Filtrage Memory Agent (pas pour commandes, pas pour messages < 20 chars)
-- [ ] Inline keyboards (boutons)
-- [ ] Deploy sur Railway/Fly.io
-- [ ] Test complet en conditions reelles
-
-**Livrable** : Bot Telegram operationnel avec orchestrateur intelligent, memoire evolutive, vocal, et rappels.
+**Livrable** : Bot Telegram admin operationnel avec orchestrateur intelligent, memoire evolutive, vocal, et rappels.
 
 ---
 
-## PHASE 2 : Bot Discord Formateur v1 (Jours 6-10)
-> Pret pour le lancement de la session 2
+## Phase 2 — Bot Telegram Public + Agents Specialises ✅
 
-### Jour 6 : Setup
-- [ ] Creer le bot Discord via Developer Portal
-- [ ] Setup discord.js dans le package
-- [ ] Configurer les categories, canaux, roles sur le serveur
+*Jours 6-10 — Termine*
 
-### Jour 7-8 : Exercices + ressources
-- [ ] Commande `/submit` : soumission d'exercices
-- [ ] File d'attente visible
-- [ ] Supabase Storage : upload/download de ressources
-- [ ] Commande `/resource` : ajout de ressource par le formateur
-- [ ] Post automatique dans #ressources
+### Bot Telegram Public (`packages/bot-telegram-public`)
+- [x] Interface en russe pour l'audience
+- [x] Reponses basees sur la table `public_knowledge` (formation, services, FAQ, cours gratuits)
+- [x] Messages vocaux en russe (Whisper)
+- [x] Detection de leads via tags caches `[LEAD:...]`
+- [x] Notification admin automatique via API Telegram
+- [x] Historique de conversation (in-memory, 20 msgs, 30min TTL)
+- [x] Migration seed ~20 entrees de connaissances publiques
 
-### Jour 9 : FAQ + notifications
-- [ ] FAQ basique avec Claude API dans #faq
-- [ ] Notifications vers Telegram (exercices en attente, questions)
-- [ ] Rappels de deadline (48h, 24h)
+### Memory Manager Agent (`packages/core/src/ai/memory-manager.ts`)
+- [x] Agent specialise pour TOUTES les operations memoire
+- [x] Gere `memory` (perso) + `public_knowledge` (bot public)
+- [x] Charge l'etat complet des deux tables avant chaque operation
+- [x] Modifications chirurgicales (change uniquement la partie concernee)
+- [x] Confirmation avec diff (ancien → nouveau)
+- [x] Declenchement via action `manage_memory` de l'orchestrateur
 
-### Jour 10 : Polish + test
-- [ ] Test avec 2-3 anciens eleves
-- [ ] Ajuster les messages et le flow
-- [ ] Documenter les commandes pour les etudiants
+### Research Agent (`packages/core/src/ai/research-agent.ts`)
+- [x] Recherches approfondies sur un sujet
+- [x] Texte structure libre (maxTokens 16000)
+- [x] Inclut contexte memoire si pertinent
+- [x] Declenchement via action `start_research` de l'orchestrateur
+
+**Livrable** : Bot public fonctionnel + agents specialises (memoire + recherche).
+
+---
+
+## Phase 3 — Bot Discord Formateur 🔜
+
+*Prochaine phase — Pour le lancement session 2*
+
+### Bot Discord (`packages/bot-discord`)
+- [ ] Structure serveur (GENERAL, FORMATION, EQUIPE, ADMIN)
+- [ ] Systeme de roles (@Formateur, @Equipe, @Session2)
+- [ ] FAQ automatique (#faq) avec base de connaissances
+- [ ] Soumission d'exercices (/submit) avec file d'attente
+- [ ] Pre-review IA des exercices
+- [ ] Ressources pedagogiques (#resources) via Supabase Storage
+- [ ] Notifications groupees vers bot admin (1x/jour)
+- [ ] Gestion equipe : projets clients, briefs, threads automatiques
+
+### Core — Additions Phase 3
+- [ ] CRUD Students + Student Exercises
+- [ ] CRUD Team Members
+- [ ] Agent classification exercices
+- [ ] Generation briefs clients
 
 **Livrable** : Discord pret pour la session 2 avec exercices, ressources et FAQ.
 
 ---
 
-## PHASE 3 : Enrichissement Telegram + Equipe (Semaines 3-4)
+## Phase 4 — Systeme Contenu + Ameliorations 📋
 
-- [ ] Cron : Bilan 15h + Review 19h
-- [ ] Commandes clients : `/clients`, `/newclient`
-- [ ] Commande `/assign` → cree brief Discord
-- [ ] Core/AI : `researchClientBusiness()`
-- [ ] Core/AI : `generateProposal()`
-- [ ] Commande `/research [client]`
-- [ ] Commande `/proposal [client]`
-- [ ] Suivi statut projets equipe
-- [ ] Resume equipe hebdomadaire
+*Futur*
 
-**Livrable** : Pipeline client automatise + gestion equipe.
-
----
-
-## PHASE 4 : Bot Instagram Filtre (Mois 2)
-
-- [ ] Soumettre Meta App Review (⚠️ FAIRE MAINTENANT, pas en mois 2)
-- [ ] Setup webhook Instagram
-- [ ] Classification des DMs (Claude API)
-- [ ] Reponses auto : COURS, SOCIAL
-- [ ] Redirection CLIENT → bot Telegram qualification
-- [ ] Reponses IA : TECHNIQUE
-- [ ] Detection VIP → notification Telegram
-- [ ] Logging dans Supabase
-- [ ] Commande Telegram `/instagram` (stats)
-
-**Livrable** : 90%+ des DMs Instagram traites automatiquement.
-
----
-
-## PHASE 5 : Contenu + Ameliorations (Mois 3)
-
-- [ ] Veille hebdomadaire (Claude API)
-- [ ] Suggestions de contenu via Telegram
-- [ ] Briefs auto apres choix
-- [ ] Rappels publication
-- [ ] Pre-review IA des exercices etudiants
-- [ ] Enregistrement auto des lives Discord
-- [ ] Commandes `/sport`, `/mood`, `/stats`
-- [ ] Commande `/week` (resume hebdomadaire)
-- [ ] Dashboard visuel (optionnel, Supabase + simple frontend)
+- [ ] Veille automatique (cron hebdomadaire, tendances tech)
+- [ ] Suggestions de contenu (3 idees/semaine)
+- [ ] Briefs auto-generes (points cles, hashtags, timing)
+- [ ] Pipeline contenu : idee → recherche → script → filme → publie
+- [ ] Tracking engagement
+- [ ] Commandes Telegram : /sport, /mood, /stats, /week
+- [ ] Optimisation et specialisation des agents
 
 **Livrable** : Systeme complet, tous les composants operationnels.
 
@@ -147,20 +123,19 @@
 ## Resume visuel
 
 ```
-Semaine 1  ████████████████  Phase 0 (Setup) ✅ + Phase 1 (Telegram) ✅
-Semaine 2  ████████████████  Phase 2 (Discord) → LANCEMENT SESSION 2
-Semaine 3  ████████████████  Phase 3 (Enrichissement)
-Semaine 4  ████████████████  Phase 3 (suite)
-Mois 2     ████████████████  Phase 4 (Instagram)
-Mois 3     ████████████████  Phase 5 (Contenu + ameliorations)
+Semaine 1   ████████████████  Phase 0 (Setup) ✅ + Phase 1 (Core + Admin) ✅
+Semaine 2   ████████████████  Phase 2 (Public Bot + Agents) ✅
+Semaine 3-4 ████████████████  Phase 3 (Discord Formateur)
+Mois 2-3    ████████████████  Phase 4 (Contenu + ameliorations)
 ```
 
 ---
 
 ## Actions immediates
 
-1. [ ] **Soumettre la demande Meta App Review** (2-6 semaines de delai)
-2. [x] ~~Creer le bot Telegram~~ via @BotFather ✅
-3. [ ] **Creer le bot Discord** via Developer Portal (5 min)
-4. [ ] **Tester le bot Telegram** en conditions reelles avec le systeme memoire
-5. [ ] **Commencer Phase 2** (Discord) - URGENT, session 2 dans ~2 semaines
+1. [x] ~~Creer le bot Telegram admin~~ via @BotFather ✅
+2. [x] ~~Creer le bot Telegram public~~ via @BotFather ✅
+3. [ ] **Creer le bot Discord** via Developer Portal
+4. [ ] **Tester bot admin + bot public** en conditions reelles
+5. [ ] **Deploy sur Railway/Fly.io**
+6. [ ] **Commencer Phase 3** (Discord) pour session 2

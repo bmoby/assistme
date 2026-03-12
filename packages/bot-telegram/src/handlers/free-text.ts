@@ -1,5 +1,5 @@
 import type { Bot, Context } from 'grammy';
-import { processWithOrchestrator, runResearchAgent, logger } from '@vibe-coder/core';
+import { processWithOrchestrator, runResearchAgent, processMemoryRequest, logger } from '@vibe-coder/core';
 import { isAdmin } from '../utils/auth.js';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
 
@@ -60,6 +60,28 @@ export function registerFreeText(bot: Bot): void {
       const history = formatHistoryForPrompt(chatId);
 
       const result = await processWithOrchestrator(text, history);
+
+      // Check if memory management was triggered
+      const memoryAction = result.actions.find((a) => a.type === 'manage_memory');
+
+      if (memoryAction) {
+        addMessage(chatId, 'assistant', result.response);
+        await ctx.reply(result.response);
+
+        try {
+          const memoryResult = await processMemoryRequest({
+            userMessage: text,
+            conversationHistory: history,
+          });
+          await sendLongMessage(ctx, memoryResult.response);
+          addMessage(chatId, 'assistant', memoryResult.response);
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          logger.error({ err: errMsg }, 'Memory manager failed');
+          await ctx.reply('Erreur lors de la modification memoire. Reessaie.');
+        }
+        return;
+      }
 
       // Check if a research was triggered
       const researchAction = result.actions.find((a) => a.type === 'start_research');
