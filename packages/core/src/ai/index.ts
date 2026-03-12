@@ -5,3 +5,5 @@ export { buildContext } from './context-builder.js';
 export { runMemoryAgent } from './memory-agent.js';
 export { processWithOrchestrator } from './orchestrator.js';
 export type { OrchestratorResult } from './orchestrator.js';
+export { runResearchAgent } from './research-agent.js';
+export type { ResearchResult, ResearchSection } from './research-agent.js';

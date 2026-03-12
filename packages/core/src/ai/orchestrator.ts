@@ -50,7 +50,7 @@ FORMAT DE REPONSE (JSON strict, PAS de markdown autour) :
 {
   "actions": [
     {
-      "type": "create_task" | "complete_task" | "create_client" | "note" | "update_memory" | "update_kb",
+      "type": "create_task" | "complete_task" | "create_client" | "note" | "update_memory" | "update_kb" | "start_research",
       "data": { ... }
     }
   ],
@@ -63,6 +63,14 @@ Pour create_client : data = { "name", "need", "budget_range", "source" }
 Pour note : data = { "content" }
 Pour update_memory : data = { "action" (create|update|delete), "category" (identity|situation|preference|relationship|lesson), "key", "content" }
 Pour update_kb : data = { "action" (create|update|delete), "category" (formation|services|faq|free_courses|general), "key", "content" }
+Pour start_research : data = { "topic", "details", "include_memory" (true/false) }
+
+AGENT DE RECHERCHE :
+- Si Magomed parle de "recherche approfondie", "fais une recherche", "prepare un document sur", "analyse en profondeur" → utilise start_research
+- AVANT de lancer, pose des questions pour bien cerner le sujet : quel angle ? quel objectif ? quel public cible ? quelle profondeur ?
+- Ne lance la recherche (start_research) QUE quand tu as assez d'info. Sinon, pose d'abord tes questions SANS action.
+- "include_memory" = true si le sujet est lie a la situation personnelle de Magomed (ses activites, son business, etc.)
+- La recherche genere un PDF qui sera envoye directement dans le chat.
 
 HISTORIQUE DE CONVERSATION RECENTE :
 {history}`;
@@ -172,6 +180,18 @@ export async function processWithOrchestrator(message: string, conversationHisto
           executedActions.push({
             type: 'update_memory',
             data: { action: memAction, category: memCategory, key: memKey, content: memContent },
+          });
+          break;
+        }
+        case 'start_research': {
+          // Not executed here — returned to the handler which runs the research agent
+          executedActions.push({
+            type: 'start_research',
+            data: {
+              topic: action.data['topic'] ?? '',
+              details: action.data['details'] ?? '',
+              include_memory: action.data['include_memory'] === 'true',
+            },
           });
           break;
         }

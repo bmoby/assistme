@@ -1,7 +1,9 @@
 import type { Bot, Context } from 'grammy';
-import { transcribeAudio, processWithOrchestrator, logger } from '@vibe-coder/core';
+import { InputFile } from 'grammy';
+import { transcribeAudio, processWithOrchestrator, runResearchAgent, logger } from '@vibe-coder/core';
 import { isAdmin } from '../utils/auth.js';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
+import { generateResearchPDF } from '../utils/pdf-generator.js';
 
 export function registerVoiceHandler(bot: Bot): void {
   bot.on('message:voice', async (ctx: Context) => {
@@ -33,6 +35,38 @@ export function registerVoiceHandler(bot: Bot): void {
       const history = formatHistoryForPrompt(chatId);
 
       const result = await processWithOrchestrator(text, history);
+
+      // Check if a research was triggered
+      const researchAction = result.actions.find((a) => a.type === 'start_research');
+
+      if (researchAction) {
+        const topic = String(researchAction.data['topic'] ?? '');
+        const details = String(researchAction.data['details'] ?? '');
+        const includeMemory = Boolean(researchAction.data['include_memory']);
+
+        addMessage(chatId, 'assistant', result.response);
+        await ctx.reply(result.response);
+
+        try {
+          const research = await runResearchAgent({ topic, details, includeMemory });
+          const pdfBuffer = await generateResearchPDF(research);
+
+          const safeTitle = research.title
+            .replace(/[^a-zA-Z0-9\u00C0-\u024F\s-]/g, '')
+            .replace(/\s+/g, '_')
+            .slice(0, 50);
+
+          await ctx.replyWithDocument(new InputFile(pdfBuffer, `${safeTitle}.pdf`), {
+            caption: `📄 ${research.title}\n\n${research.summary.slice(0, 200)}${research.summary.length > 200 ? '...' : ''}`,
+          });
+
+          addMessage(chatId, 'assistant', `PDF envoye : ${research.title}`);
+        } catch (error) {
+          logger.error({ error, topic }, 'Research agent failed');
+          await ctx.reply('Erreur lors de la recherche. Essaie de reformuler ou redemande.');
+        }
+        return;
+      }
 
       addMessage(chatId, 'assistant', result.response);
       await ctx.reply(result.response);
