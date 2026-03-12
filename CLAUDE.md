@@ -28,10 +28,34 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 - All Claude API calls go through `packages/core/src/ai/`
 
 ## Key Files
-- `specs/` — Detailed specifications for each component
+- `specs/` — Detailed specifications for each component (SOURCE OF TRUTH)
 - `specs/CONNEXIONS.md` — Data flow between components
 - `specs/ROADMAP.md` — Development roadmap
 - `docs/` — User profile, responses, architecture docs
+
+## Spec-First Development (MANDATORY)
+**Les specs sont la source de verite.** Tout developpement suit cette methodologie :
+1. Lire la spec AVANT de coder (`specs/[composant]/SPEC.md`)
+2. Implementer selon la spec
+3. Mettre a jour la spec si l'implementation diverge
+
+### Custom Commands
+- `/spec-check [composant]` — Auditer conformite implementation vs spec
+- `/spec-update [composant]` — Mettre a jour la spec apres des changements
+- `/implement [composant/feature]` — Implementer une feature en suivant la spec
+- `/sync-check` — Audit complet de tout le projet (specs + code + ROADMAP)
+
+### Hooks actifs
+- **spec-reminder** : rappel automatique de lire la spec quand on modifie du code
+- **protect-specs** : avertissement quand on modifie une spec directement
+
+### Correspondance composant → package
+| Spec | Package |
+|------|---------|
+| `specs/01-cerveau-central/` | `packages/core/` |
+| `specs/02-bot-telegram/` | `packages/bot-telegram/` |
+| `specs/03-bot-telegram-public/` | `packages/bot-telegram-public/` |
+| `specs/04-bot-discord/` | `packages/bot-discord/` |
 
 ## Commands
 - `pnpm install` — Install all dependencies
