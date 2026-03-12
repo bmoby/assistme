@@ -1,9 +1,43 @@
 import type { Bot, Context } from 'grammy';
-import { InputFile } from 'grammy';
 import { transcribeAudio, processWithOrchestrator, runResearchAgent, logger } from '@vibe-coder/core';
 import { isAdmin } from '../utils/auth.js';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
-import { generateResearchPDF } from '../utils/pdf-generator.js';
+
+const TELEGRAM_MAX_LENGTH = 4096;
+
+async function sendLongMessage(ctx: Context, text: string): Promise<void> {
+  if (text.length <= TELEGRAM_MAX_LENGTH) {
+    await ctx.reply(text);
+    return;
+  }
+
+  const paragraphs = text.split('\n\n');
+  let current = '';
+
+  for (const paragraph of paragraphs) {
+    if (current.length + paragraph.length + 2 > TELEGRAM_MAX_LENGTH) {
+      if (current.trim()) await ctx.reply(current.trim());
+      if (paragraph.length > TELEGRAM_MAX_LENGTH) {
+        const lines = paragraph.split('\n');
+        current = '';
+        for (const line of lines) {
+          if (current.length + line.length + 1 > TELEGRAM_MAX_LENGTH) {
+            if (current.trim()) await ctx.reply(current.trim());
+            current = line + '\n';
+          } else {
+            current += line + '\n';
+          }
+        }
+      } else {
+        current = paragraph + '\n\n';
+      }
+    } else {
+      current += paragraph + '\n\n';
+    }
+  }
+
+  if (current.trim()) await ctx.reply(current.trim());
+}
 
 export function registerVoiceHandler(bot: Bot): void {
   bot.on('message:voice', async (ctx: Context) => {
@@ -36,7 +70,6 @@ export function registerVoiceHandler(bot: Bot): void {
 
       const result = await processWithOrchestrator(text, history);
 
-      // Check if a research was triggered
       const researchAction = result.actions.find((a) => a.type === 'start_research');
 
       if (researchAction) {
@@ -49,18 +82,8 @@ export function registerVoiceHandler(bot: Bot): void {
 
         try {
           const research = await runResearchAgent({ topic, details, includeMemory });
-          const pdfBuffer = await generateResearchPDF(research);
-
-          const safeTitle = research.title
-            .replace(/[^a-zA-Z0-9\u00C0-\u024F\s-]/g, '')
-            .replace(/\s+/g, '_')
-            .slice(0, 50);
-
-          await ctx.replyWithDocument(new InputFile(pdfBuffer, `${safeTitle}.pdf`), {
-            caption: `📄 ${research.title}\n\n${research.summary.slice(0, 200)}${research.summary.length > 200 ? '...' : ''}`,
-          });
-
-          addMessage(chatId, 'assistant', `PDF envoye : ${research.title}`);
+          await sendLongMessage(ctx, research.content);
+          addMessage(chatId, 'assistant', `Recherche envoyee : ${topic}`);
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
           logger.error({ err: errMsg, topic }, 'Research agent failed');

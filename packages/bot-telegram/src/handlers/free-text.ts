@@ -1,9 +1,50 @@
 import type { Bot, Context } from 'grammy';
-import { InputFile } from 'grammy';
 import { processWithOrchestrator, runResearchAgent, logger } from '@vibe-coder/core';
 import { isAdmin } from '../utils/auth.js';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
-import { generateResearchPDF } from '../utils/pdf-generator.js';
+
+const TELEGRAM_MAX_LENGTH = 4096;
+
+async function sendLongMessage(ctx: Context, text: string): Promise<void> {
+  if (text.length <= TELEGRAM_MAX_LENGTH) {
+    await ctx.reply(text);
+    return;
+  }
+
+  // Split by double newlines (paragraph boundaries) to keep sections intact
+  const paragraphs = text.split('\n\n');
+  let current = '';
+
+  for (const paragraph of paragraphs) {
+    // If adding this paragraph would exceed the limit, send current chunk
+    if (current.length + paragraph.length + 2 > TELEGRAM_MAX_LENGTH) {
+      if (current.trim()) {
+        await ctx.reply(current.trim());
+      }
+      // If a single paragraph exceeds the limit, split it by lines
+      if (paragraph.length > TELEGRAM_MAX_LENGTH) {
+        const lines = paragraph.split('\n');
+        current = '';
+        for (const line of lines) {
+          if (current.length + line.length + 1 > TELEGRAM_MAX_LENGTH) {
+            if (current.trim()) await ctx.reply(current.trim());
+            current = line + '\n';
+          } else {
+            current += line + '\n';
+          }
+        }
+      } else {
+        current = paragraph + '\n\n';
+      }
+    } else {
+      current += paragraph + '\n\n';
+    }
+  }
+
+  if (current.trim()) {
+    await ctx.reply(current.trim());
+  }
+}
 
 export function registerFreeText(bot: Bot): void {
   bot.on('message:text', async (ctx: Context) => {
@@ -28,34 +69,17 @@ export function registerFreeText(bot: Bot): void {
         const details = String(researchAction.data['details'] ?? '');
         const includeMemory = Boolean(researchAction.data['include_memory']);
 
-        // Send the orchestrator's response first (usually "Je lance la recherche...")
+        // Send the orchestrator's response first
         addMessage(chatId, 'assistant', result.response);
         await ctx.reply(result.response);
 
-        // Run research in background
         try {
-          const research = await runResearchAgent({
-            topic,
-            details,
-            includeMemory,
-          });
+          const research = await runResearchAgent({ topic, details, includeMemory });
 
-          // Generate PDF
-          const pdfBuffer = await generateResearchPDF(research);
+          // Send research as text messages (split if needed)
+          await sendLongMessage(ctx, research.content);
 
-          // Create safe filename
-          const safeTitle = research.title
-            .replace(/[^a-zA-Z0-9\u00C0-\u024F\s-]/g, '')
-            .replace(/\s+/g, '_')
-            .slice(0, 50);
-          const filename = `${safeTitle}.pdf`;
-
-          // Send PDF
-          await ctx.replyWithDocument(new InputFile(pdfBuffer, filename), {
-            caption: `📄 ${research.title}\n\n${research.summary.slice(0, 200)}${research.summary.length > 200 ? '...' : ''}`,
-          });
-
-          addMessage(chatId, 'assistant', `PDF envoye : ${research.title}`);
+          addMessage(chatId, 'assistant', `Recherche envoyee : ${topic}`);
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
           logger.error({ err: errMsg, topic }, 'Research agent failed');
