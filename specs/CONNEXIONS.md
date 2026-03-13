@@ -23,13 +23,16 @@
 │         ├─────────▶│  Memory Agent (bg)  │        │
 │         │          └────────────────────┘        │
 │         │          ┌────────────────────┐        │
+│         ├─────────▶│  Notif Planner      │        │
+│         │          └────────────────────┘        │
+│         │          ┌────────────────────┐        │
 │         └─────────▶│  Context Builder    │        │
 │                    └────────┬───────────┘        │
 │                             │                    │
 │  ┌──────────────────────────┴─────────────────┐  │
 │  │              Supabase                       │  │
 │  │  memory | public_knowledge | tasks          │  │
-│  │  clients | daily_plans | events             │  │
+│  │  clients | daily_plans | reminders | events │  │
 │  └─────────────────────────────────────────────┘  │
 │                                                   │
 │  ┌──────────────┐  ┌──────────────────────┐      │
@@ -102,14 +105,27 @@ Utilisateur externe → Bot Public
   → addMessage + conversation history (20 msgs, 30min TTL)
 ```
 
-### Flux 5 : Crons Push (Scheduler → Bot Admin)
+### Flux 5 : Notifications Dynamiques (IA → Scheduler → Bot Admin)
 
 ```
-08:30  → generateDailyPlan()  → Plan matinal (URGENT / IMPORTANT / OPTIONNEL)
-11:00  → Anti-procrastination  → Si aucune tache commencee
-14:00  → Check mi-journee      → Bilan + recommandation
-19:00  → Bilan du soir         → Score productivite + priorites demain
-00:00  → Rappel sommeil        → Rappel gamifie
+07:00  → planDay()
+         → getNotificationCount() (lit preference memoire, default 15)
+         → cancelActiveReminders() (cleanup)
+         → planDailyNotifications(count)
+           → buildContext() (memoire + taches + clients + temporel)
+           → Claude Sonnet planifie N notifications (heures + messages + types)
+         → createReminders() (batch insert dans table reminders)
+
+*/2 min → dispatchNotifications()
+         → getDueReminders() (trigger_at <= NOW() AND status = 'active')
+         → Pour chaque reminder due :
+           → bot.api.sendMessage(chatId, message)
+           → markReminderSent(id)
+         → User repond → flux 1 (orchestrateur normal)
+
+A la demande → /notifs [nombre] ou /replan
+         → upsertMemory(preference, notifications_par_jour)
+         → planDay() (replanification immediate)
 ```
 
 ### Flux 6 : Contexte Dynamique (chaque requete orchestrateur)

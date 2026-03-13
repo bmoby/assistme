@@ -1,7 +1,9 @@
 import type { Bot, Context } from 'grammy';
-import { processWithOrchestrator, runResearchAgent, processMemoryRequest, logger } from '@vibe-coder/core';
+import { InputFile } from 'grammy';
+import { processWithOrchestrator, runResearchAgent, runClientDiscoveryAgent, processMemoryRequest, logger } from '@vibe-coder/core';
 import { isAdmin } from '../utils/auth.js';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
+import { generateDiscoveryPdf } from '../utils/pdf.js';
 
 const TELEGRAM_MAX_LENGTH = 4096;
 
@@ -79,6 +81,41 @@ export function registerFreeText(bot: Bot): void {
           const errMsg = error instanceof Error ? error.message : String(error);
           logger.error({ err: errMsg }, 'Memory manager failed');
           await ctx.reply('Erreur lors de la modification memoire. Reessaie.');
+        }
+        return;
+      }
+
+      // Check if client discovery was triggered
+      const discoveryAction = result.actions.find((a) => a.type === 'start_client_discovery');
+
+      if (discoveryAction) {
+        const clientName = String(discoveryAction.data['client_name'] ?? '');
+        const businessDescription = String(discoveryAction.data['business_description'] ?? '');
+        const knownInfo = String(discoveryAction.data['known_info'] ?? '');
+
+        addMessage(chatId, 'assistant', result.response);
+        await ctx.reply(result.response);
+
+        try {
+          const discovery = await runClientDiscoveryAgent({
+            clientName,
+            businessDescription,
+            knownInfo,
+            conversationHistory: history,
+          });
+
+          // Generate and send PDF
+          const pdfBuffer = await generateDiscoveryPdf(discovery.content, clientName);
+          const filename = `discovery-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+          await ctx.replyWithDocument(new InputFile(pdfBuffer, filename), {
+            caption: `🔍 Questions de qualification pour ${clientName}`,
+          });
+
+          addMessage(chatId, 'assistant', `Questions de qualification generees pour ${clientName} (PDF)`);
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          logger.error({ err: errMsg, clientName }, 'Client discovery agent failed');
+          await ctx.reply(`Erreur lors de la generation des questions : ${errMsg}\nReessaie.`);
         }
         return;
       }

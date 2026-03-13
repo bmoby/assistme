@@ -9,3 +9,7 @@ export { runResearchAgent } from './research-agent.js';
 export type { ResearchResult } from './research-agent.js';
 export { processMemoryRequest } from './memory-manager.js';
 export type { MemoryManagerResult, MemoryChange } from './memory-manager.js';
+export { runClientDiscoveryAgent } from './client-discovery-agent.js';
+export type { ClientDiscoveryResult } from './client-discovery-agent.js';
+export { planDailyNotifications, getNotificationCount } from './notification-planner.js';
+export type { PlannedNotification } from './notification-planner.js';

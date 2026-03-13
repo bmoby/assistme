@@ -45,7 +45,7 @@ FORMAT DE REPONSE (JSON strict, PAS de markdown autour) :
 {
   "actions": [
     {
-      "type": "create_task" | "complete_task" | "create_client" | "note" | "manage_memory" | "start_research",
+      "type": "create_task" | "complete_task" | "create_client" | "note" | "manage_memory" | "start_research" | "start_client_discovery",
       "data": { ... }
     }
   ],
@@ -54,10 +54,11 @@ FORMAT DE REPONSE (JSON strict, PAS de markdown autour) :
 
 Pour create_task : data = { "title", "category" (client|student|content|personal|dev|team), "priority" (urgent|important|normal|low), "due_date" (YYYY-MM-DD ou null), "estimated_minutes" }
 Pour complete_task : data = { "task_title_match" }
-Pour create_client : data = { "name", "need", "budget_range", "source" }
+Pour create_client : data = { "name", "need", "budget_range", "source", "business_type" }
 Pour note : data = { "content" }
 Pour manage_memory : data = { "intent": "description de ce que Magomed veut faire" }
 Pour start_research : data = { "topic", "details", "include_memory" (true/false) }
+Pour start_client_discovery : data = { "client_name", "business_description", "known_info" }
 
 AGENT DE RECHERCHE :
 - Si Magomed parle de "recherche approfondie", "fais une recherche", "prepare un document sur", "analyse en profondeur" → utilise start_research
@@ -65,6 +66,13 @@ AGENT DE RECHERCHE :
 - Ne lance la recherche (start_research) QUE quand tu as assez d'info. Sinon, pose d'abord tes questions SANS action.
 - "include_memory" = true si le sujet est lie a la situation personnelle de Magomed (ses activites, son business, etc.)
 - La recherche genere un rapport detaille envoye directement dans le chat.
+
+AGENT CLIENT DISCOVERY :
+- Si Magomed parle d'un client qui a besoin de conseil tech, qui veut savoir ce qu'on peut lui proposer, ou qui demande une solution digitale → utilise start_client_discovery
+- Tu peux aussi creer le client (create_client) EN MEME TEMPS que lancer le discovery
+- "client_name" = nom du client, "business_description" = son activite/business, "known_info" = tout ce qu'on sait deja sur lui
+- L'agent genere des questions de qualification adaptees au business du client
+- Ca permet ensuite a Magomed de poser ces questions au client et revenir avec les reponses
 
 HISTORIQUE DE CONVERSATION RECENTE :
 {history}`;
@@ -143,6 +151,7 @@ export async function processWithOrchestrator(message: string, conversationHisto
             name: action.data['name'] ?? 'Inconnu',
             need: action.data['need'] ?? null,
             budget_range: action.data['budget_range'] ?? null,
+            business_type: action.data['business_type'] ?? null,
             source: action.data['source'] ?? 'conversation',
             status: 'lead',
           });
@@ -171,6 +180,18 @@ export async function processWithOrchestrator(message: string, conversationHisto
               topic: action.data['topic'] ?? '',
               details: action.data['details'] ?? '',
               include_memory: action.data['include_memory'] === 'true',
+            },
+          });
+          break;
+        }
+        case 'start_client_discovery': {
+          // Not executed here — returned to the handler which runs the client discovery agent
+          executedActions.push({
+            type: 'start_client_discovery',
+            data: {
+              client_name: action.data['client_name'] ?? '',
+              business_description: action.data['business_description'] ?? '',
+              known_info: action.data['known_info'] ?? '',
             },
           });
           break;

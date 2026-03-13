@@ -3,6 +3,7 @@ import { registerPlanCommand } from './plan.js';
 import { registerTaskCommands } from './tasks.js';
 import { registerClientCommands } from './clients.js';
 import { registerKbCommand } from './kb.js';
+import { registerNotifsCommand } from './notifs.js';
 import { isAdmin } from '../utils/auth.js';
 
 export function registerCommands(bot: Bot): void {
@@ -23,7 +24,9 @@ export function registerCommands(bot: Bot): void {
         `/clients — Pipeline clients\n` +
         `/client [nom] — Details client\n` +
         `/newclient [nom] — [besoin] — [budget]\n` +
-        `/kb — Gerer la base de connaissances du bot public\n\n` +
+        `/kb — Gerer la base de connaissances du bot public\n` +
+        `/notifs — Voir/regler les notifications (ex: /notifs 20)\n` +
+        `/replan — Replanifier les notifications\n\n` +
         `Ou envoie un message libre, je comprendrai.`
     );
   });
@@ -32,4 +35,5 @@ export function registerCommands(bot: Bot): void {
   registerTaskCommands(bot);
   registerClientCommands(bot);
   registerKbCommand(bot);
+  registerNotifsCommand(bot);
 }

@@ -19,6 +19,7 @@ Message utilisateur
   → Actions complexes deleguees :
       manage_memory → Memory Manager Agent
       start_research → Research Agent
+      start_client_discovery → Client Discovery Agent
   → Memory Agent (background) pour auto-updates
 ```
 
@@ -35,6 +36,7 @@ Message utilisateur
 | Orchestrateur | `orchestrator.ts` | Chaque message admin | Comprendre, decider, router |
 | Memory Manager | `memory-manager.ts` | Action `manage_memory` | CRUD intelligent memory + public_knowledge |
 | Research Agent | `research-agent.ts` | Action `start_research` | Recherches approfondies |
+| Client Discovery Agent | `client-discovery-agent.ts` | Action `start_client_discovery` | Questions de qualification client |
 | Memory Agent | `memory-agent.ts` | Background (fire-and-forget) | Auto-detection changements situation |
 | Context Builder | `context-builder.ts` | Chaque requete orchestrateur | Construction contexte dynamique |
 
@@ -45,6 +47,7 @@ Orchestrateur
 ├── Actions inline : create_task, complete_task, create_client, note
 ├── Delegation : manage_memory → Memory Manager
 ├── Delegation : start_research → Research Agent
+├── Delegation : start_client_discovery → Client Discovery Agent
 └── Background : Memory Agent (si pas d'action memoire)
 
 Memory Manager
@@ -57,6 +60,12 @@ Research Agent
 ├── Prompt deep research (sans limite de profondeur)
 ├── Optionnel : inclut contexte memoire perso
 └── Retourne texte structure libre (max 16K tokens)
+
+Client Discovery Agent
+├── Analyse infos connues sur le client
+├── Genere questions en 7 themes (business, tech, douleurs, equipe, clients, budget, vision)
+├── Ne pose pas de questions deja repondues
+└── Premiere brique du workflow Discovery → Qualification → Research → Proposition
 
 Memory Agent (Background)
 ├── Analyse chaque message silencieusement
@@ -73,6 +82,7 @@ Memory Agent (Background)
 | Orchestrateur | ~2000 in + ~500 out | ~$0.005 |
 | Memory Manager | ~3000 in + ~500 out | ~$0.006 |
 | Research Agent | ~1000 in + ~8000 out | ~$0.03 |
+| Client Discovery Agent | ~1000 in + ~2000 out | ~$0.01 |
 | Memory Agent (bg) | ~1500 in + ~200 out | ~$0.003 |
 | Context Builder | 0 (pas d'appel Claude) | $0 |
 

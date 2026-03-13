@@ -49,6 +49,13 @@ Tout se passe dans un seul chat Telegram avec le bot. Authentifie via `ADMIN_TEL
 | `/kb set [cat] [key] [content]` | Ajouter/modifier |
 | `/kb del [cat] [key]` | Supprimer |
 
+### Notifications dynamiques
+| Commande | Action |
+|----------|--------|
+| `/notifs` | Voir le statut des notifications (envoyees, en attente, prochaines) |
+| `/notifs [nombre]` | Changer le nombre de notifications/jour (1-50) et replanifier |
+| `/replan` | Forcer une replanification des notifications pour le reste de la journee |
+
 ### Commandes futures (Phase 3+)
 | Commande | Phase |
 |----------|-------|
@@ -69,6 +76,7 @@ Quand l'utilisateur envoie un message qui n'est pas une commande :
 "J'ai fini la proposition pour Ahmed" → complete_task
 "Change le prix de la formation a 2500" → manage_memory → Memory Manager
 "Fais une recherche sur le marche IA en 2026" → start_research → Research Agent
+"J'ai un client Ahmed, boulangerie artisanale" → create_client + start_client_discovery → Client Discovery Agent
 ```
 
 **Flow :**
@@ -76,8 +84,9 @@ Quand l'utilisateur envoie un message qui n'est pas une commande :
 2. `formatHistoryForPrompt(chatId)` — derniers 20 messages
 3. `processWithOrchestrator(text, history)` — orchestrateur
 4. Si `manage_memory` → appelle `processMemoryRequest()` → envoie resultat
-5. Si `start_research` → appelle `runResearchAgent()` → envoie rapport
-6. Sinon → envoie `result.response`
+5. Si `start_client_discovery` → appelle `runClientDiscoveryAgent()` → envoie questions
+6. Si `start_research` → appelle `runResearchAgent()` → envoie rapport
+7. Sinon → envoie `result.response`
 
 ---
 
@@ -105,15 +114,36 @@ Voice message → fetch Telegram file → Buffer
 
 ---
 
-## 6. Crons push ✅
+## 6. Notifications dynamiques ✅
 
-| Heure | Message | Contenu |
-|-------|---------|---------|
-| 08:30 | Plan matinal | Taches URGENT / IMPORTANT / OPTIONNEL |
-| 11:00 | Anti-procrastination | Si aucune tache commencee |
-| 14:00 | Check mi-journee | Bilan + recommandation |
-| 19:00 | Bilan du soir | Score productivite + priorites demain |
-| 00:00 | Rappel sommeil | Rappel gamifie ("si tu dors maintenant...") |
+Systeme de notifications intelligent pilote par l'IA. Remplace les 5 crons fixes.
+
+**Architecture :**
+- L'IA planifie toutes les notifications de la journee a 07:00
+- Le nombre est configurable par l'utilisateur (default : 15/jour)
+- Un dispatcher verifie les notifications dues toutes les 2 minutes
+- Les notifications sont stockees dans la table `reminders` de Supabase
+
+**Crons :**
+| Cron | Frequence | Action |
+|------|-----------|--------|
+| `daily-notification-plan` | 07:00 quotidien | Appelle le Notification Planner → stocke dans `reminders` |
+| `notification-dispatcher` | Toutes les 2 min | Envoie les notifications dont `trigger_at <= NOW()` |
+
+**Types de notifications generes par l'IA :**
+- `morning_start`, `progress_check`, `focus_probe`, `blocker_check`
+- `client_followup`, `motivation`, `planning`, `accountability`
+- `reflection`, `evening_review`, `sleep_reminder`
+
+**Fichiers :**
+- `src/cron/index.ts` — Enregistrement des 2 crons dynamiques
+- `src/cron/dynamic-notifications.ts` — `planDay()`, `dispatchNotifications()`, `getNotificationsSummary()`
+- `src/commands/notifs.ts` — Commandes `/notifs` et `/replan`
+
+**Commandes utilisateur :**
+- `/notifs` — Voir le statut (envoyees / en attente / prochaines)
+- `/notifs 20` — Changer le nombre et replanifier
+- `/replan` — Forcer une replanification immediate
 
 ---
 

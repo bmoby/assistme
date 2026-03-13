@@ -4,3 +4,4 @@ export * from './daily-plans.js';
 export * from './clients.js';
 export * from './memory.js';
 export * from './public-knowledge.js';
+export * from './reminders.js';

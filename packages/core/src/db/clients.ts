@@ -111,6 +111,22 @@ export async function assignClientToMember(clientId: string, memberId: string): 
   return data as Client;
 }
 
+export async function updateClient(id: string, updates: Partial<Omit<Client, 'id' | 'created_at'>>): Promise<Client> {
+  const db = getSupabase();
+  const { data, error } = await db
+    .from(TABLE)
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error({ error, id }, 'Failed to update client');
+    throw error;
+  }
+  return data as Client;
+}
+
 export async function searchClientByName(name: string): Promise<Client[]> {
   const db = getSupabase();
   const { data, error } = await db

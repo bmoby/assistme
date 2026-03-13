@@ -20,7 +20,8 @@ Client Supabase unique (`src/db/client.ts`) utilise par tous les modules.
 | `daily-plans.ts` | daily_plans | ✅ createDailyPlan, getTodayPlan, updatePlanStatus |
 | `memory.ts` | memory | ✅ getAllMemory, getMemoryByCategory, getMemoryEntry, upsertMemory, deleteMemory |
 | `public-knowledge.ts` | public_knowledge | ✅ getAllPublicKnowledge, getByCategory, getEntry, upsert, delete |
-| `clients.ts` | clients | ✅ createClient, getClientPipeline, updateClientStatus |
+| `clients.ts` | clients | ✅ createClient, getClientPipeline, updateClientStatus, updateClient |
+| `reminders.ts` | reminders | ✅ createReminder, createReminders, getDueReminders, markReminderSent, cancelActiveReminders, getTodayReminders |
 | `students.ts` | students | ❌ Phase 3 |
 | `exercises.ts` | student_exercises | ❌ Phase 3 |
 | `team.ts` | team_members | ❌ Phase 3 |
@@ -68,6 +69,7 @@ processWithOrchestrator(message: string, conversationHistory?: string): Promise<
 | `note` | Inline (log seulement) | Note informative |
 | `manage_memory` | Delegue au handler → Memory Manager | Toute operation memoire/KB |
 | `start_research` | Delegue au handler → Research Agent | Recherche approfondie |
+| `start_client_discovery` | Delegue au handler → Client Discovery Agent | Questions de qualification client |
 
 ### 2.3 Memory Manager ✅ (`memory-manager.ts`)
 
@@ -126,7 +128,25 @@ runMemoryAgent(params: {
 - Categories : identity, situation, preference, relationship, lesson
 - Ne met a jour que pour des changements significatifs
 
-### 2.6 Context Builder ✅ (`context-builder.ts`)
+### 2.6 Client Discovery Agent ✅ (`client-discovery-agent.ts`)
+
+Agent de qualification client — genere des questions pertinentes adaptees au business du client.
+
+```typescript
+runClientDiscoveryAgent(params: {
+  clientName: string
+  businessDescription: string
+  knownInfo?: string
+  conversationHistory?: string
+}): Promise<ClientDiscoveryResult>  // { content: string, clientId?: string }
+```
+
+- 7 themes de questions : Business, Tech actuelle, Points de douleur, Equipe, Clients du client, Budget/Timeline, Vision
+- Analyse les infos deja fournies et ne pose pas de questions redondantes
+- Questions formulees de facon conversationnelle
+- Premiere brique du workflow Discovery → Qualification → Research → Proposition
+
+### 2.7 Context Builder ✅ (`context-builder.ts`)
 
 Construit le contexte dynamique injecte dans le system prompt.
 
@@ -140,7 +160,7 @@ buildContext(): Promise<string>
 3. Public Knowledge (contenu complet pour gestion)
 4. Temporel (date/heure en francais)
 
-### 2.7 Transcription ✅ (`transcribe.ts`)
+### 2.8 Transcription ✅ (`transcribe.ts`)
 
 ```typescript
 transcribeAudio(buffer: Buffer, filename: string, language: string = 'fr'): Promise<string>
@@ -150,27 +170,76 @@ transcribeAudio(buffer: Buffer, filename: string, language: string = 'fr'): Prom
 - Langues : `fr` (admin bot), `ru` (public bot)
 - Formats : .ogg (Telegram voice), .mp3, .wav
 
-### 2.8 Planner ✅ (`planner.ts`)
+### 2.9 Planner ✅ (`planner.ts`)
 
 ```typescript
 generateDailyPlan(params): Promise<DailyPlan>
 parseUserMessage(message: string): Promise<ParsedMessage>
 ```
 
+### 2.10 Notification Planner ✅ (`notification-planner.ts`)
+
+Agent IA qui planifie les notifications dynamiques de la journee.
+
+```typescript
+planDailyNotifications(notificationCount: number): Promise<PlannedNotification[]>
+getNotificationCount(): Promise<number>
+```
+
+**Flow :**
+1. `buildContext()` — charge memoire + taches + clients + temporel
+2. Claude Sonnet avec system prompt specialise + contexte complet
+3. Genere exactement N notifications avec heures + messages + types
+4. Valide le format (HH:MM) et trie par heure
+
+**Types de notifications generees :**
+- `morning_start` : demarrage journee, plan, energie
+- `progress_check` : avancement sur une tache specifique (mentionne le nom)
+- `focus_probe` : verifier la concentration
+- `blocker_check` : detecter blocages et imprevu
+- `client_followup` : suivi client specifique
+- `motivation` : push anti-procrastination
+- `planning` : reorganisation, prochaine etape
+- `accountability` : demander des comptes sur un engagement
+- `reflection` : apprentissage du jour
+- `evening_review` : bilan de journee
+- `sleep_reminder` : rappel sommeil gamifie (motivation par la perte)
+
+**Regles de distribution :**
+- Plage horaire : 08:30 → 23:30
+- Espacement minimum : 20 minutes entre deux notifications
+- Concentration pendant la "fenetre d'or" (10h-15h)
+- Moins de notifications le soir (max 2-3 apres 20h)
+
+**Preference utilisateur :**
+- Nombre configurable via table `memory` (cle `notifications_par_jour`, categorie `preference`)
+- Default : 15 notifications/jour
+- Modifiable via `/notifs [nombre]` ou en langage naturel
+
 ---
 
 ## 3. Module Scheduler (`src/scheduler/`)
 
-| Cron | Heure | Action | Statut |
-|------|-------|--------|--------|
-| Plan matinal | 08:30 | Genere plan du jour → push Telegram | ✅ |
-| Anti-procrastination | 11:00 | Si aucune tache commencee → rappel | ✅ |
-| Check mi-journee | 14:00 | Bilan + recommandation | ✅ |
-| Bilan du soir | 19:00 | Score productivite + priorites demain | ✅ |
-| Rappel sommeil | 00:00 | Rappel gamifie | ✅ |
+### Systeme de notifications dynamiques ✅
+
+Remplace les 5 crons fixes par un systeme intelligent pilote par l'IA.
+
+| Cron | Frequence | Action | Statut |
+|------|-----------|--------|--------|
+| `daily-notification-plan` | 07:00 quotidien | L'IA planifie toutes les notifications du jour | ✅ |
+| `notification-dispatcher` | Toutes les 2 min | Verifie et envoie les notifications dues | ✅ |
 | Veille contenu | Lundi 10:00 | Suggestions contenu | ❌ Phase 4 |
 | Student check | Quotidien 10:00 | Etudiants bloques > 48h | ❌ Phase 3 |
 | Client followup | Quotidien 10:00 | Clients en attente > 24h | ❌ Phase 3 |
+
+**Architecture :**
+1. A 07:00, le `daily-notification-plan` appelle le Notification Planner Agent
+2. L'agent genere N notifications (heures + messages) basees sur le contexte actuel
+3. Les notifications sont stockees dans la table `reminders` (status `active`)
+4. Toutes les 2 minutes, le `notification-dispatcher` verifie les reminders dues (`trigger_at <= NOW()`)
+5. Chaque notification envoyee est marquee `sent`
+
+**Replanification :** Possible a tout moment via `/replan` ou `/notifs [nombre]`
 
 ---
 
