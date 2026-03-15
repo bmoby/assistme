@@ -64,6 +64,7 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 - `pnpm -F @vibe-coder/core dev` — Run only core
 - `pnpm -F @vibe-coder/bot-telegram dev` — Run only Telegram admin bot
 - `pnpm -F @vibe-coder/bot-telegram-public dev` — Run only Telegram public bot
+- `pnpm -F @vibe-coder/bot-discord dev` — Run only Discord bot
 - `pnpm build` — Build all packages
 - `pnpm typecheck` — Type check all packages
 
@@ -75,5 +76,5 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 - Phase 0 ✅: Infrastructure setup
 - Phase 1 ✅: Core + Bot Telegram Admin (orchestrator, memory, voice, crons)
 - Phase 2 ✅: Bot Telegram Public + Memory Manager + Research Agent
-- Phase 3: Bot Discord Trainer (students + team)
+- Phase 3 🚧: Bot Discord Trainer (DM agent, sessions, exercises, FAQ, mentors)
 - Phase 4: Content system + improvements

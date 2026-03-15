@@ -30,22 +30,6 @@ importers:
         specifier: ^5.7.0
         version: 5.9.3
 
-  packages/bot-instagram:
-    dependencies:
-      '@vibe-coder/core':
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      '@types/node':
-        specifier: ^20.17.0
-        version: 20.19.37
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      typescript:
-        specifier: ^5.7.0
-        version: 5.9.3
-
   packages/bot-telegram:
     dependencies:
       '@grammyjs/runner':

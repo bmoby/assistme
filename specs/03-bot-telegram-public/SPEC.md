@@ -54,7 +54,7 @@ Les connaissances sont gerees depuis le bot admin via le Memory Manager ou la co
 Le system prompt demande a Claude d'ajouter un tag cache quand il detecte un lead serieux :
 
 ```
-[LEAD: name="Ivan" need="formation" budget="unknown" urgency="high"]
+[LEAD: name="Ivan" need="formation" budget="unknown" business="coaching"]
 ```
 
 **Criteres de detection :**
@@ -65,7 +65,7 @@ Le system prompt demande a Claude d'ajouter un tag cache quand il detecte un lea
 **Quand un lead est detecte :**
 1. Le tag est supprime de la reponse envoyee a l'utilisateur
 2. Une notification est envoyee a l'admin via l'API Telegram du bot admin
-3. Format : "Nouveau lead : [nom] - Besoin : [besoin] - Budget : [budget] - Urgence : [urgence]"
+3. Format : "Nouveau lead : [nom] - Besoin : [besoin] - Budget : [budget] - Business : [business]"
 
 ---
 

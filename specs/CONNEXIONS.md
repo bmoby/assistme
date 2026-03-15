@@ -3,43 +3,47 @@
 ## Architecture
 
 ```
-┌─────────────────────┐     ┌──────────────────────┐
-│  Bot Telegram Admin  │     │  Bot Telegram Public  │
-│  (Copilote, FR)      │     │  (Audience, RU)       │
-└──────────┬──────────┘     └──────────┬───────────┘
-           │                           │
-           ▼                           ▼
-┌──────────────────────────────────────────────────┐
-│                     CORE                          │
-│                                                   │
-│  ┌──────────────┐  ┌────────────────────┐        │
-│  │ Orchestrator  │  │  Memory Manager    │        │
-│  │ (routeur)     │─▶│  (agent specialise)│        │
-│  └──────┬───────┘  └────────────────────┘        │
-│         │          ┌────────────────────┐        │
-│         ├─────────▶│  Research Agent     │        │
-│         │          └────────────────────┘        │
-│         │          ┌────────────────────┐        │
-│         ├─────────▶│  Memory Agent (bg)  │        │
-│         │          └────────────────────┘        │
-│         │          ┌────────────────────┐        │
-│         ├─────────▶│  Notif Planner      │        │
-│         │          └────────────────────┘        │
-│         │          ┌────────────────────┐        │
-│         └─────────▶│  Context Builder    │        │
-│                    └────────┬───────────┘        │
-│                             │                    │
-│  ┌──────────────────────────┴─────────────────┐  │
-│  │              Supabase                       │  │
-│  │  memory | public_knowledge | tasks          │  │
-│  │  clients | daily_plans | reminders | events │  │
-│  └─────────────────────────────────────────────┘  │
-│                                                   │
-│  ┌──────────────┐  ┌──────────────────────┐      │
-│  │  Scheduler    │  │  Transcription       │      │
-│  │  (crons)      │  │  (Whisper FR/RU)     │      │
-│  └──────────────┘  └──────────────────────┘      │
-└──────────────────────────────────────────────────┘
+┌─────────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
+│  Bot Telegram Admin  │     │  Bot Telegram Public  │     │  Bot Discord          │
+│  (Copilote, FR)      │     │  (Audience, RU)       │     │  (Formateur, RU)      │
+└──────────┬──────────┘     └──────────┬───────────┘     └──────────┬───────────┘
+           │                           │                            │
+           │         events            │                  events    │
+           │◀──────────────────────────┼────────────────────────────┤
+           │                           │                            │
+           ▼                           ▼                            ▼
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                CORE                                        │
+│                                                                            │
+│  ┌──────────────┐  ┌────────────────────┐  ┌──────────────────────┐       │
+│  │ Orchestrator  │  │  Memory Manager    │  │  DM Agent            │       │
+│  │ (routeur)     │─▶│  (agent specialise)│  │  (formation, RU)     │       │
+│  └──────┬───────┘  └────────────────────┘  └──────────────────────┘       │
+│         │          ┌────────────────────┐  ┌──────────────────────┐       │
+│         ├─────────▶│  Research Agent     │  │  FAQ Agent            │       │
+│         │          └────────────────────┘  │  (formation, RU)      │       │
+│         │          ┌────────────────────┐  └──────────────────────┘       │
+│         ├─────────▶│  Memory Agent (bg)  │                                │
+│         │          └────────────────────┘                                 │
+│         │          ┌────────────────────┐                                 │
+│         ├─────────▶│  Notif Planner      │                                │
+│         │          └────────────────────┘                                 │
+│         │          ┌────────────────────┐                                 │
+│         └─────────▶│  Context Builder    │                                │
+│                    └────────┬───────────┘                                 │
+│                             │                                             │
+│  ┌────────────────────────────────────────────────────────────────────┐   │
+│  │                       Supabase                                     │   │
+│  │  memory | public_knowledge | tasks | clients | reminders           │   │
+│  │  events | sessions | students | student_exercises | faq            │   │
+│  │  exercise_attachments | Storage (exercise-submissions)             │   │
+│  └────────────────────────────────────────────────────────────────────┘   │
+│                                                                            │
+│  ┌──────────────┐  ┌──────────────────────┐                               │
+│  │  Scheduler    │  │  Transcription       │                               │
+│  │  (crons)      │  │  (Whisper FR/RU)     │                               │
+│  └──────────────┘  └──────────────────────┘                               │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -153,20 +157,92 @@ Bot Telegram Admin : "Ahmed veut un site, budget 2000€"
   → Bot : "Client Ahmed cree. Tache ajoutee."
 ```
 
----
-
-## Flux Futurs (Phase 3+)
-
-### Discord Formateur
+### Flux 8 : DM Agent — Soumission d'exercice par message prive
 
 ```
-Etudiant soumet exercice → Discord /submit → Supabase queue
-  → IA pre-review → Notification admin groupee (1x/jour)
-  → Review manuelle → Feedback etudiant
+Etudiant envoie DM au bot Discord (texte, fichier, lien)
+  → dm-handler intercepte (messageCreate, guild === null)
+  → Lock sequentiel par userId (empeche traitement concurrent)
+  → Gestion fichiers :
+    → Validation : MIME type (image, PDF, doc, zip, txt) + taille max 25 MB
+    → Upload vers Supabase Storage bucket "exercise-submissions"
+      → Chemin : {student_id}/{session-N|misc}/{timestamp}-{filename}
+    → Ajout a pendingAttachments (storagePath, filename, mimeType, type)
+  → Detection URLs dans le texte → ajout a pendingAttachments (type: 'url')
+  → Ajout message a conversation (in-memory, max 20 messages, TTL 30 min)
+  → runDmAgent(context) :
+    → getStudentByDiscordId() → identification etudiant
+    → Claude Sonnet tool_use loop (max 5 iterations) avec 4 tools :
+      → get_student_progress : profil + statut soumissions par session
+      → get_session_exercise : details exercice (deliverables, deadline)
+      → create_submission : cree student_exercises + exercise_attachments
+        → createFormationEvent(type: 'exercise_submitted', target: 'telegram-admin')
+      → get_pending_feedback : reviews IA/formateur non consultees
+    → Retourne texte reponse + submissionId eventuel
+  → Si submission creee → vide pendingAttachments
+  → Bot Discord envoie reponse (split si > 2000 chars)
+```
 
-Formateur /assign → Telegram → Brief auto-genere
-  → Thread Discord cree → @TeamMember notifie
-  → Status updates → Resume hebdo
+### Flux 9 : Discord ↔ Telegram Events (table `events`)
+
+```
+Direction Discord → Telegram (source: 'discord', target: 'telegram-admin') :
+  → exercise_submitted : cree par DM Agent apres soumission
+    → data : student_name, session_number, session_title, exercise_id, attachment_count, comment
+  → daily_exercise_digest : cree par cron exercise-digest (1x/jour)
+    → data : total, pending, approved, revision_needed, pending_details[]
+  → student_alert : cree par FAQ handler quand confiance < 70%
+    → data : alert_type ('faq_unanswered'), student_name, question
+  → Bot Telegram Admin lit les events via getUnprocessedEvents('telegram-admin')
+    → Envoie notification formatee a l'admin
+    → markEventProcessed(id)
+
+Direction Telegram → Discord (source: 'telegram-admin', target: 'discord') :
+  → announcement : cree par admin via Bot Telegram
+    → data : { text }
+  → event-dispatcher (cron */2 min) lit getUnprocessedEvents('discord')
+    → type 'announcement' → envoie dans #annonces
+    → markEventProcessed(id)
+```
+
+### Flux 10 : Session Management (admin /session)
+
+```
+Admin Discord → /session (номер, название, модуль)
+  → Verification role admin (isAdmin)
+  → createSession() → insert dans table sessions (status: 'published')
+  → Cherche ForumChannel (#sessions) :
+    → Cree thread : "Сессия {N} — {titre}"
+    → Contenu template : video, theme, exercice, deadline, replay
+    → Applique tag module si disponible
+    → updateSession(id, { discord_thread_id })
+  → Cherche #annonces (TextChannel) :
+    → Envoie annonce avec mention @role etudiant
+    → "Доступна Сессия {N}! {titre}"
+  → Reply ephemeral a l'admin (confirmation + statut forum)
+
+Admin Discord → /session-update (mise a jour session existante)
+  → updateSession() → update dans table sessions
+  → Modification possible : titre, description, deadline, exercise_description, status
+```
+
+### Flux 11 : Deadline Reminders (cron automatique)
+
+```
+Cron 2x/jour → sendDeadlineReminders(client, hoursBeforeDeadline)
+  → Fenetre 48h (J-2) :
+    → getSessionsWithDeadlineIn(48) → sessions avec deadline dans 48h
+    → getActiveStudents() → tous les etudiants actifs
+    → Pour chaque session × etudiant :
+      → getExercisesByStudent(id) → verifie si deja soumis (session_id match)
+      → Si pas soumis ET discord_id present :
+        → client.users.fetch(discord_id)
+        → DM : "⏰ Через 2 дня дедлайн по Сессии {N} «{titre}». Ты ещё не сдал(а)."
+  → Fenetre 24h (J-1) :
+    → Meme logique, message urgent :
+      → DM : "⚠️ Завтра дедлайн по Сессии {N} «{titre}»! Последний день."
+  → Si DM echoue (user.send()) → log warn (DMs desactives)
+  → Log recap : nombre de sessions + heures
 ```
 
 ---
@@ -178,9 +254,17 @@ Formateur /assign → Telegram → Brief auto-genere
 | Core/DB | Supabase | — |
 | Core/AI | Claude API, Core/DB | — |
 | Core/Scheduler | Core/AI, Core/DB | Bot Admin |
+| Core/DM Agent | Claude API, Core/DB (formation) | — |
+| Core/FAQ Agent | Claude API, Core/DB (faq) | — |
 | Bot Admin | Core (AI, DB, Scheduler) | — |
 | Bot Public | Core/DB, Claude API | Bot Admin (leads) |
-| Bot Discord | Core (AI, DB) | Bot Admin |
+| Bot Discord | Core (AI, DB, DM Agent, FAQ Agent) | Bot Admin (events) |
+| Bot Discord / DM Handler | Core/DM Agent, Supabase Storage | Bot Admin (exercise_submitted) |
+| Bot Discord / Event Dispatcher | Core/DB (events) | Discord channels |
+| Bot Discord / Deadline Reminders | Core/DB (sessions, students, exercises) | Etudiants (DM) |
+| Bot Discord / Exercise Digest | Core/DB (exercises) | Bot Admin (daily_exercise_digest) |
+| Bot Discord / FAQ Handler | Core/FAQ Agent, Core/DB (faq) | Bot Admin (student_alert) |
+| Bot Discord / Session Command | Core/DB (sessions) | Discord forum + annonces |
 
 ## Ordre de developpement
 
@@ -190,5 +274,11 @@ Core (DB + AI + Scheduler) ✅
         └──▶ Bot Telegram Public ✅
               └──▶ Agents Specialises (Memory Manager, Research) ✅
                     └──▶ Bot Discord (Phase 3)
-                          └──▶ Systeme Contenu (Phase 4)
+                    │     ├── DM Agent + Handler (soumission exercices)
+                    │     ├── Session Management (/session)
+                    │     ├── FAQ Agent + Handler
+                    │     ├── Event Dispatcher (Discord ↔ Telegram)
+                    │     ├── Deadline Reminders (cron)
+                    │     └── Exercise Digest (cron)
+                    └──▶ Systeme Contenu (Phase 4)
 ```

@@ -4,6 +4,7 @@ import { sendExerciseDigest } from './exercise-digest.js';
 import { detectDropouts } from './dropout-detector.js';
 import { dispatchDiscordEvents } from './event-dispatcher.js';
 import { sendDeadlineReminders } from './deadline-reminders.js';
+import { cleanupOrphanedFiles } from './storage-cleanup.js';
 
 export function registerCronJobs(client: Client, guildId: string): void {
   // Daily exercise digest at 20:00
@@ -31,6 +32,11 @@ export function registerCronJobs(client: Client, guildId: string): void {
   // Deadline reminders — 24h before, daily at 10:00
   scheduler.registerJob('formation-deadline-24h', '0 10 * * *', async () => {
     await sendDeadlineReminders(client, 24);
+  });
+
+  // Clean up orphaned files in Supabase Storage — daily at 03:00
+  scheduler.registerJob('formation-storage-cleanup', '0 3 * * *', async () => {
+    await cleanupOrphanedFiles();
   });
 
   scheduler.startAllJobs();
