@@ -3,6 +3,7 @@ import { scheduler, logger } from '@vibe-coder/core';
 import { sendExerciseDigest } from './exercise-digest.js';
 import { detectDropouts } from './dropout-detector.js';
 import { dispatchDiscordEvents } from './event-dispatcher.js';
+import { sendDeadlineReminders } from './deadline-reminders.js';
 
 export function registerCronJobs(client: Client, guildId: string): void {
   // Daily exercise digest at 20:00
@@ -20,6 +21,16 @@ export function registerCronJobs(client: Client, guildId: string): void {
   // Process events from Telegram admin — every 5 minutes
   scheduler.registerJob('formation-event-dispatcher', '*/5 * * * *', async () => {
     await dispatchDiscordEvents(client, guildId);
+  });
+
+  // Deadline reminders — 48h before, daily at 10:00
+  scheduler.registerJob('formation-deadline-48h', '0 10 * * *', async () => {
+    await sendDeadlineReminders(client, 48);
+  });
+
+  // Deadline reminders — 24h before, daily at 10:00
+  scheduler.registerJob('formation-deadline-24h', '0 10 * * *', async () => {
+    await sendDeadlineReminders(client, 24);
   });
 
   scheduler.startAllJobs();

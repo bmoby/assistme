@@ -21,6 +21,12 @@ export function isStudent(interaction: ChatInputCommandInteraction | Message): b
   return member.roles.cache.some((role) => role.name === ROLES.student);
 }
 
+export function isMentor(interaction: ChatInputCommandInteraction | Message): boolean {
+  const member = getMember(interaction);
+  if (!member) return false;
+  return member.roles.cache.some((role) => role.name === ROLES.mentor);
+}
+
 export async function getStudentFromInteraction(
   interaction: ChatInputCommandInteraction
 ): Promise<Student | null> {

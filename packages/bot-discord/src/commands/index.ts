@@ -1,37 +1,44 @@
-import { Client, REST, Routes, Collection, ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import { Client, REST, Routes, Collection, ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { logger } from '@vibe-coder/core';
-
-// Student commands
-import { submitCommand, handleSubmit } from './student/submit.js';
-import { progressCommand, handleProgress } from './student/progress.js';
 
 // Admin commands
 import { addStudentCommand, handleAddStudent } from './admin/add-student.js';
 import { announceCommand, handleAnnounce } from './admin/announce.js';
-import { resourceCommand, handleResource } from './admin/resource.js';
-import { liveCommand, handleLive } from './admin/live.js';
-import { deadlineCommand, handleDeadline } from './admin/deadline.js';
 import { reviewCommand, handleReview } from './admin/review.js';
 import { approveCommand, handleApprove } from './admin/approve.js';
 import { revisionCommand, handleRevision } from './admin/revision.js';
 import { studentListCommand, handleStudentList } from './admin/student-list.js';
+import { sessionCommand, handleSession } from './admin/session.js';
+import { sessionUpdateCommand, handleSessionUpdate } from './admin/session-update.js';
 
 type CommandHandler = (interaction: ChatInputCommandInteraction) => Promise<void>;
 
+// Set admin-only visibility on all commands (only users with ManageGuild see them)
+const adminCommands = [
+  addStudentCommand,
+  announceCommand,
+  approveCommand,
+  revisionCommand,
+  studentListCommand,
+  sessionCommand,
+  sessionUpdateCommand,
+];
+for (const cmd of adminCommands) {
+  cmd.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+}
+
+// Review is visible to admins + mentors (ManageRoles = mentor-level)
+reviewCommand.setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles);
+
 const commands: Array<{ data: SlashCommandBuilder; handler: CommandHandler }> = [
-  // Student
-  { data: submitCommand as SlashCommandBuilder, handler: handleSubmit },
-  { data: progressCommand as SlashCommandBuilder, handler: handleProgress },
-  // Admin
   { data: addStudentCommand as SlashCommandBuilder, handler: handleAddStudent },
   { data: announceCommand as SlashCommandBuilder, handler: handleAnnounce },
-  { data: resourceCommand as SlashCommandBuilder, handler: handleResource },
-  { data: liveCommand as SlashCommandBuilder, handler: handleLive },
-  { data: deadlineCommand as SlashCommandBuilder, handler: handleDeadline },
   { data: reviewCommand as SlashCommandBuilder, handler: handleReview },
   { data: approveCommand as SlashCommandBuilder, handler: handleApprove },
   { data: revisionCommand as SlashCommandBuilder, handler: handleRevision },
   { data: studentListCommand as SlashCommandBuilder, handler: handleStudentList },
+  { data: sessionCommand as SlashCommandBuilder, handler: handleSession },
+  { data: sessionUpdateCommand as SlashCommandBuilder, handler: handleSessionUpdate },
 ];
 
 const commandHandlers = new Collection<string, CommandHandler>();
@@ -69,7 +76,7 @@ export function setupCommandHandler(client: Client): void {
     } catch (error) {
       logger.error({ error, command: interaction.commandName }, 'Command handler error');
 
-      const reply = { content: 'Une erreur est survenue.', ephemeral: true };
+      const reply = { content: 'Произошла ошибка.', ephemeral: true };
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(reply);
       } else {

@@ -23,9 +23,9 @@ export function setupGuildMemberHandler(client: Client): void {
           await dm.send(
             `Добро пожаловать в Pilote Neuro, **${student.name}**! 🎉\n\n` +
             `Ты автоматически подтверждён(а). Тебе доступны все каналы обучения.\n\n` +
-            `Полезные команды:\n` +
-            `- \`/submit\` — Сдать задание\n` +
-            `- \`/progress\` — Мой прогресс`
+            `📩 **Как сдавать задания:** напиши мне прямо сюда в личные сообщения!\n` +
+            `Я подскажу какое задание нужно сдать и помогу с отправкой.\n\n` +
+            `Попробуй — напиши «привет» 👇`
           );
         } catch {
           logger.warn({ memberId: member.id }, 'Could not DM new member');

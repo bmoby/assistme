@@ -1,6 +1,6 @@
 # 04 — Bot Discord "Formateur"
 
-> **Statut : Phase 3 — Implemente**
+> **Statut : Phase 3 — En cours (DM Agent)**
 
 **Package** : `packages/bot-discord`
 **Librairie** : discord.js
@@ -187,29 +187,33 @@ CRON lundi 09:00 → Notification Telegram :
 ## 8. Commandes
 
 ### Etudiants
-| Commande | Action |
-|----------|--------|
-| `/submit [lien] [module] [exercice]` | Soumettre un exercice |
-| `/progress` | Voir sa progression |
+Les etudiants n'utilisent PAS de commandes slash. Ils communiquent via DM avec le bot (agent conversationnel IA). Voir `SPEC-DM-AGENT.md`.
 
 ### Formateur (admin)
 | Commande | Action |
 |----------|--------|
-| `/add-student [nom] [discord?] [pod?]` | Ajouter un etudiant |
-| `/announce [texte]` | Annonce dans #annonces |
-| `/resource [module] [titre] [lien?] [description?]` | Ajouter une ressource |
-| `/live [date] [heure] [sujet]` | Planifier un live |
-| `/deadline [module] [exercice] [date] [heure?]` | Definir deadline exercice |
-| `/review [etudiant]` | Voir pre-review IA d'un etudiant |
-| `/approve [etudiant] [feedback?]` | Approuver exercice |
-| `/revision [etudiant] [feedback]` | Demander revision |
-| `/students` | Lister tous les etudiants |
+| `/session [номер] [название] [модуль]` | Creer une session (post Forum + DB) ✅ |
+| `/session-update [номер] [задание?] [формат?] [дедлайн?] [видео?] [replay?] [советы?]` | Mettre a jour une session ✅ |
+| `/add-student [имя] [discord?] [под?]` | Ajouter un etudiant ✅ |
+| `/announce [текст]` | Annonce dans #объявления ✅ |
+| `/review [студент]` | Voir pre-review IA d'un etudiant ✅ |
+| `/approve [студент] [отзыв?]` | Approuver exercice ✅ |
+| `/revision [студент] [отзыв]` | Demander revision ✅ |
+| `/students` | Lister tous les etudiants ✅ |
 
-### Equipe
+### Mentor
 | Commande | Action |
 |----------|--------|
-| `/status [texte]` | Mettre a jour le statut du projet |
-| `/question [texte]` | Poser une question au formateur |
+| `/review [студент]` | Voir les exercices (lecture seule) ✅ |
+
+### Commandes supprimees
+| Ancienne commande | Remplacee par |
+|-------------------|---------------|
+| `/submit` | DM agent conversationnel |
+| `/progress` | DM agent conversationnel |
+| `/live` | `/session` (post Forum) |
+| `/deadline` | `/session-update` |
+| `/resource` | `/session` (post Forum) |
 
 ---
 
@@ -266,16 +270,24 @@ Les bots communiquent via une table `events` dans Supabase (pas d'appels directs
 | `formation-exercise-digest` | Tous les jours a 20h (`0 20 * * *`) | Envoie le digest d'exercices au formateur |
 | `formation-dropout-detector` | Lundi a 10h (`0 10 * * 1`) | Detection des etudiants a risque de decrochage |
 | `formation-event-dispatcher` | Toutes les 5 min (`*/5 * * * *`) | Traite les events en attente (Telegram → Discord) |
+| `formation-deadline-48h` | Tous les jours a 10h (`0 10 * * *`) | DM rappel 48h avant deadline (etudiants n'ayant pas soumis) ✅ |
+| `formation-deadline-24h` | Tous les jours a 10h (`0 10 * * *`) | DM rappel 24h avant deadline (urgent) ✅ |
 
 ---
 
 ## 11. Additions Core
 
-- CRUD `students` + `student_exercises` (`core/src/db/formation/students.ts`, `exercises.ts`)
-- CRUD `faq_entries` (`core/src/db/formation/faq.ts`)
-- CRUD `events` (`core/src/db/formation/events.ts`)
-- Agent de pre-review d'exercices (`core/src/ai/formation/exercise-reviewer.ts`)
-- Agent FAQ (`core/src/ai/formation/faq-agent.ts`)
+- CRUD `students` + `student_exercises` (`core/src/db/formation/students.ts`, `exercises.ts`) ✅
+- CRUD `faq_entries` (`core/src/db/formation/faq.ts`) ✅
+- CRUD `events` (`core/src/db/formation/events.ts`) ✅
+- CRUD `sessions` (`core/src/db/formation/sessions.ts`) ✅
+- CRUD `submission_attachments` (`core/src/db/formation/attachments.ts`) ✅
+- Agent de pre-review d'exercices (`core/src/ai/formation/exercise-reviewer.ts`) ✅
+- Agent FAQ (`core/src/ai/formation/faq-agent.ts`) ✅
+- **Agent DM conversationnel** (`core/src/ai/formation/dm-agent.ts`) ✅ — voir `SPEC-DM-AGENT.md`
+  - Claude tool_use avec 4 outils (get_student_progress, get_session_exercise, create_submission, get_pending_feedback)
+  - System prompt en russe, boucle d'execution des outils
+  - Remplace les commandes `/submit` et `/progress` pour les etudiants
 
 ---
 

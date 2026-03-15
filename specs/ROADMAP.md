@@ -80,33 +80,45 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 
 ---
 
-## Phase 3 — Formation Session 2 + Bot Discord 🔜
+## Phase 3 — Formation Session 2 + Bot Discord 🚧
 
-*Prochaine phase — En preparation*
+*En cours d'implementation*
 
 ### Organisation Formation (`specs/06-formation/SPEC.md`)
-- [ ] Recherches approfondies (psychologie, pedagogie, structure programme)
-- [ ] Structurer le curriculum (modules, sujets, progression)
-- [ ] Designer les exercices et livrables
-- [ ] Concevoir les outils et l'automatisation
+- [x] Recherches approfondies (psychologie, pedagogie, structure programme)
+- [x] Structurer le curriculum (modules, sujets, progression)
+- [x] Designer les exercices et livrables
+- [x] Concevoir les outils et l'automatisation
 
 ### Bot Discord (`packages/bot-discord`)
-- [ ] Structure serveur (GENERAL, FORMATION, EQUIPE, ADMIN)
-- [ ] Systeme de roles (@Formateur, @Equipe, @Session2)
-- [ ] FAQ automatique (#faq) avec base de connaissances
-- [ ] Soumission d'exercices (/submit) avec file d'attente
-- [ ] Pre-review IA des exercices
-- [ ] Ressources pedagogiques (#resources) via Supabase Storage
+- [x] Structure serveur (ОБЩЕЕ, ОБУЧЕНИЕ, ПОДЫ, АДМИН)
+- [x] Systeme de roles (@tsarag, @student, @mentor)
+- [x] FAQ automatique (#faq) avec base de connaissances
+- [x] Pre-review IA des exercices (exercise-reviewer.ts)
+- [x] Agent DM conversationnel — remplace /submit et /progress (SPEC-DM-AGENT.md)
+- [x] Handler DM (upload fichiers Supabase Storage, queue par etudiant, memoire conversation)
+- [x] Commande `/session` (cree post Forum + DB)
+- [x] Commande `/session-update` (met a jour exercice/deadline)
+- [x] Role mentor (isMentor, /review + FAQ pour mentors)
+- [x] Crons rappels (deadline 48h/24h via DM)
 - [ ] Notifications groupees vers bot admin (1x/jour)
-- [ ] Gestion equipe : projets clients, briefs, threads automatiques
+- [x] Nettoyage anciennes commandes (/submit, /progress, /live, /deadline, /resource)
 
 ### Core — Additions Phase 3
-- [ ] CRUD Students + Student Exercises
+- [x] CRUD Students + Student Exercises
+- [x] CRUD Sessions + Submission Attachments
+- [x] CRUD FAQ Entries + Events
+- [x] Agent pre-review exercices
+- [x] Agent FAQ
+- [x] Agent DM conversationnel (Claude tool_use, 4 outils)
 - [ ] CRUD Team Members
-- [ ] Agent classification exercices
 - [ ] Generation briefs clients
 
-**Livrable** : Discord pret pour la session 2 avec exercices, ressources et FAQ.
+### Migrations DB
+- [x] 004_students_system.sql (students, student_exercises, faq_entries)
+- [x] 005_sessions_system.sql (sessions, submission_attachments, session_id FK)
+
+**Livrable** : Discord pret pour la session 2 avec agent DM, exercices multi-format, et FAQ.
 
 ---
 
@@ -141,7 +153,7 @@ Mois 2-3    ████████████████  Phase 4 (Contenu +
 
 1. [x] ~~Creer le bot Telegram admin~~ via @BotFather ✅
 2. [x] ~~Creer le bot Telegram public~~ via @BotFather ✅
-3. [ ] **Creer le bot Discord** via Developer Portal
+3. [x] **Creer le bot Discord** via Developer Portal ✅
 4. [ ] **Tester bot admin + bot public** en conditions reelles
 5. [ ] **Deploy sur Railway/Fly.io**
-6. [ ] **Commencer Phase 3** (Discord) pour session 2
+6. [x] **Commencer Phase 3** (Discord) pour session 2 ✅

@@ -1,8 +1,16 @@
 # Spec — Agent conversationnel DM (Bot Discord)
 
-> **Statut : A VALIDER**
+> **Statut : IMPLEMENTE**
 > Remplace le systeme de commandes slash pour les etudiants.
 > Les commandes admin (tsarag) restent inchangees.
+>
+> **Progression :**
+> - [x] Etape 1 : Migration SQL (005_sessions_system.sql) + Types TS + CRUD sessions/attachments
+> - [x] Etape 2 : Agent DM Core (dm-agent.ts) + Handler Discord (dm-handler.ts)
+> - [x] Etape 3 : Commandes /session + /session-update
+> - [x] Etape 4 : Modifier /review (mentor), FAQ (mentor), auth (isMentor)
+> - [x] Etape 5 : Crons (deadline reminders 48h + 24h)
+> - [x] Etape 6 : Supprimer anciennes commandes (/submit, /progress, /live, /deadline, /resource)
 
 ---
 

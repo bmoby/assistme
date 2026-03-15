@@ -9,8 +9,8 @@ export const ROLES = {
 
 export const CHANNELS = {
   annonces: 'объявления',
-  exercices: 'задания',
-  ressources: 'ресурсы',
-  lives: 'эфиры',
+  sessions: 'сессии',
+  chat: 'чат',
   faq: 'faq',
+  wins: 'победы',
 } as const;

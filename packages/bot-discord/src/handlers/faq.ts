@@ -1,7 +1,7 @@
 import { Client, Message, TextChannel } from 'discord.js';
 import { getAllFaqEntries, answerFaqQuestion, incrementFaqUsage, createFaqEntry, createFormationEvent } from '@vibe-coder/core';
 import { logger } from '@vibe-coder/core';
-import { isAdmin, isStudent } from '../utils/auth.js';
+import { isAdmin, isStudent, isMentor } from '../utils/auth.js';
 import { splitMessage } from '../utils/message-split.js';
 import { CHANNELS } from '../config.js';
 
@@ -14,11 +14,11 @@ export function setupFaqHandler(client: Client): void {
     if (!(message.channel instanceof TextChannel)) return;
     if (message.channel.name !== CHANNELS.faq) return;
 
-    // Must be a student or admin
-    if (!isStudent(message) && !isAdmin(message)) return;
+    // Must be a student, admin, or mentor
+    if (!isStudent(message) && !isAdmin(message) && !isMentor(message)) return;
 
-    // If admin is answering, add to FAQ base
-    if (isAdmin(message) && message.reference) {
+    // If admin or mentor is answering, add to FAQ base
+    if ((isAdmin(message) || isMentor(message)) && message.reference) {
       try {
         const repliedTo = await message.channel.messages.fetch(message.reference.messageId!);
         if (repliedTo && !repliedTo.author.bot) {
@@ -26,7 +26,7 @@ export function setupFaqHandler(client: Client): void {
             question: repliedTo.content,
             answer: message.content,
             category: 'general',
-            created_by: 'formateur',
+            created_by: isAdmin(message) ? 'formateur' : 'mentor',
           });
           await message.react('📝');
         }

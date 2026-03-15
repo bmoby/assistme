@@ -1,19 +1,22 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
 import { searchStudentByName, getExercisesByStudent } from '@vibe-coder/core';
 import { logger } from '@vibe-coder/core';
-import { isAdmin } from '../../utils/auth.js';
+import { isAdmin, isMentor } from '../../utils/auth.js';
 import { formatExerciseEmbed } from '../../utils/format.js';
 
 export const reviewCommand = new SlashCommandBuilder()
   .setName('review')
-  .setDescription('[Admin] Задания студента на проверку')
+  .setDescription('[Admin/Mentor] Задания студента на проверку')
   .addStringOption((opt) =>
     opt.setName('студент').setDescription('Имя студента').setRequired(true)
   );
 
 export async function handleReview(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!isAdmin(interaction)) {
-    await interaction.reply({ content: 'Команда доступна только тренеру.', ephemeral: true });
+  const admin = isAdmin(interaction);
+  const mentor = isMentor(interaction);
+
+  if (!admin && !mentor) {
+    await interaction.reply({ content: 'Команда доступна тренеру и менторам.', ephemeral: true });
     return;
   }
 
@@ -27,6 +30,10 @@ export async function handleReview(interaction: ChatInputCommandInteraction): Pr
     }
 
     const student = students[0]!;
+
+    // TODO: when team_members table is populated, filter mentor access by pod
+    // For now, mentors can view all students (read-only)
+
     const exercises = await getExercisesByStudent(student.id);
     const pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed');
 
@@ -35,8 +42,13 @@ export async function handleReview(interaction: ChatInputCommandInteraction): Pr
       return;
     }
 
+    const roleLabel = mentor && !admin ? ' (только просмотр)' : '';
     const embeds = pending.slice(0, 5).map((e) => formatExerciseEmbed(e, student.name));
-    await interaction.reply({ content: `**${pending.length} задание(й) на проверку у ${student.name}:**`, embeds, ephemeral: true });
+    await interaction.reply({
+      content: `**${pending.length} задание(й) на проверку у ${student.name}**${roleLabel}:`,
+      embeds,
+      ephemeral: true,
+    });
   } catch (error) {
     logger.error({ error, studentName }, 'Failed to review student exercises');
     await interaction.reply({ content: 'Ошибка при получении заданий.', ephemeral: true });

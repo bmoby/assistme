@@ -6,11 +6,12 @@ import dotenv from 'dotenv';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
 
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import { logger } from '@vibe-coder/core';
 import { registerSlashCommands, setupCommandHandler } from './commands/index.js';
 import { setupFaqHandler } from './handlers/faq.js';
 import { setupGuildMemberHandler } from './handlers/guild-member.js';
+import { setupDmHandler } from './handlers/dm-handler.js';
 import { registerCronJobs } from './cron/index.js';
 
 async function main(): Promise<void> {
@@ -29,7 +30,9 @@ async function main(): Promise<void> {
       GatewayIntentBits.GuildMessages,
       GatewayIntentBits.MessageContent,
       GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.DirectMessages,
     ],
+    partials: [Partials.Channel],
   });
 
   // Register slash commands via REST API (guild-level for instant updates)
@@ -39,6 +42,7 @@ async function main(): Promise<void> {
   setupCommandHandler(client);
   setupFaqHandler(client);
   setupGuildMemberHandler(client);
+  setupDmHandler(client);
 
   // Client ready event
   client.once('ready', (readyClient) => {

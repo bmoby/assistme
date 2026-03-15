@@ -10,7 +10,7 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 
 ### 1.1 Instance
 - **Instance existante** : Supabase avec PostgreSQL
-- **Migrations** : `supabase/migrations/` (001_initial.sql, 002_memory_and_events.sql, 003_public_knowledge.sql)
+- **Migrations** : `supabase/migrations/` (001_initial.sql, 002_memory_and_events.sql, 003_public_knowledge.sql, 004_students_system.sql, 005_sessions_system.sql)
 
 ### 1.2 Schema
 
@@ -99,18 +99,19 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 - created_at, updated_at TIMESTAMPTZ
 ```
 
-#### Table `students` (Phase 3)
+#### Table `students` ✅ (migration 004)
 ```sql
 - id UUID PRIMARY KEY
-- name, phone, email, telegram_id, discord_id
-- session INTEGER
+- name TEXT NOT NULL, phone, email, telegram_id, discord_id TEXT UNIQUE
+- session INTEGER DEFAULT 2
 - status TEXT ('interested', 'registered', 'paid', 'active', 'completed', 'dropped')
-- payment_status, payment_amount, payment_method, payment_details
+- payment_status, payment_amount, payment_method, payment_details JSONB
+- pod_id INTEGER (1-8), mentor_id UUID REFERENCES team_members(id)
 - enrolled_at, completed_at, notes
 - created_at, updated_at
 ```
 
-#### Table `student_exercises` (Phase 3)
+#### Table `student_exercises` ✅ (migration 004 + 005)
 ```sql
 - id UUID PRIMARY KEY
 - student_id UUID REFERENCES students(id)
@@ -119,7 +120,33 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 - submitted_at TIMESTAMPTZ
 - ai_review JSONB, manual_review TEXT
 - status TEXT ('submitted', 'ai_reviewed', 'reviewed', 'approved', 'revision_needed')
+- session_id UUID REFERENCES sessions(id)    ← ajouté migration 005
 - reviewed_at, feedback
+- created_at
+```
+
+#### Table `sessions` ✅ (migration 005)
+```sql
+- id UUID PRIMARY KEY
+- session_number INTEGER NOT NULL UNIQUE
+- module INTEGER NOT NULL
+- title TEXT NOT NULL, description TEXT
+- pre_session_video_url TEXT, replay_url TEXT
+- exercise_title TEXT, exercise_description TEXT
+- expected_deliverables TEXT, exercise_tips TEXT
+- deadline TIMESTAMPTZ
+- discord_thread_id TEXT
+- status TEXT ('draft', 'published', 'completed')
+- created_at, updated_at
+```
+
+#### Table `submission_attachments` ✅ (migration 005)
+```sql
+- id UUID PRIMARY KEY
+- exercise_id UUID REFERENCES student_exercises(id) ON DELETE CASCADE
+- type TEXT ('url', 'file', 'text', 'image')
+- url TEXT, storage_path TEXT, original_filename TEXT
+- mime_type TEXT, file_size INTEGER, text_content TEXT
 - created_at
 ```
 

@@ -102,6 +102,7 @@ export interface StudentExercise {
   status: ExerciseStatus;
   reviewed_at: string | null;
   feedback: string | null;
+  session_id: string | null;
   created_at: string;
 }
 
@@ -271,6 +272,50 @@ export type FormationEventType =
   | 'student_alert'
   | 'announcement'
   | 'daily_exercise_digest';
+
+// ============================================
+// Session Types (Formation)
+// ============================================
+
+export type SessionStatus = 'draft' | 'published' | 'completed';
+
+export interface Session {
+  id: string;
+  session_number: number;
+  module: number;
+  title: string;
+  description: string | null;
+  pre_session_video_url: string | null;
+  replay_url: string | null;
+  exercise_title: string | null;
+  exercise_description: string | null;
+  expected_deliverables: string | null;
+  exercise_tips: string | null;
+  deadline: string | null;
+  discord_thread_id: string | null;
+  status: SessionStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================
+// Submission Attachment Types
+// ============================================
+
+export type AttachmentType = 'url' | 'file' | 'text' | 'image';
+
+export interface SubmissionAttachment {
+  id: string;
+  exercise_id: string;
+  type: AttachmentType;
+  url: string | null;
+  storage_path: string | null;
+  original_filename: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  text_content: string | null;
+  created_at: string;
+}
 
 export interface FormationEvent {
   id: string;

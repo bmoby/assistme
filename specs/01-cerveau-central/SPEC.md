@@ -1,6 +1,6 @@
 # 01 — Cerveau Central (Core)
 
-> **Statut : ✅ Phase 1 + 2 IMPLEMENTEES**
+> **Statut : ✅ Phase 1 + 2 + Formation (Phase 3 en cours)**
 
 **Package** : `packages/core`
 **Entry point** : `src/index.ts`
@@ -22,8 +22,12 @@ Client Supabase unique (`src/db/client.ts`) utilise par tous les modules.
 | `public-knowledge.ts` | public_knowledge | ✅ getAllPublicKnowledge, getByCategory, getEntry, upsert, delete |
 | `clients.ts` | clients | ✅ createClient, getClientPipeline, updateClientStatus, updateClient |
 | `reminders.ts` | reminders | ✅ createReminder, createReminders, getDueReminders, markReminderSent, cancelActiveReminders, getTodayReminders |
-| `students.ts` | students | ❌ Phase 3 |
-| `exercises.ts` | student_exercises | ❌ Phase 3 |
+| `formation/students.ts` | students | ✅ createStudent, getStudent, getStudentByDiscordId, updateStudent, getStudentsBySession, getStudentsByPod, getActiveStudents, linkDiscordId, searchStudentByName |
+| `formation/exercises.ts` | student_exercises | ✅ submitExercise, getExercise, getExercisesByStudent, getExercisesByModule, getPendingExercises, updateExerciseStatus, setAiReview, getExerciseSummary |
+| `formation/sessions.ts` | sessions | ✅ createSession, getSession, getSessionByNumber, getPublishedSessions, getAllSessions, updateSession, publishSession, getSessionsWithDeadlineIn |
+| `formation/attachments.ts` | submission_attachments | ✅ addAttachment, getAttachmentsByExercise, deleteAttachment |
+| `formation/faq.ts` | faq_entries | ✅ getAllFaqEntries, getFaqByCategory, searchFaq, createFaqEntry, incrementFaqUsage |
+| `formation/events.ts` | events | ✅ createFormationEvent, getUnprocessedEvents, markEventProcessed |
 | `team.ts` | team_members | ❌ Phase 3 |
 | `messages.ts` | messages_log | ❌ Futur |
 | `habits.ts` | habits | ❌ Futur |
@@ -216,6 +220,35 @@ getNotificationCount(): Promise<number>
 - Default : 15 notifications/jour
 - Modifiable via `/notifs [nombre]` ou en langage naturel
 
+### 2.11 Agents Formation (`formation/`)
+
+#### Exercise Reviewer ✅ (`formation/exercise-reviewer.ts`)
+Pre-review IA des exercices soumis. Score 1-10, points forts/ameliorations, recommendation.
+
+#### FAQ Agent ✅ (`formation/faq-agent.ts`)
+Repond aux questions FAQ. Charge faq_entries + public_knowledge. Confidence > 70% → repond, sinon transfere.
+
+#### DM Agent ✅ (`formation/dm-agent.ts`)
+Agent conversationnel pour les DMs Discord. Remplace /submit et /progress.
+
+```typescript
+runDmAgent(context: DmAgentContext): Promise<DmAgentResponse>
+```
+
+**Architecture :** Claude Sonnet avec tool_use (4 outils) + system prompt en russe.
+
+**Outils :**
+| Outil | Description |
+|-------|-------------|
+| `get_student_progress` | Profil + progression (sessions soumises/non soumises) |
+| `get_session_exercise` | Details de l'exercice d'une session |
+| `create_submission` | Cree une soumission (exercise + attachments + event Telegram) |
+| `get_pending_feedback` | Retours recents (IA review, approbation, revision) |
+
+**Flow :** Identifie l'etudiant par discord_id → construit contexte → boucle tool_use (max 5 iter) → retourne texte.
+
+Voir `specs/04-bot-discord/SPEC-DM-AGENT.md` pour la specification complete.
+
 ---
 
 ## 3. Module Scheduler (`src/scheduler/`)
@@ -246,7 +279,7 @@ Remplace les 5 crons fixes par un systeme intelligent pilote par l'IA.
 ## 4. Module Types (`src/types/index.ts`)
 
 Types TypeScript stricts pour toutes les tables Supabase :
-Task, DailyPlan, Client, Student, StudentExercise, TeamMember, MessageLog, ContentIdea, Habit, Reminder, PublicKnowledge.
+Task, DailyPlan, Client, Student, StudentExercise, TeamMember, MessageLog, ContentIdea, Habit, Reminder, PublicKnowledge, FaqEntry, FormationEvent, Session, SubmissionAttachment, AttachmentType, SessionStatus.
 
 ---
 
