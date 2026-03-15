@@ -13,3 +13,7 @@ export { runClientDiscoveryAgent } from './client-discovery-agent.js';
 export type { ClientDiscoveryResult } from './client-discovery-agent.js';
 export { planDailyNotifications, getNotificationCount } from './notification-planner.js';
 export type { PlannedNotification } from './notification-planner.js';
+export { reviewExercise } from './formation/exercise-reviewer.js';
+export type { ExerciseReviewResult } from './formation/exercise-reviewer.js';
+export { answerFaqQuestion } from './formation/faq-agent.js';
+export type { FaqResponse } from './formation/faq-agent.js';

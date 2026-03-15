@@ -16,6 +16,9 @@ importers:
       discord.js:
         specifier: ^14.16.0
         version: 14.25.1
+      dotenv:
+        specifier: ^17.3.1
+        version: 17.3.1
     devDependencies:
       '@types/node':
         specifier: ^20.17.0

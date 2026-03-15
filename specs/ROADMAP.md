@@ -80,9 +80,15 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 
 ---
 
-## Phase 3 — Bot Discord Formateur 🔜
+## Phase 3 — Formation Session 2 + Bot Discord 🔜
 
-*Prochaine phase — Pour le lancement session 2*
+*Prochaine phase — En preparation*
+
+### Organisation Formation (`specs/06-formation/SPEC.md`)
+- [ ] Recherches approfondies (psychologie, pedagogie, structure programme)
+- [ ] Structurer le curriculum (modules, sujets, progression)
+- [ ] Designer les exercices et livrables
+- [ ] Concevoir les outils et l'automatisation
 
 ### Bot Discord (`packages/bot-discord`)
 - [ ] Structure serveur (GENERAL, FORMATION, EQUIPE, ADMIN)

@@ -71,6 +71,8 @@ export interface Student {
   payment_amount: number | null;
   payment_method: string | null;
   payment_details: Record<string, unknown> | null;
+  pod_id: number | null;
+  mentor_id: string | null;
   enrolled_at: string | null;
   completed_at: string | null;
   notes: string | null;
@@ -78,11 +80,14 @@ export interface Student {
   updated_at: string;
 }
 
+export type NewStudent = Omit<Student, 'id' | 'created_at' | 'updated_at'>;
+
 // ============================================
 // Exercise Types
 // ============================================
 
 export type ExerciseStatus = 'submitted' | 'ai_reviewed' | 'reviewed' | 'approved' | 'revision_needed';
+export type NewStudentExercise = Omit<StudentExercise, 'id' | 'created_at' | 'submitted_at' | 'ai_review' | 'manual_review' | 'reviewed_at' | 'feedback'>;
 
 export interface StudentExercise {
   id: string;
@@ -240,4 +245,39 @@ export interface PublicKnowledge {
   content: string;
   created_at: string;
   updated_at: string;
+}
+
+// ============================================
+// FAQ Entry Types (Formation)
+// ============================================
+
+export interface FaqEntry {
+  id: string;
+  question: string;
+  answer: string;
+  category: string;
+  times_used: number;
+  created_by: string;
+  created_at: string;
+}
+
+// ============================================
+// Formation Event Types (Inter-bot communication)
+// ============================================
+
+export type FormationEventType =
+  | 'exercise_submitted'
+  | 'exercise_reviewed'
+  | 'student_alert'
+  | 'announcement'
+  | 'daily_exercise_digest';
+
+export interface FormationEvent {
+  id: string;
+  type: string;
+  source: string;
+  target: string | null;
+  data: Record<string, unknown>;
+  processed: boolean;
+  created_at: string;
 }

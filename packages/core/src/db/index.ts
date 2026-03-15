@@ -5,3 +5,4 @@ export * from './clients.js';
 export * from './memory.js';
 export * from './public-knowledge.js';
 export * from './reminders.js';
+export * from './formation/index.js';

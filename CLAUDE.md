@@ -56,6 +56,7 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 | `specs/02-bot-telegram/` | `packages/bot-telegram/` |
 | `specs/03-bot-telegram-public/` | `packages/bot-telegram-public/` |
 | `specs/04-bot-discord/` | `packages/bot-discord/` |
+| `specs/06-formation/` | Organisation formation Session 2 (curriculum, exercices, outils) |
 
 ## Commands
 - `pnpm install` — Install all dependencies

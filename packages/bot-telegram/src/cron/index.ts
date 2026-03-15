@@ -1,6 +1,7 @@
 import type { Bot } from 'grammy';
 import { scheduler, logger } from '@vibe-coder/core';
 import { planDay, dispatchNotifications } from './dynamic-notifications.js';
+import { processFormationEvents } from './formation-events.js';
 
 export function registerCronJobs(bot: Bot): void {
   const chatId = process.env['TELEGRAM_ADMIN_CHAT_ID'];
@@ -22,7 +23,13 @@ export function registerCronJobs(bot: Bot): void {
     dispatchNotifications(bot, chatId)
   );
 
+  // Formation events — every 5 minutes
+  // Processes events from Discord bot (exercise submissions, alerts, digests)
+  scheduler.registerJob('formation-events', '*/5 * * * *', () =>
+    processFormationEvents(bot, chatId)
+  );
+
   // Start all jobs
   scheduler.startAllJobs();
-  logger.info('Dynamic notification system started (plan: 07:00, dispatch: every 2min)');
+  logger.info('Dynamic notification system started (plan: 07:00, dispatch: every 2min, formation: every 5min)');
 }
