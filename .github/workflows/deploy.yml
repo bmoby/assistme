@@ -37,7 +37,6 @@ jobs:
               - 'supabase/migrations/**'
 
   # Run migrations BEFORE deploying services
-  # Uses psql directly — simpler than Supabase CLI, no timestamp naming required
   migrate:
     needs: detect-changes
     if: needs.detect-changes.outputs.migrations == 'true'
@@ -78,7 +77,6 @@ jobs:
 
   deploy:
     needs: [detect-changes, migrate]
-    # Run deploy if any service changed, even if migrate was skipped
     if: |
       always() &&
       needs.detect-changes.result == 'success' &&
@@ -87,7 +85,8 @@ jobs:
         needs.detect-changes.outputs.bot-telegram == 'true' ||
         needs.detect-changes.outputs.bot-telegram-public == 'true' ||
         needs.detect-changes.outputs.bot-discord == 'true' ||
-        needs.detect-changes.outputs.embedding-server == 'true'
+        needs.detect-changes.outputs.embedding-server == 'true' ||
+        needs.detect-changes.outputs.migrations == 'true'
       )
     runs-on: ubuntu-latest
     steps:
@@ -111,14 +110,19 @@ jobs:
             # Determine which bot services to rebuild
             SERVICES=""
 
-            if [ "${{ needs.detect-changes.outputs.bot-telegram }}" == "true" ]; then
-              SERVICES="$SERVICES bot-telegram"
-            fi
-            if [ "${{ needs.detect-changes.outputs.bot-telegram-public }}" == "true" ]; then
-              SERVICES="$SERVICES bot-telegram-public"
-            fi
-            if [ "${{ needs.detect-changes.outputs.bot-discord }}" == "true" ]; then
-              SERVICES="$SERVICES bot-discord"
+            # If migrations changed, rebuild all bots (new schema = new code)
+            if [ "${{ needs.detect-changes.outputs.migrations }}" == "true" ]; then
+              SERVICES="bot-telegram bot-telegram-public bot-discord"
+            else
+              if [ "${{ needs.detect-changes.outputs.bot-telegram }}" == "true" ]; then
+                SERVICES="$SERVICES bot-telegram"
+              fi
+              if [ "${{ needs.detect-changes.outputs.bot-telegram-public }}" == "true" ]; then
+                SERVICES="$SERVICES bot-telegram-public"
+              fi
+              if [ "${{ needs.detect-changes.outputs.bot-discord }}" == "true" ]; then
+                SERVICES="$SERVICES bot-discord"
+              fi
             fi
 
             # Rebuild embedding server if changed
