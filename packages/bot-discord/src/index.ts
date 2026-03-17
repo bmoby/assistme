@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
 
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
-import { logger } from '@assistme/core';
+import { logger, agents } from '@assistme/core';
 import { registerSlashCommands, setupCommandHandler } from './commands/index.js';
 import { setupFaqHandler } from './handlers/faq.js';
 import { setupGuildMemberHandler } from './handlers/guild-member.js';
@@ -34,6 +34,10 @@ async function main(): Promise<void> {
     ],
     partials: [Partials.Channel],
   });
+
+  // Register autonomous agents
+  agents.registerArtisan();
+  agents.registerChercheur();
 
   // Register slash commands via REST API (guild-level for instant updates)
   await registerSlashCommands(token, clientId, guildId);

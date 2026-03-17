@@ -45,7 +45,7 @@ FORMAT DE REPONSE (JSON strict, PAS de markdown autour) :
 {
   "actions": [
     {
-      "type": "create_task" | "complete_task" | "create_client" | "note" | "manage_memory" | "start_research" | "start_client_discovery",
+      "type": "create_task" | "complete_task" | "create_client" | "note" | "manage_memory" | "start_research" | "start_client_discovery" | "invoke_agent",
       "data": { ... }
     }
   ],
@@ -59,6 +59,15 @@ Pour note : data = { "content" }
 Pour manage_memory : data = { "intent": "description de ce que Magomed veut faire" }
 Pour start_research : data = { "topic", "details", "include_memory" (true/false) }
 Pour start_client_discovery : data = { "client_name", "business_description", "known_info" }
+Pour invoke_agent : data = { "agent_name": "artisan" | "chercheur", "input": { ... } }
+
+AGENTS AUTONOMES :
+- "artisan" : genere des presentations PPTX professionnelles. Input: { "topic": "sujet", "slideCount": 10, "details": "details optionnels", "language": "fr" }
+- "chercheur" : recherche approfondie sur un sujet. Input: { "topic": "sujet", "details": "details" }
+- Si Magomed demande de "preparer une presentation", "faire des slides", "creer un PPTX" → invoke_agent avec agent_name "artisan"
+- Si la demande est "recherche X et fais des slides" → invoke_agent "chercheur" pour la recherche, il chainera automatiquement vers artisan
+- Le job est asynchrone : envoie ta reponse immediatement, le resultat arrivera plus tard
+- Si Magomed precise un nombre de slides, le mettre dans input.slideCount
 
 AGENT DE RECHERCHE :
 - Si Magomed parle de "recherche approfondie", "fais une recherche", "prepare un document sur", "analyse en profondeur" → utilise start_research
@@ -192,6 +201,19 @@ export async function processWithOrchestrator(message: string, conversationHisto
               client_name: action.data['client_name'] ?? '',
               business_description: action.data['business_description'] ?? '',
               known_info: action.data['known_info'] ?? '',
+            },
+          });
+          break;
+        }
+        case 'invoke_agent': {
+          // Not executed here — returned to the handler which invokes the agent via registry
+          const rawInput = action.data['input'];
+          const agentInput = typeof rawInput === 'string' ? JSON.parse(rawInput) : (rawInput ?? {});
+          executedActions.push({
+            type: 'invoke_agent',
+            data: {
+              agent_name: action.data['agent_name'] ?? '',
+              input: agentInput,
             },
           });
           break;

@@ -1,6 +1,6 @@
 import type { Bot, Context } from 'grammy';
 import { InputFile } from 'grammy';
-import { processWithOrchestrator, runResearchAgent, runClientDiscoveryAgent, processMemoryRequest, logger } from '@assistme/core';
+import { processWithOrchestrator, runResearchAgent, runClientDiscoveryAgent, processMemoryRequest, agents, logger } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
 import { generateDiscoveryPdf } from '../utils/pdf.js';
@@ -116,6 +116,31 @@ export function registerFreeText(bot: Bot): void {
           const errMsg = error instanceof Error ? error.message : String(error);
           logger.error({ err: errMsg, clientName }, 'Client discovery agent failed');
           await ctx.reply(`Erreur lors de la generation des questions : ${errMsg}\nReessaie.`);
+        }
+        return;
+      }
+
+      // Check if an agent invocation was triggered
+      const agentAction = result.actions.find((a) => a.type === 'invoke_agent');
+
+      if (agentAction) {
+        const agentName = String(agentAction.data['agent_name'] ?? '');
+        const agentInput = (agentAction.data['input'] ?? {}) as Record<string, unknown>;
+
+        addMessage(chatId, 'assistant', result.response);
+        await ctx.reply(result.response);
+
+        try {
+          await agents.invoke(agentName, agentInput, {
+            platform: 'telegram',
+            chatId,
+            callerRole: 'admin',
+          });
+          // Job created — delivery will happen via cron when complete
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          logger.error({ err: errMsg, agentName }, 'Agent invocation failed');
+          await ctx.reply(`Erreur lors de l'invocation de l'agent "${agentName}" : ${errMsg}`);
         }
         return;
       }

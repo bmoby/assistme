@@ -1,5 +1,6 @@
 import type { Bot } from 'grammy';
-import { getUnprocessedEvents, markEventProcessed } from '@assistme/core';
+import { InputFile } from 'grammy';
+import { getUnprocessedEvents, markEventProcessed, agents } from '@assistme/core';
 import { logger } from '@assistme/core';
 
 export async function processFormationEvents(bot: Bot, chatId: string): Promise<void> {
@@ -69,6 +70,29 @@ export async function processFormationEvents(bot: Bot, chatId: string): Promise<
             }
 
             await bot.api.sendMessage(chatId, msg);
+            break;
+          }
+
+          case 'agent_job_completed': {
+            const targetChatId = String(data.chat_id ?? chatId);
+            const resultFiles = (data.result_files as Array<{ storage_path: string; filename: string; mime_type: string }>) ?? [];
+            const resultText = data.result_text as string | null;
+
+            if (resultText) {
+              await bot.api.sendMessage(targetChatId, resultText);
+            }
+
+            for (const file of resultFiles) {
+              try {
+                const buffer = await agents.downloadFromStorage(file.storage_path);
+                await bot.api.sendDocument(targetChatId, new InputFile(buffer, file.filename), {
+                  caption: `${data.agent_name ?? 'Agent'} — ${file.filename}`,
+                });
+              } catch (err) {
+                logger.error({ err, storagePath: file.storage_path }, 'Failed to send agent output file');
+                await bot.api.sendMessage(targetChatId, `Erreur: impossible d'envoyer ${file.filename}`);
+              }
+            }
             break;
           }
 

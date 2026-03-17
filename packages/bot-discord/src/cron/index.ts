@@ -1,5 +1,5 @@
 import { Client } from 'discord.js';
-import { scheduler, logger } from '@assistme/core';
+import { scheduler, logger, agents } from '@assistme/core';
 import { sendExerciseDigest } from './exercise-digest.js';
 import { detectDropouts } from './dropout-detector.js';
 import { dispatchDiscordEvents } from './event-dispatcher.js';
@@ -37,6 +37,11 @@ export function registerCronJobs(client: Client, guildId: string): void {
   // Clean up orphaned files in Supabase Storage — daily at 03:00
   scheduler.registerJob('formation-storage-cleanup', '0 3 * * *', async () => {
     await cleanupOrphanedFiles();
+  });
+
+  // Agent job processor — every minute
+  scheduler.registerJob('agent-job-processor', '*/1 * * * *', async () => {
+    await agents.processAgentJobs();
   });
 
   scheduler.startAllJobs();

@@ -9,7 +9,7 @@ dotenv.config({ path: resolve(__dirname, '../../../.env') });
 
 async function main() {
   const { Bot } = await import('grammy');
-  const { logger } = await import('@assistme/core');
+  const { logger, agents } = await import('@assistme/core');
   const { registerCommands } = await import('./commands/index.js');
   const { registerVoiceHandler } = await import('./handlers/voice.js');
   const { registerFreeText } = await import('./handlers/free-text.js');
@@ -21,6 +21,10 @@ async function main() {
   }
 
   const bot = new Bot(token);
+
+  // Register autonomous agents
+  agents.registerArtisan();
+  agents.registerChercheur();
 
   // Register command handlers (backup, still available)
   registerCommands(bot);

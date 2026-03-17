@@ -1,5 +1,5 @@
 import type { Bot } from 'grammy';
-import { scheduler, logger, expireZombieReminders, runMemoryConsolidation } from '@assistme/core';
+import { scheduler, logger, expireZombieReminders, runMemoryConsolidation, agents } from '@assistme/core';
 import { planDay, dispatchNotifications } from './dynamic-notifications.js';
 import { processFormationEvents } from './formation-events.js';
 
@@ -43,7 +43,13 @@ export function registerCronJobs(bot: Bot): void {
     processFormationEvents(bot, chatId)
   );
 
+  // Agent job processor — every 30 seconds
+  // Picks up pending agent jobs, executes them, delivers results via events
+  scheduler.registerJob('agent-job-processor', '*/1 * * * *', async () => {
+    await agents.processAgentJobs();
+  });
+
   // Start all jobs
   scheduler.startAllJobs();
-  logger.info('Cron system started (consolidation: 03:00, zombies: 06:55, plan: 07:00, dispatch: every 2min, formation: every 5min)');
+  logger.info('Cron system started (consolidation: 03:00, zombies: 06:55, plan: 07:00, dispatch: every 2min, formation: every 5min, agents: every 1min)');
 }

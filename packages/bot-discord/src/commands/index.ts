@@ -10,6 +10,7 @@ import { revisionCommand, handleRevision } from './admin/revision.js';
 import { studentListCommand, handleStudentList } from './admin/student-list.js';
 import { sessionCommand, handleSession } from './admin/session.js';
 import { sessionUpdateCommand, handleSessionUpdate } from './admin/session-update.js';
+import { createCommand, handleCreate } from './admin/create.js';
 
 type CommandHandler = (interaction: ChatInputCommandInteraction) => Promise<void>;
 
@@ -22,6 +23,7 @@ const adminCommands = [
   studentListCommand,
   sessionCommand,
   sessionUpdateCommand,
+  createCommand,
 ];
 for (const cmd of adminCommands) {
   cmd.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
@@ -39,6 +41,7 @@ const commands: Array<{ data: SlashCommandBuilder; handler: CommandHandler }> = 
   { data: studentListCommand as SlashCommandBuilder, handler: handleStudentList },
   { data: sessionCommand as SlashCommandBuilder, handler: handleSession },
   { data: sessionUpdateCommand as SlashCommandBuilder, handler: handleSessionUpdate },
+  { data: createCommand as SlashCommandBuilder, handler: handleCreate },
 ];
 
 const commandHandlers = new Collection<string, CommandHandler>();
