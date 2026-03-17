@@ -1,5 +1,5 @@
 import { askClaude } from './client.js';
-import { getAllMemory, upsertMemory, deleteMemory, type MemoryEntry } from '../db/memory.js';
+import { getCoreMemory, getWorkingMemory, upsertMemory, deleteMemory, type MemoryEntry } from '../db/memory.js';
 import { logger } from '../logger.js';
 
 const MEMORY_AGENT_PROMPT = `Tu es l'Agent Memoire. Tu analyses les messages de Magomed et determines si la memoire a long terme doit etre mise a jour.
@@ -16,11 +16,11 @@ ACTIONS DEJA PRISES PAR LE SYSTEME :
 REGLES :
 - Ne mets a jour que quand c'est SIGNIFICATIF (pas pour des banalites)
 - Categories possibles : identity, situation, preference, relationship, lesson
-- "identity" = personnalite, competences, fonctionnement (change rarement)
-- "situation" = activites en cours, equipe, objectifs, finances (change regulierement)
-- "preference" = gouts, methodes preferees (change si il le dit explicitement)
-- "relationship" = info sur une personne specifique (client, etudiant, famille)
-- "lesson" = experience, erreur passee, chose apprise
+- "identity" = personnalite, competences, fonctionnement (change rarement) → TIER CORE (permanent)
+- "situation" = activites en cours, equipe, objectifs, finances → TIER WORKING (expire apres 30j)
+- "preference" = gouts, methodes preferees → TIER WORKING (expire apres 30j)
+- "relationship" = info sur une personne specifique (nom = cle) → TIER WORKING (expire apres 30j)
+- "lesson" = experience, erreur passee, chose apprise → TIER ARCHIVAL (permanent, recherche semantique)
 - Pour les relationships, utilise le nom de la personne comme "key"
 - Si une info existante est devenue obsolete, mets-la a jour
 - Si une info est completement fausse maintenant, supprime-la
@@ -45,7 +45,11 @@ export async function runMemoryAgent(params: {
   actionsSummary: string;
 }): Promise<void> {
   try {
-    const allMemory = await getAllMemory();
+    const [coreMemory, workingMemory] = await Promise.all([
+      getCoreMemory(),
+      getWorkingMemory(),
+    ]);
+    const allMemory = [...coreMemory, ...workingMemory];
     const memoryFormatted = formatMemoryForPrompt(allMemory);
 
     const prompt = MEMORY_AGENT_PROMPT

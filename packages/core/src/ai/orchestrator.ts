@@ -83,8 +83,8 @@ export interface OrchestratorResult {
 }
 
 export async function processWithOrchestrator(message: string, conversationHistory?: string): Promise<OrchestratorResult> {
-  // Build dynamic context from memory + live data
-  const context = await buildContext();
+  // Build dynamic context from memory + live data (tier-aware)
+  const context = await buildContext({ userMessage: message });
   const systemPrompt = ORCHESTRATOR_PROMPT
     .replace('{context}', context)
     .replace('{history}', conversationHistory || '(pas d\'historique)');

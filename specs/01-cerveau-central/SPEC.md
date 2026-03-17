@@ -18,10 +18,10 @@ Client Supabase unique (`src/db/client.ts`) utilise par tous les modules.
 |---------|-------|--------|
 | `tasks.ts` | tasks | ✅ createTask, completeTask, getActiveTasks, getTasksByCategory, etc. |
 | `daily-plans.ts` | daily_plans | ✅ createDailyPlan, getTodayPlan, updatePlanStatus |
-| `memory.ts` | memory | ✅ getAllMemory, getMemoryByCategory, getMemoryEntry, upsertMemory, deleteMemory |
+| `memory.ts` | memory | ✅ getAllMemory, getMemoryByCategory, getMemoryEntry, upsertMemory, deleteMemory, getCoreMemory, getWorkingMemory, searchMemorySemantic |
 | `public-knowledge.ts` | public_knowledge | ✅ getAllPublicKnowledge, getByCategory, getEntry, upsert, delete |
 | `clients.ts` | clients | ✅ createClient, getClientPipeline, updateClientStatus, updateClient |
-| `reminders.ts` | reminders | ✅ createReminder, createReminders, getDueReminders, markReminderSent, cancelActiveReminders, getTodayReminders |
+| `reminders.ts` | reminders | ✅ createReminder, createReminders, getDueReminders (6h stale guard), markReminderSent, cancelActiveReminders (all past active), expireZombieReminders, getTodayReminders |
 | `formation/students.ts` | students | ✅ createStudent, getStudent, getStudentByDiscordId, updateStudent, getStudentsBySession, getStudentsByPod, getActiveStudents, linkDiscordId, searchStudentByName |
 | `formation/exercises.ts` | student_exercises | ✅ submitExercise, getExercise, getExercisesByStudent, getExercisesByModule, getPendingExercises, updateExerciseStatus, setAiReview, getExerciseSummary |
 | `formation/sessions.ts` | sessions | ✅ createSession, getSession, getSessionByNumber, getPublishedSessions, getAllSessions, updateSession, publishSession, getSessionsWithDeadlineIn |
@@ -150,18 +150,26 @@ runClientDiscoveryAgent(params: {
 - Questions formulees de facon conversationnelle
 - Premiere brique du workflow Discovery → Qualification → Research → Proposition
 
-### 2.7 Context Builder ✅ (`context-builder.ts`)
+### 2.7 Context Builder v2 ✅ (`context-builder.ts`)
 
-Construit le contexte dynamique injecte dans le system prompt.
+Construit le contexte dynamique injecte dans le system prompt. Version 2 avec support Memory 3 Tiers.
 
 ```typescript
-buildContext(): Promise<string>
+buildContext(options?: {
+  includePublicKnowledge?: boolean  // default false
+  maxTasks?: number                 // default 15
+  userMessage?: string              // triggers semantic search on archival memories
+}): Promise<string>
 ```
 
-**4 couches :**
-1. Memoire personnelle (identity, situation, preference, relationship, lesson)
-2. Donnees live (taches actives max 15, pipeline clients)
-3. Public Knowledge (contenu complet pour gestion)
+**4 couches (tier-aware) :**
+1. Memoire personnelle (core + working tiers uniquement — PAS archival)
+   - Core tier (identity) : toujours charge, cache Redis 5 min
+   - Working tier (situation, preference, relationship) : toujours charge, cache Redis 2 min
+   - Archival tier (lesson) : PAS charge par defaut, recherche semantique si `userMessage` fourni
+2. Donnees live (taches actives max N, pipeline clients)
+   - Clients filtres : statuts terminaux (delivered/paid) de plus de 7 jours exclus
+3. Public Knowledge : charge uniquement si `includePublicKnowledge: true`
 4. Temporel (date/heure en francais)
 
 ### 2.8 Transcription ✅ (`transcribe.ts`)
@@ -249,6 +257,76 @@ runDmAgent(context: DmAgentContext): Promise<DmAgentResponse>
 
 Voir `specs/04-bot-discord/SPEC-DM-AGENT.md` pour la specification complete.
 
+### 2.12 Memory Consolidator ✅ (`memory-consolidator.ts`)
+
+Cron quotidien (03:00) qui review les working memories expirees.
+
+```typescript
+runMemoryConsolidation(): Promise<void>
+```
+
+**Flow :**
+1. Charge les working memories dont `expires_at` est depasse
+2. Pour chaque memoire expiree, Claude Sonnet decide :
+   - **archive** : deplacer vers tier archival (category → lesson)
+   - **delete** : supprimer (information perimee, pas utile)
+   - **renew** : renouveler `expires_at` de 30 jours (toujours pertinent)
+3. Execute les modifications en batch
+
+### 2.13 Embeddings Client ✅ (`embeddings.ts`)
+
+Client HTTP pour le serveur d'embeddings (Python FastAPI + all-MiniLM-L6-v2, 384 dimensions).
+
+```typescript
+getEmbedding(text: string): Promise<number[] | null>
+getEmbeddings(texts: string[]): Promise<(number[] | null)[]>
+```
+
+- Appels HTTP vers `EMBEDDING_SERVER_URL`
+- Fallback gracieux : retourne `null` si serveur indisponible
+- Auto-embedding sur `upsertMemory()` (fire-and-forget)
+- Recherche semantique via `searchMemorySemantic(queryEmbedding, options)` — RPC Supabase
+- Script de backfill : `scripts/backfill-embeddings.ts`
+
+### 2.14 Redis Cache ✅ (`src/cache/redis.ts`)
+
+Cache Redis avec fallback gracieux (fonctionne sans Redis).
+
+```typescript
+cacheGet<T>(key: string): Promise<T | null>
+cacheSet(key: string, value: unknown, ttlSeconds: number): Promise<void>
+cacheDelete(key: string): Promise<void>
+```
+
+**Utilisation dans Memory 3 Tiers :**
+- `getCoreMemory()` : cache 5 minutes (identity — change rarement)
+- `getWorkingMemory()` : cache 2 minutes (situation, preference, relationship)
+- Invalidation automatique sur `upsertMemory()` et `deleteMemory()`
+
+---
+
+### Memory 3 Tiers — Vue d'ensemble
+
+Systeme de gestion memoire en 3 niveaux, optimise pour le contexte et la pertinence.
+
+| Tier | Categories | Charge en contexte | Cache Redis | Expiration |
+|------|-----------|-------------------|-------------|------------|
+| **Core** | identity | Toujours | 5 min | Jamais |
+| **Working** | situation, preference, relationship | Toujours | 2 min | 30 jours (auto-renew possible) |
+| **Archival** | lesson | Jamais par defaut (recherche semantique) | Non | Jamais |
+
+**Type :** `MemoryTier = 'core' | 'working' | 'archival'`
+**Champ :** `tier: MemoryTier` ajoute a l'interface `MemoryEntry`
+
+**Recherche semantique (archival) :**
+- Quand `userMessage` est fourni a `buildContext()`, le message est converti en embedding
+- Recherche par similarite cosinus sur les memories archivales via pgvector
+- Les memories pertinentes sont ajoutees au contexte
+
+**Consolidation (cron 03:00) :**
+- Les working memories expirees sont reviewees par Claude Sonnet
+- Decision par memoire : archive / delete / renew
+
 ---
 
 ## 3. Module Scheduler (`src/scheduler/`)
@@ -261,6 +339,8 @@ Remplace les 5 crons fixes par un systeme intelligent pilote par l'IA.
 |------|-----------|--------|--------|
 | `daily-notification-plan` | 07:00 quotidien | L'IA planifie toutes les notifications du jour | ✅ |
 | `notification-dispatcher` | Toutes les 2 min | Verifie et envoie les notifications dues | ✅ |
+| `memory-consolidation` | 03:00 quotidien | Review des working memories expirees (archive/delete/renew) | ✅ |
+| `zombie-reminder-cleanup` | 06:55 quotidien | Annule les reminders actifs de plus de 24h | ✅ |
 | Veille contenu | Lundi 10:00 | Suggestions contenu | ❌ Phase 4 |
 | Student check | Quotidien 10:00 | Etudiants bloques > 48h | ❌ Phase 3 |
 | Client followup | Quotidien 10:00 | Clients en attente > 24h | ❌ Phase 3 |
@@ -279,7 +359,11 @@ Remplace les 5 crons fixes par un systeme intelligent pilote par l'IA.
 ## 4. Module Types (`src/types/index.ts`)
 
 Types TypeScript stricts pour toutes les tables Supabase :
-Task, DailyPlan, Client, Student, StudentExercise, TeamMember, MessageLog, ContentIdea, Habit, Reminder, PublicKnowledge, FaqEntry, FormationEvent, Session, SubmissionAttachment, AttachmentType, SessionStatus.
+Task, DailyPlan, Client, Student, StudentExercise, TeamMember, MessageLog, ContentIdea, Habit, Reminder, PublicKnowledge, FaqEntry, FormationEvent, Session, SubmissionAttachment, AttachmentType, SessionStatus, MemoryTier.
+
+**Nouveaux types Memory 3 Tiers :**
+- `MemoryTier = 'core' | 'working' | 'archival'`
+- `MemoryEntry.tier: MemoryTier` — champ ajoute a l'interface existante
 
 ---
 
@@ -291,6 +375,8 @@ export * from './db/index.js';
 export * from './ai/index.js';
 export * as scheduler from './scheduler/index.js';
 export { logger } from './logger.js';
+export { cacheGet, cacheSet, cacheDelete } from './cache/redis.js';
+export { getEmbedding, getEmbeddings } from './ai/embeddings.js';
 ```
 
 Tous les bots importent depuis `@vibe-coder/core`.
@@ -306,6 +392,7 @@ Tous les bots importent depuis `@vibe-coder/core`.
   "openai": "^4.x",
   "node-cron": "^3.x",
   "zod": "^3.x",
-  "pino": "^8.x"
+  "pino": "^8.x",
+  "ioredis": "^5.x"
 }
 ```

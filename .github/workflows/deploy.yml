@@ -12,6 +12,8 @@ jobs:
       bot-telegram-public: ${{ steps.changes.outputs.bot-telegram-public }}
       bot-discord: ${{ steps.changes.outputs.bot-discord }}
       core: ${{ steps.changes.outputs.core }}
+      embedding-server: ${{ steps.changes.outputs.embedding-server }}
+      migrations: ${{ steps.changes.outputs.migrations }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -29,13 +31,38 @@ jobs:
             bot-discord:
               - 'packages/bot-discord/**'
               - 'packages/core/**'
+            embedding-server:
+              - 'embedding-server/**'
+            migrations:
+              - 'supabase/migrations/**'
+
+  # Run migrations BEFORE deploying services
+  migrate:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.migrations == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+
+      - name: Push migrations to Supabase
+        run: supabase db push --db-url "${{ secrets.SUPABASE_DB_URL }}"
 
   deploy:
-    needs: detect-changes
+    needs: [detect-changes, migrate]
+    # Run deploy if any service changed, even if migrate was skipped
     if: |
-      needs.detect-changes.outputs.bot-telegram == 'true' ||
-      needs.detect-changes.outputs.bot-telegram-public == 'true' ||
-      needs.detect-changes.outputs.bot-discord == 'true'
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.migrate.result == 'success' || needs.migrate.result == 'skipped') &&
+      (
+        needs.detect-changes.outputs.bot-telegram == 'true' ||
+        needs.detect-changes.outputs.bot-telegram-public == 'true' ||
+        needs.detect-changes.outputs.bot-discord == 'true' ||
+        needs.detect-changes.outputs.embedding-server == 'true'
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +79,10 @@ jobs:
             # Pull latest code
             git pull origin main
 
-            # Determine which services to rebuild
+            # Always ensure infra services are running
+            docker compose -f docker-compose.prod.yml up -d redis embedding-server
+
+            # Determine which bot services to rebuild
             SERVICES=""
 
             if [ "${{ needs.detect-changes.outputs.bot-telegram }}" == "true" ]; then
@@ -65,11 +95,18 @@ jobs:
               SERVICES="$SERVICES bot-discord"
             fi
 
+            # Rebuild embedding server if changed
+            if [ "${{ needs.detect-changes.outputs.embedding-server }}" == "true" ]; then
+              echo "Rebuilding embedding server"
+              docker compose -f docker-compose.prod.yml build embedding-server
+              docker compose -f docker-compose.prod.yml up -d embedding-server
+            fi
+
             if [ -n "$SERVICES" ]; then
               echo "Rebuilding:$SERVICES"
               docker compose -f docker-compose.prod.yml build $SERVICES
               docker compose -f docker-compose.prod.yml up -d $SERVICES
-              docker image prune -f
             fi
 
+            docker image prune -f
             echo "Deploy complete!"

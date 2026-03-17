@@ -67,11 +67,14 @@ export async function createReminders(
 
 export async function getDueReminders(): Promise<Reminder[]> {
   const db = getSupabase();
+  // Zombie guard: ignore reminders older than 6 hours
+  const staleThreshold = new Date(Date.now() - 6 * 60 * 60 * 1000);
   const { data, error } = await db
     .from('reminders')
     .select('*')
     .eq('status', 'active')
     .eq('channel', 'telegram')
+    .gte('trigger_at', staleThreshold.toISOString())
     .lte('trigger_at', new Date().toISOString())
     .order('trigger_at', { ascending: true });
 
@@ -97,15 +100,15 @@ export async function markReminderSent(id: string): Promise<void> {
 
 export async function cancelActiveReminders(): Promise<number> {
   const db = getSupabase();
-  const today = new Date().toISOString().split('T')[0]!;
+  const now = new Date().toISOString();
 
+  // Cancel ALL active reminders in the past (not just today)
   const { data, error } = await db
     .from('reminders')
     .update({ status: 'cancelled' })
     .eq('status', 'active')
     .eq('channel', 'telegram')
-    .gte('trigger_at', `${today}T00:00:00`)
-    .lte('trigger_at', `${today}T23:59:59`)
+    .lte('trigger_at', now)
     .select('id');
 
   if (error) {
@@ -113,6 +116,29 @@ export async function cancelActiveReminders(): Promise<number> {
     throw new Error(`Failed to cancel reminders: ${error.message}`);
   }
   return data?.length ?? 0;
+}
+
+export async function expireZombieReminders(): Promise<number> {
+  const db = getSupabase();
+  // Cancel all active reminders older than 24 hours
+  const threshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await db
+    .from('reminders')
+    .update({ status: 'cancelled' })
+    .eq('status', 'active')
+    .lt('trigger_at', threshold)
+    .select('id');
+
+  if (error) {
+    logger.error({ error }, 'Failed to expire zombie reminders');
+    throw new Error(`Failed to expire zombie reminders: ${error.message}`);
+  }
+  const count = data?.length ?? 0;
+  if (count > 0) {
+    logger.info({ count }, 'Expired zombie reminders');
+  }
+  return count;
 }
 
 export async function getTodayReminders(): Promise<Reminder[]> {

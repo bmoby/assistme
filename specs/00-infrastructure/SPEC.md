@@ -10,7 +10,7 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 
 ### 1.1 Instance
 - **Instance existante** : Supabase avec PostgreSQL
-- **Migrations** : `supabase/migrations/` (001_initial.sql, 002_memory_and_events.sql, 003_public_knowledge.sql, 004_students_system.sql, 005_sessions_system.sql)
+- **Migrations** : `supabase/migrations/` (001_initial.sql, 002_memory_and_events.sql, 003_public_knowledge.sql, 004_students_system.sql, 005_sessions_system.sql, 006_memory_tiers.sql, 007_memory_embeddings.sql)
 
 ### 1.2 Schema
 
@@ -44,7 +44,7 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 - created_at TIMESTAMPTZ
 ```
 
-#### Table `memory` ✅
+#### Table `memory` ✅ (migrations 002 + 006 + 007)
 ```sql
 - id UUID PRIMARY KEY
 - category TEXT ('identity', 'situation', 'preference', 'relationship', 'lesson')
@@ -54,9 +54,25 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 - source TEXT DEFAULT 'conversation'
 - last_confirmed TIMESTAMPTZ
 - expires_at TIMESTAMPTZ
+- tier TEXT ('core', 'working', 'archival') DEFAULT 'working'  ← migration 006
+- embedding VECTOR(384)                                         ← migration 007 (pgvector)
 - created_at, updated_at TIMESTAMPTZ
 - UNIQUE(category, key)
 ```
+
+**Memory 3 Tiers (migration 006) :**
+- Ajoute colonne `tier` avec mapping automatique par categorie :
+  - `identity` → `core`
+  - `situation`, `preference`, `relationship` → `working`
+  - `lesson` → `archival`
+- Working memories : `expires_at` a 30 jours, auto-renew possible via consolidation
+- Core memories : jamais d'expiration
+
+**Embeddings (migration 007) :**
+- Active extension `pgvector`
+- Ajoute colonne `embedding VECTOR(384)` (all-MiniLM-L6-v2)
+- Index IVFFlat pour recherche rapide
+- Fonction RPC `search_memory_semantic(query_embedding, match_threshold, match_count)` pour recherche par similarite cosinus
 
 #### Table `public_knowledge` ✅
 ```sql
@@ -205,7 +221,9 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 |-----------|-------------|
 | Runtime | Node.js 20+ |
 | Langage | TypeScript strict, ESM modules |
-| DB | Supabase (PostgreSQL + Storage) |
+| DB | Supabase (PostgreSQL + Storage + pgvector) |
+| Cache | Redis (redis:7-alpine, ioredis) |
+| Embeddings | Python FastAPI + all-MiniLM-L6-v2 (384 dim) |
 | IA | Claude API (@anthropic-ai/sdk) |
 | Transcription | OpenAI Whisper API |
 | Bot Telegram | grammY |
@@ -214,21 +232,29 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 | Validation | Zod |
 | Logging | pino |
 | Monorepo | pnpm workspaces |
+| Conteneurisation | Docker + Docker Compose |
 | Dev | tsx |
 
 ### Structure du monorepo
 ```
 vibe-coder/
 ├── packages/
-│   ├── core/                  # Logique partagee (DB, AI, Scheduler, Types)
+│   ├── core/                  # Logique partagee (DB, AI, Cache, Scheduler, Types)
+│   │   └── src/cache/         # Redis cache (redis.ts)
 │   ├── bot-telegram/          # Bot Admin Copilote (FR)
 │   ├── bot-telegram-public/   # Bot Public (RU)
 │   ├── bot-discord/           # Bot Formateur (Phase 3)
 │   └── bot-instagram/         # Reserve (non developpe)
+├── embedding-server/          # Serveur Python FastAPI (all-MiniLM-L6-v2)
+│   ├── app.py                 # API endpoints /embed, /embed-batch
+│   └── Dockerfile             # Image Python avec sentence-transformers
+├── scripts/
+│   └── backfill-embeddings.ts # Backfill embeddings pour memories existantes
 ├── supabase/
-│   └── migrations/            # SQL migrations
+│   └── migrations/            # SQL migrations (001-007)
 ├── specs/                     # Specifications
 ├── docs/                      # Documentation
+├── docker-compose.yml         # Orchestration services (redis, embedding-server, bots)
 ├── CLAUDE.md                  # Instructions Claude Code
 └── .env                       # Variables d'environnement
 ```
@@ -292,6 +318,12 @@ PILOTE_NEURO_URL=
 PORTAL_URL=
 TELEGRAM_GROUP_URL=
 
+# Redis (optionnel — fallback gracieux sans Redis)
+REDIS_URL=
+
+# Embedding Server (optionnel — fallback gracieux sans serveur)
+EMBEDDING_SERVER_URL=
+
 # Server
 NODE_ENV=production
 PORT=3000
@@ -299,7 +331,30 @@ PORT=3000
 
 ---
 
-## 5. Conventions
+## 5. Docker Infrastructure
+
+### Services (`docker-compose.yml`)
+
+| Service | Image / Build | Role | Limites |
+|---------|--------------|------|---------|
+| `redis` | redis:7-alpine | Cache memoire (tiers) | 256 MB max, eviction allkeys-lru |
+| `embedding-server` | Build `./embedding-server` | Embeddings all-MiniLM-L6-v2 | 1 GB mem limit |
+| `bot-telegram` | Build `./` | Bot Admin Copilote | depends_on: redis, embedding-server |
+| `bot-telegram-public` | Build `./` | Bot Public | depends_on: redis, embedding-server |
+| `bot-discord` | Build `./` | Bot Formateur | depends_on: redis, embedding-server |
+
+### Embedding Server (Python FastAPI)
+- Modele : `all-MiniLM-L6-v2` (sentence-transformers)
+- Dimensions : 384
+- Endpoints : `POST /embed` (single), `POST /embed-batch` (batch)
+- Port : 8100 (interne Docker)
+
+### GitHub Actions
+- Detection automatique des changements dans `embedding-server/` pour rebuild
+
+---
+
+## 6. Conventions
 
 ### Code
 - TypeScript strict mode, pas de `any`

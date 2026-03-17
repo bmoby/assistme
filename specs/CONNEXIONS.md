@@ -39,9 +39,14 @@
 │  │  exercise_attachments | Storage (exercise-submissions)             │   │
 │  └────────────────────────────────────────────────────────────────────┘   │
 │                                                                            │
+│  ┌──────────────┐  ┌──────────────────────┐  ┌──────────────────────┐    │
+│  │  Scheduler    │  │  Transcription       │  │  Memory Consolidator │    │
+│  │  (crons)      │  │  (Whisper FR/RU)     │  │  (03:00 daily)       │    │
+│  └──────────────┘  └──────────────────────┘  └──────────────────────┘    │
+│                                                                            │
 │  ┌──────────────┐  ┌──────────────────────┐                               │
-│  │  Scheduler    │  │  Transcription       │                               │
-│  │  (crons)      │  │  (Whisper FR/RU)     │                               │
+│  │  Redis Cache  │  │  Embedding Server    │                               │
+│  │  (mem tiers)  │  │  (FastAPI, MiniLM)   │                               │
 │  └──────────────┘  └──────────────────────┘                               │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -132,20 +137,35 @@ A la demande → /notifs [nombre] ou /replan
          → planDay() (replanification immediate)
 ```
 
-### Flux 6 : Contexte Dynamique (chaque requete orchestrateur)
+### Flux 6 : Contexte Dynamique — Memory 3 Tiers (chaque requete orchestrateur)
 
 ```
-buildContext() →
-  Couche 1 — Memoire personnelle :
-    identity, situation, preference, relationship, lesson
+buildContext({ includePublicKnowledge?, maxTasks?, userMessage? }) →
+  Couche 1 — Memoire personnelle (tier-aware) :
+    Core tier (identity) :
+      → cacheGet('memory:core') || getCoreMemory() → cacheSet(5 min)
+    Working tier (situation, preference, relationship) :
+      → cacheGet('memory:working') || getWorkingMemory() → cacheSet(2 min)
+    Archival tier (lesson) :
+      → PAS charge par defaut
+      → Si userMessage fourni :
+        → getEmbedding(userMessage) → embedding serveur HTTP
+        → searchMemorySemantic(embedding) → RPC Supabase pgvector
+        → Ajoute resultats pertinents au contexte
   Couche 2 — Donnees live :
-    Taches actives (max 15), Pipeline clients
+    Taches actives (max N), Pipeline clients
+    Clients filtres : statuts terminaux (delivered/paid) > 7 jours exclus
   Couche 3 — Public Knowledge :
-    formation, services, faq, free_courses, general (contenu complet)
+    Charge uniquement si includePublicKnowledge: true
   Couche 4 — Temporel :
     Date/heure en francais
 → Injecte dans system prompt de l'orchestrateur
 ```
+
+**Cache invalidation :**
+- `upsertMemory()` → `cacheDelete('memory:core')` + `cacheDelete('memory:working')`
+- `deleteMemory()` → meme invalidation
+- Auto-embedding fire-and-forget sur `upsertMemory()`
 
 ### Flux 7 : Capture rapide (Admin texte libre)
 
@@ -245,6 +265,54 @@ Cron 2x/jour → sendDeadlineReminders(client, hoursBeforeDeadline)
   → Log recap : nombre de sessions + heures
 ```
 
+### Flux 12 : Memory Consolidation (cron 03:00 quotidien)
+
+```
+03:00 → runMemoryConsolidation()
+  → Charge working memories expirees (expires_at < NOW())
+  → Pour chaque memoire expiree :
+    → Claude Sonnet analyse pertinence actuelle
+    → Decision :
+      archive → tier = 'archival', category = 'lesson', expires_at = NULL
+      delete  → deleteMemory(id)
+      renew   → expires_at = NOW() + 30 jours
+  → cacheDelete('memory:working') (invalidation post-consolidation)
+```
+
+### Flux 13 : Zombie Reminder Cleanup (cron 06:55 quotidien)
+
+```
+06:55 → expireZombieReminders()
+  → Annule tous les reminders actifs dont trigger_at < NOW() - 24h
+  → Empeche les "zombies" (notifications jamais envoyees) de s'accumuler
+
+getDueReminders() — guard supplementaire :
+  → Ignore les reminders dont trigger_at < NOW() - 6h (stale guard)
+
+cancelActiveReminders() — version amelioree :
+  → Annule TOUS les reminders actifs dans le passe (pas seulement aujourd'hui)
+```
+
+### Flux 14 : Embedding Pipeline (auto + backfill)
+
+```
+Auto-embedding (a chaque upsertMemory) :
+  → upsertMemory(entry) → DB insert/update
+  → Fire-and-forget : getEmbedding(content) → embedding server HTTP
+  → Si embedding recu → update memory SET embedding = vector
+
+Backfill (scripts/backfill-embeddings.ts) :
+  → Charge toutes les memories sans embedding
+  → getEmbeddings(texts[]) → batch request au serveur
+  → Update chaque memory avec son embedding
+
+Recherche semantique :
+  → getEmbedding(userMessage) → vecteur 384 dim
+  → searchMemorySemantic(vector, { matchThreshold: 0.7, matchCount: 5 })
+  → RPC Supabase → cosine similarity sur pgvector
+  → Retourne memories triees par pertinence
+```
+
 ---
 
 ## Matrice de Dependances
@@ -253,10 +321,16 @@ Cron 2x/jour → sendDeadlineReminders(client, hoursBeforeDeadline)
 |-----------|-----------|---------|
 | Core/DB | Supabase | — |
 | Core/AI | Claude API, Core/DB | — |
+| Core/Cache | Redis (optionnel, fallback gracieux) | — |
+| Core/Embeddings | Embedding Server (optionnel, fallback gracieux) | — |
+| Core/Context Builder | Core/DB, Core/Cache, Core/Embeddings | — |
+| Core/Memory Consolidator | Claude API, Core/DB, Core/Cache | — |
 | Core/Scheduler | Core/AI, Core/DB | Bot Admin |
 | Core/DM Agent | Claude API, Core/DB (formation) | — |
 | Core/FAQ Agent | Claude API, Core/DB (faq) | — |
-| Bot Admin | Core (AI, DB, Scheduler) | — |
+| Redis | — | Core/Cache |
+| Embedding Server | — | Core/Embeddings |
+| Bot Admin | Core (AI, DB, Cache, Scheduler) | — |
 | Bot Public | Core/DB, Claude API | Bot Admin (leads) |
 | Bot Discord | Core (AI, DB, DM Agent, FAQ Agent) | Bot Admin (events) |
 | Bot Discord / DM Handler | Core/DM Agent, Supabase Storage | Bot Admin (exercise_submitted) |

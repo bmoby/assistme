@@ -1,5 +1,5 @@
 import { askClaude } from './client.js';
-import { getAllMemory, upsertMemory, deleteMemory, type MemoryCategory, type MemoryEntry } from '../db/memory.js';
+import { getCoreMemory, getWorkingMemory, getMemoryByTier, upsertMemory, deleteMemory, type MemoryCategory, type MemoryEntry } from '../db/memory.js';
 import { getAllPublicKnowledge, upsertPublicKnowledge, deletePublicKnowledge } from '../db/public-knowledge.js';
 import type { PublicKnowledge, PublicKnowledgeCategory } from '../types/index.js';
 import { logger } from '../logger.js';
@@ -81,12 +81,15 @@ export async function processMemoryRequest(params: {
 }): Promise<MemoryManagerResult> {
   logger.info('Memory manager: processing request');
 
-  // Load full state of both tables
-  const [allMemory, allKnowledge] = await Promise.all([
-    getAllMemory(),
+  // Load full state of both tables (tier-grouped)
+  const [coreMemory, workingMemory, archivalMemory, allKnowledge] = await Promise.all([
+    getCoreMemory(),
+    getWorkingMemory(),
+    getMemoryByTier('archival'),
     getAllPublicKnowledge().catch(() => [] as PublicKnowledge[]),
   ]);
 
+  const allMemory = [...coreMemory, ...workingMemory, ...archivalMemory];
   const memoryState = formatMemoryState(allMemory);
   const kbState = formatKBState(allKnowledge);
 
@@ -196,17 +199,29 @@ export async function processMemoryRequest(params: {
 function formatMemoryState(entries: MemoryEntry[]): string {
   if (entries.length === 0) return '(vide)';
 
-  const grouped: Record<string, MemoryEntry[]> = {};
+  // Group by tier, then by category
+  const tiers = { core: [] as MemoryEntry[], working: [] as MemoryEntry[], archival: [] as MemoryEntry[] };
   for (const entry of entries) {
-    if (!grouped[entry.category]) grouped[entry.category] = [];
-    grouped[entry.category]!.push(entry);
+    const tier = entry.tier ?? 'working';
+    if (tier in tiers) {
+      tiers[tier as keyof typeof tiers].push(entry);
+    }
   }
 
   let result = '';
-  for (const [category, items] of Object.entries(grouped)) {
-    result += `[${category}]\n`;
-    for (const item of items) {
-      result += `  • ${item.key}: ${item.content}\n`;
+  for (const [tier, tierEntries] of Object.entries(tiers)) {
+    if (tierEntries.length === 0) continue;
+    result += `--- TIER ${tier.toUpperCase()} ---\n`;
+    const grouped: Record<string, MemoryEntry[]> = {};
+    for (const entry of tierEntries) {
+      if (!grouped[entry.category]) grouped[entry.category] = [];
+      grouped[entry.category]!.push(entry);
+    }
+    for (const [category, items] of Object.entries(grouped)) {
+      result += `[${category}]\n`;
+      for (const item of items) {
+        result += `  • ${item.key}: ${item.content}\n`;
+      }
     }
     result += '\n';
   }
