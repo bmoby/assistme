@@ -1,0 +1,75 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      bot-telegram: ${{ steps.changes.outputs.bot-telegram }}
+      bot-telegram-public: ${{ steps.changes.outputs.bot-telegram-public }}
+      bot-discord: ${{ steps.changes.outputs.bot-discord }}
+      core: ${{ steps.changes.outputs.core }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            core:
+              - 'packages/core/**'
+            bot-telegram:
+              - 'packages/bot-telegram/**'
+              - 'packages/core/**'
+            bot-telegram-public:
+              - 'packages/bot-telegram-public/**'
+              - 'packages/core/**'
+            bot-discord:
+              - 'packages/bot-discord/**'
+              - 'packages/core/**'
+
+  deploy:
+    needs: detect-changes
+    if: |
+      needs.detect-changes.outputs.bot-telegram == 'true' ||
+      needs.detect-changes.outputs.bot-telegram-public == 'true' ||
+      needs.detect-changes.outputs.bot-discord == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/vibe-coder
+
+            # Pull latest code
+            git pull origin main
+
+            # Determine which services to rebuild
+            SERVICES=""
+
+            if [ "${{ needs.detect-changes.outputs.bot-telegram }}" == "true" ]; then
+              SERVICES="$SERVICES bot-telegram"
+            fi
+            if [ "${{ needs.detect-changes.outputs.bot-telegram-public }}" == "true" ]; then
+              SERVICES="$SERVICES bot-telegram-public"
+            fi
+            if [ "${{ needs.detect-changes.outputs.bot-discord }}" == "true" ]; then
+              SERVICES="$SERVICES bot-discord"
+            fi
+
+            if [ -n "$SERVICES" ]; then
+              echo "Rebuilding:$SERVICES"
+              docker compose -f docker-compose.prod.yml build $SERVICES
+              docker compose -f docker-compose.prod.yml up -d $SERVICES
+              docker image prune -f
+            fi
+
+            echo "Deploy complete!"

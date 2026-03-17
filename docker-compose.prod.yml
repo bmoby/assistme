@@ -1,0 +1,48 @@
+services:
+  bot-telegram:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vibe-bot-telegram
+    command: node packages/bot-telegram/dist/index.js
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  bot-telegram-public:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vibe-bot-telegram-public
+    command: node packages/bot-telegram-public/dist/index.js
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  bot-discord:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vibe-bot-discord
+    command: node packages/bot-discord/dist/index.js
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
