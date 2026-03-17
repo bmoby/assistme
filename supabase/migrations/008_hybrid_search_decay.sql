@@ -1,4 +1,4 @@
--- Migration 008: Hybrid Search (BM25 + Vector) + Temporal Decay
+-- Migration 008: Hybrid Search (BM25 + Vector) + Temporal Decay (OpenClaw-inspired)
 -- Adds full-text search column for keyword matching,
 -- and replaces search_memory with a hybrid version that applies temporal decay.
 
