@@ -11,17 +11,16 @@ jobs:
       bot-telegram: ${{ steps.changes.outputs.bot-telegram }}
       bot-telegram-public: ${{ steps.changes.outputs.bot-telegram-public }}
       bot-discord: ${{ steps.changes.outputs.bot-discord }}
-      core: ${{ steps.changes.outputs.core }}
       embedding-server: ${{ steps.changes.outputs.embedding-server }}
       migrations: ${{ steps.changes.outputs.migrations }}
+      infra: ${{ steps.changes.outputs.infra }}
+      anything: ${{ steps.anything.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: |
-            core:
-              - 'packages/core/**'
             bot-telegram:
               - 'packages/bot-telegram/**'
               - 'packages/core/**'
@@ -35,6 +34,26 @@ jobs:
               - 'embedding-server/**'
             migrations:
               - 'supabase/migrations/**'
+            infra:
+              - 'docker-compose.prod.yml'
+              - 'Dockerfile'
+              - '.github/workflows/deploy.yml'
+
+      # Simple flag: did anything deployable change?
+      - id: anything
+        run: |
+          if [[ \
+            "${{ steps.changes.outputs.bot-telegram }}" == "true" || \
+            "${{ steps.changes.outputs.bot-telegram-public }}" == "true" || \
+            "${{ steps.changes.outputs.bot-discord }}" == "true" || \
+            "${{ steps.changes.outputs.embedding-server }}" == "true" || \
+            "${{ steps.changes.outputs.migrations }}" == "true" || \
+            "${{ steps.changes.outputs.infra }}" == "true" \
+          ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
 
   # Run migrations BEFORE deploying services
   migrate:
@@ -75,19 +94,14 @@ jobs:
             fi
           done
 
+  # Deploy services to VPS
   deploy:
     needs: [detect-changes, migrate]
     if: |
       always() &&
       needs.detect-changes.result == 'success' &&
       (needs.migrate.result == 'success' || needs.migrate.result == 'skipped') &&
-      (
-        needs.detect-changes.outputs.bot-telegram == 'true' ||
-        needs.detect-changes.outputs.bot-telegram-public == 'true' ||
-        needs.detect-changes.outputs.bot-discord == 'true' ||
-        needs.detect-changes.outputs.embedding-server == 'true' ||
-        needs.detect-changes.outputs.migrations == 'true'
-      )
+      needs.detect-changes.outputs.anything == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -110,8 +124,9 @@ jobs:
             # Determine which bot services to rebuild
             SERVICES=""
 
-            # If migrations changed, rebuild all bots (new schema = new code)
-            if [ "${{ needs.detect-changes.outputs.migrations }}" == "true" ]; then
+            # If migrations or infra changed, rebuild all bots
+            if [ "${{ needs.detect-changes.outputs.migrations }}" == "true" ] || \
+               [ "${{ needs.detect-changes.outputs.infra }}" == "true" ]; then
               SERVICES="bot-telegram bot-telegram-public bot-discord"
             else
               if [ "${{ needs.detect-changes.outputs.bot-telegram }}" == "true" ]; then
