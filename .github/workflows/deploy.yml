@@ -113,7 +113,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            cd /opt/vibe-coder
+            cd /opt/assistme
 
             # Pull latest code
             git pull origin main
