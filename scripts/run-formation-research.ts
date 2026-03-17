@@ -1,6 +1,6 @@
 /**
  * Script standalone pour lancer les 3 recherches de l'Etape 1 — Formation Session 2
- * Usage: pnpm -F @vibe-coder/core tsx ../../scripts/run-formation-research.ts
+ * Usage: pnpm -F @assistme/core tsx ../../scripts/run-formation-research.ts
  */
 
 import { join, dirname, resolve } from 'path';

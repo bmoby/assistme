@@ -5,7 +5,7 @@ import {
   completeTask,
   createTask,
   type Task,
-} from '@vibe-coder/core';
+} from '@assistme/core';
 import { formatTask, formatTaskList } from '../utils/format.js';
 import { isAdmin } from '../utils/auth.js';
 

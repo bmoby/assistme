@@ -1,5 +1,5 @@
 {
-  "name": "@vibe-coder/bot-discord",
+  "name": "@assistme/bot-discord",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vibe-coder/core": "workspace:*",
+    "@assistme/core": "workspace:*",
     "discord.js": "^14.16.0",
     "dotenv": "^17.3.1"
   },

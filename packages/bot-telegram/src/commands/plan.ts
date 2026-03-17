@@ -5,7 +5,7 @@ import {
   getDailyPlan,
   saveDailyPlan,
   generateDailyPlan,
-} from '@vibe-coder/core';
+} from '@assistme/core';
 import { formatDailyPlan, todayDateString, getDayOfWeek } from '../utils/format.js';
 import { isAdmin } from '../utils/auth.js';
 

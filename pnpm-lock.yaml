@@ -10,7 +10,7 @@ importers:
 
   packages/bot-discord:
     dependencies:
-      '@vibe-coder/core':
+      '@assistme/core':
         specifier: workspace:*
         version: link:../core
       discord.js:
@@ -32,12 +32,12 @@ importers:
 
   packages/bot-telegram:
     dependencies:
+      '@assistme/core':
+        specifier: workspace:*
+        version: link:../core
       '@grammyjs/runner':
         specifier: ^2.0.3
         version: 2.0.3(grammy@1.41.1)
-      '@vibe-coder/core':
-        specifier: workspace:*
-        version: link:../core
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1
@@ -63,7 +63,7 @@ importers:
 
   packages/bot-telegram-public:
     dependencies:
-      '@vibe-coder/core':
+      '@assistme/core':
         specifier: workspace:*
         version: link:../core
       dotenv:

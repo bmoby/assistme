@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, TextChannel } from 'discord.js';
-import { logger } from '@vibe-coder/core';
+import { logger } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 import { CHANNELS, ROLES } from '../../config.js';
 

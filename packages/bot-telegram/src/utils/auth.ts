@@ -1,4 +1,4 @@
-import { logger } from '@vibe-coder/core';
+import { logger } from '@assistme/core';
 import type { Context } from 'grammy';
 
 export function isAdmin(ctx: Context): boolean {

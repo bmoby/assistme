@@ -7,7 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, '../../../.env') });
 
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
-import { logger } from '@vibe-coder/core';
+import { logger } from '@assistme/core';
 import { registerSlashCommands, setupCommandHandler } from './commands/index.js';
 import { setupFaqHandler } from './handlers/faq.js';
 import { setupGuildMemberHandler } from './handlers/guild-member.js';

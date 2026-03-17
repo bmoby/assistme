@@ -1,6 +1,6 @@
 import { Client, TextChannel } from 'discord.js';
-import { getUnprocessedEvents, markEventProcessed } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { getUnprocessedEvents, markEventProcessed } from '@assistme/core';
+import { logger } from '@assistme/core';
 import { CHANNELS } from '../config.js';
 
 export async function dispatchDiscordEvents(client: Client, guildId: string): Promise<void> {

@@ -1,5 +1,5 @@
 import type { Bot } from 'grammy';
-import { getNextTask, getTasksByStatus, logger } from '@vibe-coder/core';
+import { getNextTask, getTasksByStatus, logger } from '@assistme/core';
 
 export async function antiProcrastination(bot: Bot, chatId: string): Promise<void> {
   try {

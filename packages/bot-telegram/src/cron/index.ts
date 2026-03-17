@@ -1,5 +1,5 @@
 import type { Bot } from 'grammy';
-import { scheduler, logger, expireZombieReminders, runMemoryConsolidation } from '@vibe-coder/core';
+import { scheduler, logger, expireZombieReminders, runMemoryConsolidation } from '@assistme/core';
 import { planDay, dispatchNotifications } from './dynamic-notifications.js';
 import { processFormationEvents } from './formation-events.js';
 

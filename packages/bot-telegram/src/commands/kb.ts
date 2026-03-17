@@ -4,8 +4,8 @@ import {
   upsertPublicKnowledge,
   deletePublicKnowledge,
   logger,
-} from '@vibe-coder/core';
-import type { PublicKnowledgeCategory } from '@vibe-coder/core';
+} from '@assistme/core';
+import type { PublicKnowledgeCategory } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 
 const VALID_CATEGORIES: PublicKnowledgeCategory[] = ['formation', 'services', 'faq', 'free_courses', 'general'];

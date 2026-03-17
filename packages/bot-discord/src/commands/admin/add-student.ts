@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, GuildMember } from 'discord.js';
-import { createStudent } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { createStudent } from '@assistme/core';
+import { logger } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 import { formatStudentEmbed } from '../../utils/format.js';
 import { ROLES } from '../../config.js';

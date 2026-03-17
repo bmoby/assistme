@@ -1,5 +1,5 @@
 import type { Bot } from 'grammy';
-import { getActiveTasks, getClientPipeline, logger } from '@vibe-coder/core';
+import { getActiveTasks, getClientPipeline, logger } from '@assistme/core';
 
 // Morning check-in: ask for updates
 export async function morningCheckIn(bot: Bot, chatId: string): Promise<void> {

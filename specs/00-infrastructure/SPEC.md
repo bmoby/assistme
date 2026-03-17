@@ -237,7 +237,7 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 
 ### Structure du monorepo
 ```
-vibe-coder/
+assistme/
 ├── packages/
 │   ├── core/                  # Logique partagee (DB, AI, Cache, Scheduler, Types)
 │   │   └── src/cache/         # Redis cache (redis.ts)

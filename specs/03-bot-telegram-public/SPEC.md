@@ -4,7 +4,7 @@
 
 **Package** : `packages/bot-telegram-public`
 **Librairie** : grammY
-**Dependance** : `@vibe-coder/core` (DB uniquement, pas l'orchestrateur)
+**Dependance** : `@assistme/core` (DB uniquement, pas l'orchestrateur)
 **Langue** : Russe
 
 Bot public pour l'audience de Magomed. Repond aux questions sur la formation, les services, les cours gratuits. Detecte et qualifie les leads automatiquement.
@@ -130,6 +130,6 @@ OPENAI_API_KEY=
 ```json
 {
   "grammy": "^1.x",
-  "@vibe-coder/core": "workspace:*"
+  "@assistme/core": "workspace:*"
 }
 ```

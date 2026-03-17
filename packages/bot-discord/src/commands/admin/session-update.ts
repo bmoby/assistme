@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { logger, getSessionByNumber, updateSession } from '@vibe-coder/core';
+import { logger, getSessionByNumber, updateSession } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 
 export const sessionUpdateCommand = new SlashCommandBuilder()

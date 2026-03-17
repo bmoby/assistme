@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { searchStudentByName, getExercisesByStudent, updateExerciseStatus, createFormationEvent } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { searchStudentByName, getExercisesByStudent, updateExerciseStatus, createFormationEvent } from '@assistme/core';
+import { logger } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 
 export const approveCommand = new SlashCommandBuilder()

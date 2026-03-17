@@ -1,7 +1,7 @@
 import { ChatInputCommandInteraction, GuildMember, Message } from 'discord.js';
-import { getStudentByDiscordId } from '@vibe-coder/core';
-import type { Student } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { getStudentByDiscordId } from '@assistme/core';
+import type { Student } from '@assistme/core';
+import { logger } from '@assistme/core';
 import { ROLES } from '../config.js';
 
 function getMember(interaction: ChatInputCommandInteraction | Message): GuildMember | null {

@@ -8,7 +8,7 @@ dotenv.config({ path: resolve(__dirname, '../../../.env') });
 
 async function main() {
   const { Bot } = await import('grammy');
-  const { logger } = await import('@vibe-coder/core');
+  const { logger } = await import('@assistme/core');
   const { registerMessageHandler } = await import('./handlers/message.js');
   const { registerVoiceHandler } = await import('./handlers/voice.js');
 

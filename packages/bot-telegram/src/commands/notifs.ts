@@ -1,5 +1,5 @@
 import type { Bot, Context } from 'grammy';
-import { upsertMemory, logger } from '@vibe-coder/core';
+import { upsertMemory, logger } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 import { planDay, getNotificationsSummary } from '../cron/dynamic-notifications.js';
 

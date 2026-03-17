@@ -1,6 +1,6 @@
 import type { Bot } from 'grammy';
-import { getUnprocessedEvents, markEventProcessed } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { getUnprocessedEvents, markEventProcessed } from '@assistme/core';
+import { logger } from '@assistme/core';
 
 export async function processFormationEvents(bot: Bot, chatId: string): Promise<void> {
   try {

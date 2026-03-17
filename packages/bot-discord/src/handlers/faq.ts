@@ -1,6 +1,6 @@
 import { Client, Message, TextChannel } from 'discord.js';
-import { getAllFaqEntries, answerFaqQuestion, incrementFaqUsage, createFaqEntry, createFormationEvent } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { getAllFaqEntries, answerFaqQuestion, incrementFaqUsage, createFaqEntry, createFormationEvent } from '@assistme/core';
+import { logger } from '@assistme/core';
 import { isAdmin, isStudent, isMentor } from '../utils/auth.js';
 import { splitMessage } from '../utils/message-split.js';
 import { CHANNELS } from '../config.js';

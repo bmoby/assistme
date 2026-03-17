@@ -4,8 +4,8 @@ import {
   getAllPublicKnowledge,
   createClient,
   logger,
-} from '@vibe-coder/core';
-import type { PublicKnowledge } from '@vibe-coder/core';
+} from '@assistme/core';
+import type { PublicKnowledge } from '@assistme/core';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
 import { notifyAdmin } from '../utils/notify-admin.js';
 

@@ -4,7 +4,7 @@ import {
   getActiveStudents,
   getExercisesByStudent,
   logger,
-} from '@vibe-coder/core';
+} from '@assistme/core';
 
 /**
  * Send DM reminders to students who haven't submitted before a deadline.

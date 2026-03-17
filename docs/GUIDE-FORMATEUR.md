@@ -175,7 +175,7 @@ Le bot doit recharger les canaux apres les avoir crees.
 2. Relance-le :
 
 ```bash
-pnpm -F @vibe-coder/bot-discord dev
+pnpm -F @assistme/bot-discord dev
 ```
 
 3. Tu dois voir dans les logs : "Bot Discord Formateur is online" et "Slash commands registered successfully"

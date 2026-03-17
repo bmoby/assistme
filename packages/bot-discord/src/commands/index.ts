@@ -1,5 +1,5 @@
 import { Client, REST, Routes, Collection, ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-import { logger } from '@vibe-coder/core';
+import { logger } from '@assistme/core';
 
 // Admin commands
 import { addStudentCommand, handleAddStudent } from './admin/add-student.js';

@@ -1,4 +1,4 @@
-import { getSupabase, logger } from '@vibe-coder/core';
+import { getSupabase, logger } from '@assistme/core';
 
 /**
  * Clean up orphaned files in Supabase Storage.

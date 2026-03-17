@@ -1,6 +1,6 @@
 import { Client, GuildMember } from 'discord.js';
-import { getStudentByDiscordId } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { getStudentByDiscordId } from '@assistme/core';
+import { logger } from '@assistme/core';
 import { ROLES } from '../config.js';
 
 export function setupGuildMemberHandler(client: Client): void {

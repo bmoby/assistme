@@ -1,5 +1,5 @@
-import { getActiveStudents, getExercisesByStudent, createFormationEvent } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { getActiveStudents, getExercisesByStudent, createFormationEvent } from '@assistme/core';
+import { logger } from '@assistme/core';
 
 const INACTIVITY_THRESHOLD_DAYS = 7;
 

@@ -5,7 +5,7 @@ import {
   ChannelType,
   TextChannel,
 } from 'discord.js';
-import { logger, createSession, updateSession } from '@vibe-coder/core';
+import { logger, createSession, updateSession } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 import { CHANNELS, ROLES } from '../../config.js';
 

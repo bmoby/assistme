@@ -1,5 +1,5 @@
 import { EmbedBuilder } from 'discord.js';
-import type { Student, StudentExercise } from '@vibe-coder/core';
+import type { Student, StudentExercise } from '@assistme/core';
 
 const STATUS_EMOJI: Record<string, string> = {
   interested: '⚪',

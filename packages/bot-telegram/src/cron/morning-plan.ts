@@ -3,7 +3,7 @@ import {
   askClaude,
   buildContext,
   logger,
-} from '@vibe-coder/core';
+} from '@assistme/core';
 
 const MORNING_PROMPT = `Tu es le copilote de Magomed. C'est le matin (8h30).
 

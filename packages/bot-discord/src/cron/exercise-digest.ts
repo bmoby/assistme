@@ -1,5 +1,5 @@
-import { getExerciseSummary, getPendingExercises, createFormationEvent } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { getExerciseSummary, getPendingExercises, createFormationEvent } from '@assistme/core';
+import { logger } from '@assistme/core';
 
 export async function sendExerciseDigest(): Promise<void> {
   try {

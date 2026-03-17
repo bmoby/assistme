@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { searchStudentByName, getExercisesByStudent } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { searchStudentByName, getExercisesByStudent } from '@assistme/core';
+import { logger } from '@assistme/core';
 import { isAdmin, isMentor } from '../../utils/auth.js';
 import { formatExerciseEmbed } from '../../utils/format.js';
 

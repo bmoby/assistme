@@ -6,7 +6,7 @@
 **Entry point** : `src/index.ts`
 
 Le cerveau central contient toute la logique partagee : base de donnees, IA, scheduling, types.
-Tous les bots en dependent via `@vibe-coder/core`.
+Tous les bots en dependent via `@assistme/core`.
 
 ---
 
@@ -379,7 +379,7 @@ export { cacheGet, cacheSet, cacheDelete } from './cache/redis.js';
 export { getEmbedding, getEmbeddings } from './ai/embeddings.js';
 ```
 
-Tous les bots importent depuis `@vibe-coder/core`.
+Tous les bots importent depuis `@assistme/core`.
 
 ---
 

@@ -1,6 +1,6 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import { getStudentsBySession } from '@vibe-coder/core';
-import { logger } from '@vibe-coder/core';
+import { getStudentsBySession } from '@assistme/core';
+import { logger } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 
 export const studentListCommand = new SlashCommandBuilder()

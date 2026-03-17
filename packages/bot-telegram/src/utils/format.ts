@@ -1,4 +1,4 @@
-import type { Task, DailyPlanTask } from '@vibe-coder/core';
+import type { Task, DailyPlanTask } from '@assistme/core';
 
 const PRIORITY_EMOJI: Record<string, string> = {
   urgent: '🔴',

@@ -1,5 +1,5 @@
 {
-  "name": "@vibe-coder/bot-telegram-public",
+  "name": "@assistme/bot-telegram-public",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vibe-coder/core": "workspace:*",
+    "@assistme/core": "workspace:*",
     "dotenv": "^17.3.1",
     "grammy": "^1.31.0"
   },

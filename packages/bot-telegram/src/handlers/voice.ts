@@ -1,5 +1,5 @@
 import type { Bot, Context } from 'grammy';
-import { transcribeAudio, processWithOrchestrator, runResearchAgent, processMemoryRequest, logger } from '@vibe-coder/core';
+import { transcribeAudio, processWithOrchestrator, runResearchAgent, processMemoryRequest, logger } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
 

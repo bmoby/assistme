@@ -61,10 +61,10 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 ## Commands
 - `pnpm install` — Install all dependencies
 - `pnpm dev` — Run all packages in dev mode
-- `pnpm -F @vibe-coder/core dev` — Run only core
-- `pnpm -F @vibe-coder/bot-telegram dev` — Run only Telegram admin bot
-- `pnpm -F @vibe-coder/bot-telegram-public dev` — Run only Telegram public bot
-- `pnpm -F @vibe-coder/bot-discord dev` — Run only Discord bot
+- `pnpm -F @assistme/core dev` — Run only core
+- `pnpm -F @assistme/bot-telegram dev` — Run only Telegram admin bot
+- `pnpm -F @assistme/bot-telegram-public dev` — Run only Telegram public bot
+- `pnpm -F @assistme/bot-discord dev` — Run only Discord bot
 - `pnpm build` — Build all packages
 - `pnpm typecheck` — Type check all packages
 

@@ -1,5 +1,5 @@
 import { Client } from 'discord.js';
-import { scheduler, logger } from '@vibe-coder/core';
+import { scheduler, logger } from '@assistme/core';
 import { sendExerciseDigest } from './exercise-digest.js';
 import { detectDropouts } from './dropout-detector.js';
 import { dispatchDiscordEvents } from './event-dispatcher.js';

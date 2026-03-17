@@ -1,5 +1,5 @@
 import type { Bot } from 'grammy';
-import { getActiveTasks, logger } from '@vibe-coder/core';
+import { getActiveTasks, logger } from '@assistme/core';
 
 export async function midnightReminder(bot: Bot, chatId: string): Promise<void> {
   try {

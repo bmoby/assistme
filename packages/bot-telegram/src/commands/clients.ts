@@ -1,5 +1,5 @@
 import type { Bot, Context } from 'grammy';
-import { getClientPipeline, createClient, searchClientByName } from '@vibe-coder/core';
+import { getClientPipeline, createClient, searchClientByName } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 
 const STATUS_EMOJI: Record<string, string> = {

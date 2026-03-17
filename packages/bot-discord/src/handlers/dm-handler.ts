@@ -1,7 +1,7 @@
 import { Client, Message, DMChannel } from 'discord.js';
-import { logger, getSupabase } from '@vibe-coder/core';
-import { runDmAgent } from '@vibe-coder/core';
-import type { ConversationMessage, PendingAttachment } from '@vibe-coder/core';
+import { logger, getSupabase } from '@assistme/core';
+import { runDmAgent } from '@assistme/core';
+import type { ConversationMessage, PendingAttachment } from '@assistme/core';
 
 // ============================================
 // Conversation state (in-memory)

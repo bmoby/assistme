@@ -4,7 +4,7 @@
 
 **Package** : `packages/bot-discord`
 **Librairie** : discord.js
-**Dependance** : `@vibe-coder/core`
+**Dependance** : `@assistme/core`
 
 Gestion automatisee des etudiants (session 2 : 30 eleves) et de l'equipe (6 membres). Decharge le travail repetitif de formation et de management.
 
@@ -296,7 +296,7 @@ Les bots communiquent via une table `events` dans Supabase (pas d'appels directs
 ```json
 {
   "discord.js": "^14.16.0",
-  "@vibe-coder/core": "workspace:*",
+  "@assistme/core": "workspace:*",
   "dotenv": "^17.3.1"
 }
 ```

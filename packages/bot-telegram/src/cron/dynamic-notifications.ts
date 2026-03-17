@@ -8,7 +8,7 @@ import {
   cancelActiveReminders,
   getTodayReminders,
   logger,
-} from '@vibe-coder/core';
+} from '@assistme/core';
 
 /**
  * Plan all notifications for the day.

@@ -1,4 +1,4 @@
-import { logger } from '@vibe-coder/core';
+import { logger } from '@assistme/core';
 
 /**
  * Send a notification to the admin via the ADMIN bot.

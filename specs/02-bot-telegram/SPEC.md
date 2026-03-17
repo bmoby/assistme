@@ -4,7 +4,7 @@
 
 **Package** : `packages/bot-telegram`
 **Librairie** : grammY
-**Dependance** : `@vibe-coder/core`
+**Dependance** : `@assistme/core`
 
 Interface principale de Magomed. Tout passe par la. Push notifications sur iPhone. Zero friction.
 
@@ -173,6 +173,6 @@ Telegram limite les messages a 4096 caracteres. La fonction `sendLongMessage()` 
 ```json
 {
   "grammy": "^1.x",
-  "@vibe-coder/core": "workspace:*"
+  "@assistme/core": "workspace:*"
 }
 ```
