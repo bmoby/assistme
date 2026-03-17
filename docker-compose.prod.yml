@@ -37,6 +37,7 @@ services:
     env_file: .env
     environment:
       - NODE_ENV=production
+      - TZ=Asia/Bangkok
       - REDIS_URL=redis://redis:6379
       - EMBEDDING_SERVER_URL=http://embedding-server:8090/embed
     depends_on:
@@ -58,6 +59,7 @@ services:
     env_file: .env
     environment:
       - NODE_ENV=production
+      - TZ=Asia/Bangkok
       - REDIS_URL=redis://redis:6379
       - EMBEDDING_SERVER_URL=http://embedding-server:8090/embed
     depends_on:
@@ -79,6 +81,7 @@ services:
     env_file: .env
     environment:
       - NODE_ENV=production
+      - TZ=Asia/Bangkok
       - REDIS_URL=redis://redis:6379
       - EMBEDDING_SERVER_URL=http://embedding-server:8090/embed
     depends_on:
