@@ -37,6 +37,7 @@ jobs:
               - 'supabase/migrations/**'
 
   # Run migrations BEFORE deploying services
+  # Uses psql directly — simpler than Supabase CLI, no timestamp naming required
   migrate:
     needs: detect-changes
     if: needs.detect-changes.outputs.migrations == 'true'
@@ -44,19 +45,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
-
-      - name: Mark legacy migrations as applied
+      - name: Run pending migrations
         run: |
-          supabase migration repair --status applied 001_initial_schema --db-url "${{ secrets.SUPABASE_DB_URL }}"
-          supabase migration repair --status applied 002_memory_and_events --db-url "${{ secrets.SUPABASE_DB_URL }}"
-          supabase migration repair --status applied 003_public_knowledge --db-url "${{ secrets.SUPABASE_DB_URL }}"
-          supabase migration repair --status applied 004_students_system --db-url "${{ secrets.SUPABASE_DB_URL }}"
-          supabase migration repair --status applied 005_sessions_system --db-url "${{ secrets.SUPABASE_DB_URL }}"
+          # Create tracking table + seed legacy migrations as already applied
+          psql "${{ secrets.SUPABASE_DB_URL }}" -c "
+            CREATE TABLE IF NOT EXISTS _migrations (
+              version TEXT PRIMARY KEY,
+              applied_at TIMESTAMPTZ DEFAULT NOW()
+            );
+            INSERT INTO _migrations (version) VALUES
+              ('001_initial_schema'),
+              ('002_memory_and_events'),
+              ('003_public_knowledge'),
+              ('004_students_system'),
+              ('005_sessions_system')
+            ON CONFLICT DO NOTHING;
+          "
 
-      - name: Push new migrations to Supabase
-        run: supabase db push --db-url "${{ secrets.SUPABASE_DB_URL }}"
+          # Apply each migration file in order, skip already applied
+          for f in $(ls supabase/migrations/*.sql | sort); do
+            version=$(basename "$f" .sql)
+            already=$(psql "${{ secrets.SUPABASE_DB_URL }}" -t -c "SELECT 1 FROM _migrations WHERE version = '$version'" | tr -d ' ')
+            if [ "$already" = "1" ]; then
+              echo "Skipping $version (already applied)"
+            else
+              echo "Applying $version..."
+              psql "${{ secrets.SUPABASE_DB_URL }}" -f "$f"
+              psql "${{ secrets.SUPABASE_DB_URL }}" -c "INSERT INTO _migrations (version) VALUES ('$version')"
+              echo "$version applied successfully"
+            fi
+          done
 
   deploy:
     needs: [detect-changes, migrate]
