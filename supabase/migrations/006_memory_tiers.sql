@@ -1,4 +1,4 @@
--- Migration 006: Memory Tiers System (core/working/archival)
+-- Migration 006: Memory Tiers System — core/working/archival
 -- Adds tier column (core/working/archival) to memory table
 -- for intelligent context building and memory consolidation.
 
