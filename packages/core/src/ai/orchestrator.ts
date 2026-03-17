@@ -220,7 +220,7 @@ export async function processWithOrchestrator(message: string, conversationHisto
         }
       }
     } catch (error) {
-      logger.error({ error, action }, 'Failed to execute action');
+      logger.error({ error, actionType: action.type, actionData: action.data }, 'Failed to execute action');
     }
   }
 

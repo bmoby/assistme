@@ -51,6 +51,34 @@ export async function getPendingJobs(limit = 5): Promise<AgentJob[]> {
   return (data ?? []) as AgentJob[];
 }
 
+/** Recover zombie jobs stuck in 'processing' for more than 5 minutes */
+export async function recoverZombieJobs(): Promise<number> {
+  const db = getSupabase();
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  const { data, error } = await db
+    .from(TABLE)
+    .update({
+      status: 'failed',
+      error: 'Job stuck in processing (timeout after 5 minutes)',
+      completed_at: new Date().toISOString(),
+    })
+    .eq('status', 'processing')
+    .lt('started_at', fiveMinutesAgo)
+    .select('id');
+
+  if (error) {
+    logger.error({ error }, 'Failed to recover zombie agent jobs');
+    return 0;
+  }
+
+  const count = data?.length ?? 0;
+  if (count > 0) {
+    logger.warn({ count }, 'Recovered zombie agent jobs');
+  }
+  return count;
+}
+
 export async function markJobProcessing(id: string): Promise<void> {
   const db = getSupabase();
   const { error } = await db

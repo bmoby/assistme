@@ -1,4 +1,4 @@
-import { getPendingJobs, markJobProcessing, markJobCompleted, markJobFailed } from './db.js';
+import { getPendingJobs, markJobProcessing, markJobCompleted, markJobFailed, recoverZombieJobs } from './db.js';
 import { getAgent } from './registry.js';
 import { createAgentJob } from './db.js';
 import { createFormationEvent } from '../db/formation/events.js';
@@ -42,6 +42,9 @@ async function downloadFromStorage(storagePath: string): Promise<Buffer> {
 export { downloadFromStorage };
 
 export async function processAgentJobs(): Promise<void> {
+  // Recover jobs stuck in 'processing' for too long
+  await recoverZombieJobs();
+
   const jobs = await getPendingJobs(3);
   if (jobs.length === 0) return;
 
@@ -137,6 +140,37 @@ export async function processAgentJobs(): Promise<void> {
       const errorMsg = err instanceof Error ? err.message : String(err);
       logger.error({ err, jobId: job.id, agentName: job.agent_name }, 'Agent job failed');
       await markJobFailed(job.id, errorMsg);
+
+      // Notify the user that the job failed
+      try {
+        const origin = job.origin as AgentOrigin;
+        let eventTarget: string;
+        switch (origin.platform) {
+          case 'telegram':
+            eventTarget = 'telegram-admin';
+            break;
+          case 'discord':
+            eventTarget = 'discord';
+            break;
+          default:
+            eventTarget = 'telegram-admin';
+        }
+
+        await createFormationEvent({
+          type: 'agent_job_completed',
+          source: `agent:${job.agent_name}`,
+          target: eventTarget,
+          data: {
+            job_id: job.id,
+            agent_name: job.agent_name,
+            chat_id: origin.chatId,
+            result_text: `Erreur de l'agent "${job.agent_name}" : ${errorMsg}`,
+            result_files: [],
+          },
+        });
+      } catch (notifyErr) {
+        logger.error({ notifyErr, jobId: job.id }, 'Failed to notify user about agent job failure');
+      }
     }
   }
 }

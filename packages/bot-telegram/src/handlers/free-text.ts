@@ -127,22 +127,33 @@ export function registerFreeText(bot: Bot): void {
         const agentName = String(agentAction.data['agent_name'] ?? '');
         const agentInput = (agentAction.data['input'] ?? {}) as Record<string, unknown>;
 
+        logger.info({ agentName, agentInput }, 'invoke_agent action detected, invoking agent');
+
         addMessage(chatId, 'assistant', result.response);
         await ctx.reply(result.response);
 
         try {
-          await agents.invoke(agentName, agentInput, {
+          const job = await agents.invoke(agentName, agentInput, {
             platform: 'telegram',
             chatId,
             callerRole: 'admin',
           });
-          // Job created — delivery will happen via cron when complete
+          logger.info({ jobId: job.id, agentName }, 'Agent job created successfully');
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
-          logger.error({ err: errMsg, agentName }, 'Agent invocation failed');
+          logger.error({ err: errMsg, agentName, agentInput }, 'Agent invocation failed');
           await ctx.reply(`Erreur lors de l'invocation de l'agent "${agentName}" : ${errMsg}`);
         }
         return;
+      } else {
+        // Log when orchestrator response mentions agent but no action was found
+        const mentionsAgent = result.response.toLowerCase().includes('artisan') || result.response.toLowerCase().includes('agent');
+        if (mentionsAgent) {
+          logger.warn(
+            { actions: result.actions.map((a) => a.type), responsePreview: result.response.slice(0, 200) },
+            'Orchestrator response mentions agent but no invoke_agent action found'
+          );
+        }
       }
 
       // Check if a research was triggered
