@@ -1,3 +1,4 @@
+# Production deployment — Docker Compose
 services:
   redis:
     image: redis:7-alpine
