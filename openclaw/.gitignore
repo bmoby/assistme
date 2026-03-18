@@ -1,0 +1,25 @@
+# OpenClaw auto-generated (ne pas versionner)
+sessions/
+logs/
+memory/*.sqlite
+*.bak
+*.bak.*
+update-check.json
+canvas/
+cron/
+telegram/
+agent/models.json
+.openclaw/workspace-state.json
+openclaw.json.bak
+openclaw.json.bak.*
+
+# Extension deps
+extensions/*/node_modules/
+extensions/*/package-lock.json
+
+# Auto-generated bootstrap files (OpenClaw creates them)
+agents/*/BOOTSTRAP.md
+agents/*/HEARTBEAT.md
+agents/*/IDENTITY.md
+agents/*/TOOLS.md
+agents/main/
