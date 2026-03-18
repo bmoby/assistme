@@ -31,22 +31,16 @@ services:
 
   # === OpenClaw Gateway (remplace les 3 bots) ===
   openclaw-gateway:
-    image: node:22-bookworm-slim
+    build:
+      context: .
+      dockerfile: Dockerfile.openclaw
     container_name: openclaw-gateway
-    working_dir: /app
     env_file: .env
     environment:
       - NODE_ENV=production
       - TZ=Asia/Bangkok
-      - HOME=/home/node
     volumes:
       - ./openclaw:/home/node/.openclaw
-    command: >
-      sh -c "
-        npm install -g openclaw@latest &&
-        cd /home/node/.openclaw/extensions/supabase-tools && npm install --omit=dev &&
-        openclaw gateway run --port 18789 --bind loopback --force
-      "
     init: true
     restart: unless-stopped
     healthcheck:
@@ -54,7 +48,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 30s
     logging:
       driver: json-file
       options:
