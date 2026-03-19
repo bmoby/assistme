@@ -2,42 +2,7 @@ import type { Bot, Context } from 'grammy';
 import { transcribeAudio, processWithOrchestrator, runResearchAgent, processMemoryRequest, logger } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
-
-const TELEGRAM_MAX_LENGTH = 4096;
-
-async function sendLongMessage(ctx: Context, text: string): Promise<void> {
-  if (text.length <= TELEGRAM_MAX_LENGTH) {
-    await ctx.reply(text);
-    return;
-  }
-
-  const paragraphs = text.split('\n\n');
-  let current = '';
-
-  for (const paragraph of paragraphs) {
-    if (current.length + paragraph.length + 2 > TELEGRAM_MAX_LENGTH) {
-      if (current.trim()) await ctx.reply(current.trim());
-      if (paragraph.length > TELEGRAM_MAX_LENGTH) {
-        const lines = paragraph.split('\n');
-        current = '';
-        for (const line of lines) {
-          if (current.length + line.length + 1 > TELEGRAM_MAX_LENGTH) {
-            if (current.trim()) await ctx.reply(current.trim());
-            current = line + '\n';
-          } else {
-            current += line + '\n';
-          }
-        }
-      } else {
-        current = paragraph + '\n\n';
-      }
-    } else {
-      current += paragraph + '\n\n';
-    }
-  }
-
-  if (current.trim()) await ctx.reply(current.trim());
-}
+import { sendVoiceReply, sendLongMessage } from '../utils/reply.js';
 
 export function registerVoiceHandler(bot: Bot): void {
   bot.on('message:voice', async (ctx: Context) => {
@@ -70,12 +35,11 @@ export function registerVoiceHandler(bot: Bot): void {
 
       const result = await processWithOrchestrator(text, history);
 
-      // Check if memory management was triggered
       const memoryAction = result.actions.find((a) => a.type === 'manage_memory');
 
       if (memoryAction) {
         addMessage(chatId, 'assistant', result.response);
-        await ctx.reply(result.response);
+        await sendVoiceReply(ctx, result.response);
 
         try {
           const memoryResult = await processMemoryRequest({
@@ -100,7 +64,7 @@ export function registerVoiceHandler(bot: Bot): void {
         const includeMemory = Boolean(researchAction.data['include_memory']);
 
         addMessage(chatId, 'assistant', result.response);
-        await ctx.reply(result.response);
+        await sendVoiceReply(ctx, result.response);
 
         try {
           const research = await runResearchAgent({ topic, details, includeMemory });
@@ -114,8 +78,9 @@ export function registerVoiceHandler(bot: Bot): void {
         return;
       }
 
+      // Voice in → always voice out
       addMessage(chatId, 'assistant', result.response);
-      await ctx.reply(result.response);
+      await sendVoiceReply(ctx, result.response);
 
     } catch (error) {
       logger.error({ error }, 'Failed to process voice message');

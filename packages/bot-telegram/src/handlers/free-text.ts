@@ -4,49 +4,7 @@ import { processWithOrchestrator, runResearchAgent, runClientDiscoveryAgent, pro
 import { isAdmin } from '../utils/auth.js';
 import { addMessage, formatHistoryForPrompt } from '../utils/conversation.js';
 import { generateDiscoveryPdf } from '../utils/pdf.js';
-
-const TELEGRAM_MAX_LENGTH = 4096;
-
-async function sendLongMessage(ctx: Context, text: string): Promise<void> {
-  if (text.length <= TELEGRAM_MAX_LENGTH) {
-    await ctx.reply(text);
-    return;
-  }
-
-  // Split by double newlines (paragraph boundaries) to keep sections intact
-  const paragraphs = text.split('\n\n');
-  let current = '';
-
-  for (const paragraph of paragraphs) {
-    // If adding this paragraph would exceed the limit, send current chunk
-    if (current.length + paragraph.length + 2 > TELEGRAM_MAX_LENGTH) {
-      if (current.trim()) {
-        await ctx.reply(current.trim());
-      }
-      // If a single paragraph exceeds the limit, split it by lines
-      if (paragraph.length > TELEGRAM_MAX_LENGTH) {
-        const lines = paragraph.split('\n');
-        current = '';
-        for (const line of lines) {
-          if (current.length + line.length + 1 > TELEGRAM_MAX_LENGTH) {
-            if (current.trim()) await ctx.reply(current.trim());
-            current = line + '\n';
-          } else {
-            current += line + '\n';
-          }
-        }
-      } else {
-        current = paragraph + '\n\n';
-      }
-    } else {
-      current += paragraph + '\n\n';
-    }
-  }
-
-  if (current.trim()) {
-    await ctx.reply(current.trim());
-  }
-}
+import { smartReply, sendLongMessage } from '../utils/reply.js';
 
 export function registerFreeText(bot: Bot): void {
   bot.on('message:text', async (ctx: Context) => {
@@ -68,7 +26,7 @@ export function registerFreeText(bot: Bot): void {
 
       if (memoryAction) {
         addMessage(chatId, 'assistant', result.response);
-        await ctx.reply(result.response);
+        await smartReply(ctx, result.response);
 
         try {
           const memoryResult = await processMemoryRequest({
@@ -94,7 +52,7 @@ export function registerFreeText(bot: Bot): void {
         const knownInfo = String(discoveryAction.data['known_info'] ?? '');
 
         addMessage(chatId, 'assistant', result.response);
-        await ctx.reply(result.response);
+        await smartReply(ctx, result.response);
 
         try {
           const discovery = await runClientDiscoveryAgent({
@@ -130,7 +88,7 @@ export function registerFreeText(bot: Bot): void {
         logger.info({ agentName, agentInput }, 'invoke_agent action detected, invoking agent');
 
         addMessage(chatId, 'assistant', result.response);
-        await ctx.reply(result.response);
+        await smartReply(ctx, result.response);
 
         try {
           const job = await agents.invoke(agentName, agentInput, {
@@ -166,7 +124,7 @@ export function registerFreeText(bot: Bot): void {
 
         // Send the orchestrator's response first
         addMessage(chatId, 'assistant', result.response);
-        await ctx.reply(result.response);
+        await smartReply(ctx, result.response);
 
         try {
           const research = await runResearchAgent({ topic, details, includeMemory });
@@ -185,7 +143,7 @@ export function registerFreeText(bot: Bot): void {
 
       // Normal flow
       addMessage(chatId, 'assistant', result.response);
-      await ctx.reply(result.response);
+      await smartReply(ctx, result.response);
     } catch (error) {
       logger.error({ error, text }, 'Failed to process free text');
       await ctx.reply('Erreur de traitement. Renvoie ton message ou essaie un vocal.');

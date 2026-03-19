@@ -4,6 +4,7 @@ import { registerTaskCommands } from './tasks.js';
 import { registerClientCommands } from './clients.js';
 import { registerKbCommand } from './kb.js';
 import { registerNotifsCommand } from './notifs.js';
+import { registerVoiceCommand } from './voice.js';
 import { isAdmin } from '../utils/auth.js';
 
 export function registerCommands(bot: Bot): void {
@@ -26,7 +27,8 @@ export function registerCommands(bot: Bot): void {
         `/newclient [nom] — [besoin] — [budget]\n` +
         `/kb — Gerer la base de connaissances du bot public\n` +
         `/notifs — Voir/regler les notifications (ex: /notifs 20)\n` +
-        `/replan — Replanifier les notifications\n\n` +
+        `/replan — Replanifier les notifications\n` +
+        `/voice — Activer/desactiver les reponses vocales\n\n` +
         `Ou envoie un message libre, je comprendrai.`
     );
   });
@@ -36,4 +38,5 @@ export function registerCommands(bot: Bot): void {
   registerClientCommands(bot);
   registerKbCommand(bot);
   registerNotifsCommand(bot);
+  registerVoiceCommand(bot);
 }
