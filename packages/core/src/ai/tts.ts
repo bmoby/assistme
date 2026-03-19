@@ -15,6 +15,8 @@ function getOpenAI(): OpenAI {
 
 const MAX_TTS_LENGTH = 4096;
 
+type TtsVoice = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+
 export async function textToSpeech(text: string): Promise<Buffer> {
   const client = getOpenAI();
 
@@ -22,11 +24,14 @@ export async function textToSpeech(text: string): Promise<Buffer> {
     ? text.substring(0, MAX_TTS_LENGTH - 3) + '...'
     : text;
 
-  logger.info({ textLength: truncated.length }, 'Generating TTS audio');
+  const model = process.env['TTS_MODEL'] === 'hd' ? 'tts-1-hd' : 'tts-1';
+  const voice = (process.env['TTS_VOICE'] as TtsVoice) || 'nova';
+
+  logger.info({ textLength: truncated.length, model, voice }, 'Generating TTS audio');
 
   const response = await client.audio.speech.create({
-    model: 'tts-1',
-    voice: 'onyx',
+    model,
+    voice,
     input: truncated,
     response_format: 'opus',
   });
