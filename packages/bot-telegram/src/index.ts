@@ -43,6 +43,22 @@ async function main() {
     logger.error({ error: err.error, ctx: err.ctx?.update }, 'Bot error');
   });
 
+  // Register command menu in Telegram UI
+  await bot.api.setMyCommands([
+    { command: 'plan', description: 'Plan du jour (AI)' },
+    { command: 'tasks', description: 'Toutes les taches actives' },
+    { command: 'next', description: 'Prochaine tache a faire' },
+    { command: 'done', description: 'Marquer la tache comme faite' },
+    { command: 'add', description: 'Ajouter une tache rapide' },
+    { command: 'skip', description: 'Passer la tache en cours' },
+    { command: 'clients', description: 'Pipeline clients' },
+    { command: 'newclient', description: 'Creer un nouveau lead' },
+    { command: 'notifs', description: 'Voir/regler les notifications' },
+    { command: 'replan', description: 'Replanifier les notifications' },
+    { command: 'voice', description: 'Activer/desactiver reponses vocales' },
+  ]);
+  logger.info('Bot commands menu registered');
+
   // Start the bot
   logger.info('Starting Telegram Copilot bot...');
   bot.start({
