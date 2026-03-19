@@ -332,3 +332,28 @@ export interface FormationEvent {
   processed: boolean;
   created_at: string;
 }
+
+// ============================================
+// Formation Knowledge Types
+// ============================================
+
+export type FormationKnowledgeContentType =
+  | 'lesson_plan'
+  | 'concept'
+  | 'exercise'
+  | 'research'
+  | 'pedagogical_note'
+  | 'setup_guide';
+
+export interface FormationKnowledge {
+  id: string;
+  session_number: number | null;
+  module: number;
+  content_type: FormationKnowledgeContentType;
+  title: string;
+  content: string;
+  tags: string[];
+  source_file: string;
+  created_at: string;
+  updated_at: string;
+}

@@ -4,3 +4,4 @@ export * from './faq.js';
 export * from './events.js';
 export * from './sessions.js';
 export * from './attachments.js';
+export * from './knowledge.js';

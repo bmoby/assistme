@@ -1,4 +1,6 @@
 import { askClaude } from '../client.js';
+import { getEmbedding } from '../embeddings.js';
+import { searchFormationKnowledge } from '../../db/formation/knowledge.js';
 import type { FaqEntry } from '../../types/index.js';
 import { logger } from '../../logger.js';
 
@@ -51,9 +53,27 @@ export async function answerFaqQuestion(params: {
     ? params.existingFaq.map((f) => `[${f.id}] Q: ${f.question}\nA: ${f.answer}`).join('\n\n')
     : 'Aucune FAQ existante.';
 
+  // Auto-search formation_knowledge if no explicit knowledge provided
+  let knowledgeContext = params.formationKnowledge ?? '';
+  if (!knowledgeContext) {
+    try {
+      const queryEmbedding = await getEmbedding(params.question);
+      const results = await searchFormationKnowledge(params.question, queryEmbedding, {
+        matchCount: 3,
+      });
+      if (results.length > 0) {
+        knowledgeContext = results
+          .map((r) => `[${r.content_type}] ${r.title}\n${r.content}`)
+          .join('\n\n---\n\n');
+      }
+    } catch (err) {
+      logger.debug({ err }, 'Formation knowledge search failed in FAQ agent (non-critical)');
+    }
+  }
+
   const prompt = FAQ_AGENT_PROMPT
     .replace('{faq_entries}', faqFormatted)
-    .replace('{formation_knowledge}', params.formationKnowledge ?? 'Non disponible.')
+    .replace('{formation_knowledge}', knowledgeContext || 'Non disponible.')
     .replace('{question}', params.question);
 
   const response = await askClaude({

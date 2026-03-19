@@ -36,7 +36,7 @@
 │  │                       Supabase                                     │   │
 │  │  memory | public_knowledge | tasks | clients | reminders           │   │
 │  │  events | sessions | students | student_exercises | faq            │   │
-│  │  exercise_attachments | Storage (exercise-submissions)             │   │
+│  │  exercise_attachments | formation_knowledge | Storage              │   │
 │  └────────────────────────────────────────────────────────────────────┘   │
 │                                                                            │
 │  ┌──────────────┐  ┌──────────────────────┐  ┌──────────────────────┐    │
@@ -192,12 +192,14 @@ Etudiant envoie DM au bot Discord (texte, fichier, lien)
   → Ajout message a conversation (in-memory, max 20 messages, TTL 30 min)
   → runDmAgent(context) :
     → getStudentByDiscordId() → identification etudiant
-    → Claude Sonnet tool_use loop (max 5 iterations) avec 4 tools :
+    → Claude Sonnet tool_use loop (max 5 iterations) avec 5 tools :
       → get_student_progress : profil + statut soumissions par session
       → get_session_exercise : details exercice (deliverables, deadline)
       → create_submission : cree student_exercises + exercise_attachments
         → createFormationEvent(type: 'exercise_submitted', target: 'telegram-admin')
       → get_pending_feedback : reviews IA/formateur non consultees
+      → search_course_content : recherche hybride dans formation_knowledge
+        → getEmbedding(query) → searchFormationKnowledge(query, embedding, filters)
     → Retourne texte reponse + submissionId eventuel
   → Si submission creee → vide pendingAttachments
   → Bot Discord envoie reponse (split si > 2000 chars)
@@ -293,7 +295,7 @@ cancelActiveReminders() — version amelioree :
   → Annule TOUS les reminders actifs dans le passe (pas seulement aujourd'hui)
 ```
 
-### Flux 14 : Embedding Pipeline (auto + backfill)
+### Flux 14 : Embedding Pipeline (auto + backfill — memory)
 
 ```
 Auto-embedding (a chaque upsertMemory) :
@@ -313,6 +315,35 @@ Recherche semantique :
   → Retourne memories triees par pertinence
 ```
 
+### Flux 15 : Formation Knowledge Base (contenu pedagogique → agents)
+
+```
+Seed (pnpm seed:knowledge) :
+  → Lit 14 fichiers markdown (recherche/module-1/*, specs/06-formation/*)
+  → Chunking par headings H2, split H3 si chunk > 3000 chars
+  → extractTags() : termes en gras + defaultTags
+  → upsertFormationKnowledge() par chunk (idempotent, upsert sur source_file+title)
+    → Auto-embed background : getEmbedding(title+content) → update embedding
+  → Batch embed fallback : getEmbeddings(texts[]) pour chunks sans embedding
+
+Recherche hybride (RPC search_formation_knowledge) :
+  → Input : query_text + query_embedding(384d) + filtres (module, session, type)
+  → Score = vector_weight * cosine_similarity + text_weight * BM25_rank
+  → Seuil : similarity_threshold (default 0.25)
+  → Retourne top-N resultats tries par final_score
+
+Consommateurs :
+  DM Agent (search_course_content) :
+    → Etudiant pose question sur le cours → getEmbedding(query) → search hybride
+    → Injecte resultats dans la conversation Claude
+  FAQ Agent (auto-search) :
+    → Si pas de formationKnowledge explicite → getEmbedding(question) → search hybride
+    → Enrichit le contexte Claude avec top-3 resultats
+  Exercise Reviewer (contexte session) :
+    → getKnowledgeBySession(sessionNumber) → query directe (pas de vector)
+    → Injecte contenu pedagogique dans le prompt d'evaluation (max 4000 chars)
+```
+
 ---
 
 ## Matrice de Dependances
@@ -326,8 +357,10 @@ Recherche semantique :
 | Core/Context Builder | Core/DB, Core/Cache, Core/Embeddings | — |
 | Core/Memory Consolidator | Claude API, Core/DB, Core/Cache | — |
 | Core/Scheduler | Core/AI, Core/DB | Bot Admin |
-| Core/DM Agent | Claude API, Core/DB (formation) | — |
-| Core/FAQ Agent | Claude API, Core/DB (faq) | — |
+| Core/DM Agent | Claude API, Core/DB (formation), Core/Embeddings, formation_knowledge | — |
+| Core/FAQ Agent | Claude API, Core/DB (faq), Core/Embeddings, formation_knowledge | — |
+| Core/Exercise Reviewer | Claude API, formation_knowledge (par session) | — |
+| Core/Knowledge Base | Supabase (formation_knowledge), Embedding Server | DM Agent, FAQ Agent, Exercise Reviewer |
 | Redis | — | Core/Cache |
 | Embedding Server | — | Core/Embeddings |
 | Bot Admin | Core (AI, DB, Cache, Scheduler) | — |
@@ -351,6 +384,7 @@ Core (DB + AI + Scheduler) ✅
                     │     ├── DM Agent + Handler (soumission exercices)
                     │     ├── Session Management (/session)
                     │     ├── FAQ Agent + Handler
+                    │     ├── Formation Knowledge Base (RAG pedagogique)
                     │     ├── Event Dispatcher (Discord ↔ Telegram)
                     │     ├── Deadline Reminders (cron)
                     │     └── Exercise Digest (cron)

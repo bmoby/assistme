@@ -67,6 +67,7 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 - `pnpm -F @assistme/bot-discord dev` — Run only Discord bot
 - `pnpm build` — Build all packages
 - `pnpm typecheck` — Type check all packages
+- `pnpm seed:knowledge` — Sync formation markdown files to DB with embeddings (idempotent)
 
 ## Environment
 - Copy `.env.example` to `.env` and fill in the values

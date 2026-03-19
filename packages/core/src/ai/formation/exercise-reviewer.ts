@@ -1,4 +1,5 @@
 import { askClaude } from '../client.js';
+import { getKnowledgeBySession } from '../../db/formation/knowledge.js';
 import { logger } from '../../logger.js';
 
 export interface ExerciseReviewResult {
@@ -32,7 +33,11 @@ Evalue cette soumission selon ces criteres :
 4. Creativite et pertinence du projet
 5. Respect des consignes de l'exercice
 
+CONTENU PEDAGOGIQUE DE LA SESSION (ce qui a ete enseigne) :
+{session_knowledge}
+
 IMPORTANT : Tu evalues un PILOTE, pas un developpeur. La qualite du code n'est PAS un critere.
+Utilise le contenu pedagogique ci-dessus pour comprendre ce qui a ete enseigne et evaluer si l'etudiant a bien compris.
 
 Reponds en JSON strict :
 {
@@ -51,11 +56,29 @@ export async function reviewExercise(params: {
   exerciseNumber: number;
   exerciseDescription?: string;
   studentName: string;
+  sessionNumber?: number;
 }): Promise<ExerciseReviewResult> {
   logger.info(
     { module: params.module, exercise: params.exerciseNumber, student: params.studentName },
     'Starting exercise review'
   );
+
+  // Load pedagogical context for the session
+  let sessionKnowledge = 'Non disponible.';
+  if (params.sessionNumber) {
+    try {
+      const knowledge = await getKnowledgeBySession(params.sessionNumber);
+      if (knowledge.length > 0) {
+        sessionKnowledge = knowledge
+          .map((k) => `[${k.content_type}] ${k.title}\n${k.content}`)
+          .join('\n\n---\n\n')
+          // Limit to ~4000 chars to avoid token overflow
+          .slice(0, 4000);
+      }
+    } catch (err) {
+      logger.debug({ err }, 'Failed to load session knowledge for exercise review (non-critical)');
+    }
+  }
 
   const prompt = EXERCISE_REVIEWER_PROMPT
     .replace('{module}', String(params.module))
@@ -63,7 +86,8 @@ export async function reviewExercise(params: {
     .replace('{exercise_description}', params.exerciseDescription ?? 'Non specifie')
     .replace('{student_name}', params.studentName)
     .replace('{submission_url}', params.submissionUrl)
-    .replace('{submission_type}', params.submissionType ?? 'link');
+    .replace('{submission_type}', params.submissionType ?? 'link')
+    .replace('{session_knowledge}', sessionKnowledge);
 
   const response = await askClaude({
     prompt: 'Evalue cet exercice soumis par un etudiant. Reponds uniquement en JSON.',

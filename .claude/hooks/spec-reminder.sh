@@ -5,13 +5,16 @@
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.file_path // empty')
 
-# Ne s'applique que sur les fichiers dans packages/
-if [[ "$FILE_PATH" != *"packages/"* ]]; then
+# Ne s'applique que sur les fichiers dans packages/ ou supabase/
+if [[ "$FILE_PATH" != *"packages/"* && "$FILE_PATH" != *"supabase/"* ]]; then
   exit 0
 fi
 
-# Determiner le package
-if [[ "$FILE_PATH" == *"packages/core/"* ]]; then
+# Determiner le composant
+if [[ "$FILE_PATH" == *"supabase/"* ]]; then
+  SPEC="specs/00-infrastructure/SPEC.md"
+  COMPONENT="00-infrastructure"
+elif [[ "$FILE_PATH" == *"packages/core/"* ]]; then
   SPEC="specs/01-cerveau-central/SPEC.md"
   COMPONENT="01-cerveau-central"
 elif [[ "$FILE_PATH" == *"packages/bot-telegram-public/"* ]]; then

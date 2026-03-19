@@ -110,13 +110,24 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 - [x] CRUD FAQ Entries + Events
 - [x] Agent pre-review exercices
 - [x] Agent FAQ
-- [x] Agent DM conversationnel (Claude tool_use, 4 outils)
+- [x] Agent DM conversationnel (Claude tool_use, 5 outils dont search_course_content)
+- [x] Knowledge Base formation (table formation_knowledge, recherche hybride vector+BM25)
 - [ ] CRUD Team Members
 - [ ] Generation briefs clients
 
 ### Migrations DB
 - [x] 004_students_system.sql (students, student_exercises, faq_entries)
 - [x] 005_sessions_system.sql (sessions, submission_attachments, session_id FK)
+- [x] 010_formation_knowledge.sql (formation_knowledge, pgvector 384d, tsvector, RPC hybrid search)
+
+### Knowledge Base Formation
+- [x] Table formation_knowledge (embeddings MiniLM-L6-v2, BM25 tsvector, tags)
+- [x] RPC search_formation_knowledge() (hybrid : vector cosine + BM25 + filtres)
+- [x] Module DB knowledge.ts (upsert, search, getBySession, getByModule)
+- [x] Seed script idempotent (pnpm seed:knowledge) — 14 fichiers markdown, chunking H2/H3
+- [x] Integration DM Agent : outil search_course_content (query + session + module)
+- [x] Integration FAQ Agent : auto-search knowledge si pas de contexte explicite
+- [x] Integration Exercise Reviewer : charge contenu session pour evaluer en contexte
 
 **Livrable** : Discord pret pour la session 2 avec agent DM, exercices multi-format, et FAQ.
 

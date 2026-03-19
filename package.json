@@ -9,7 +9,8 @@
     "lint": "eslint packages/*/src/**/*.ts",
     "lint:fix": "eslint packages/*/src/**/*.ts --fix",
     "format": "prettier --write 'packages/*/src/**/*.ts'",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r run typecheck",
+    "seed:knowledge": "npx tsx scripts/seed-formation-knowledge.ts"
   },
   "engines": {
     "node": ">=20.0.0",

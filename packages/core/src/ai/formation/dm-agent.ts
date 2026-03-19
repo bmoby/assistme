@@ -7,8 +7,10 @@ import {
   getSessionByNumber,
   addAttachment,
   createFormationEvent,
+  searchFormationKnowledge,
 } from '../../db/formation/index.js';
 import { submitExercise } from '../../db/formation/exercises.js';
+import { getEmbedding } from '../embeddings.js';
 import type { Student, Session, StudentExercise, AttachmentType } from '../../types/index.js';
 
 // ============================================
@@ -60,6 +62,7 @@ const SYSTEM_PROMPT = `Ты — ассистент обучения «Pilote Neu
 - Показываешь прогресс (какие сессии сданы, какие нет)
 - Передаёшь отзывы тренера
 - Отвечаешь на вопросы о процессе обучения
+- Объясняешь концепции из уроков (аналогии, архитектура, инструменты) — ищешь в материалах курса
 
 ТЫ НЕ ДЕЛАЕШЬ:
 - Не даёшь ответы на задания
@@ -127,6 +130,28 @@ const TOOLS: Anthropic.Messages.Tool[] = [
       type: 'object' as const,
       properties: {},
       required: [],
+    },
+  },
+  {
+    name: 'search_course_content',
+    description: 'Найти информацию из материалов курса (уроки, концепции, аналогии, упражнения). Используй, когда студент спрашивает о содержании урока, концепции или аналогии.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Текст запроса для поиска в материалах курса',
+        },
+        session_number: {
+          type: 'integer',
+          description: 'Номер сессии (если известен)',
+        },
+        module: {
+          type: 'integer',
+          description: 'Номер модуля (если известен)',
+        },
+      },
+      required: ['query'],
     },
   },
 ];
@@ -273,6 +298,35 @@ async function handleCreateSubmission(
   });
 }
 
+async function handleSearchCourseContent(
+  query: string,
+  sessionNumber?: number,
+  module?: number
+): Promise<string> {
+  const queryEmbedding = await getEmbedding(query);
+
+  const results = await searchFormationKnowledge(query, queryEmbedding, {
+    matchCount: 5,
+    sessionNumber: sessionNumber ?? null,
+    module: module ?? null,
+  });
+
+  if (results.length === 0) {
+    return JSON.stringify({ results: [], message: 'Ничего не найдено по этому запросу.' });
+  }
+
+  return JSON.stringify({
+    results: results.map((r) => ({
+      title: r.title,
+      content: r.content,
+      module: r.module,
+      session_number: r.session_number,
+      type: r.content_type,
+      score: Math.round(r.final_score * 100) / 100,
+    })),
+  });
+}
+
 async function handleGetPendingFeedback(student: Student): Promise<string> {
   const exercises = await getExercisesByStudent(student.id);
 
@@ -406,6 +460,13 @@ export async function runDmAgent(context: DmAgentContext): Promise<DmAgentRespon
           }
           case 'get_pending_feedback':
             result = await handleGetPendingFeedback(student);
+            break;
+          case 'search_course_content':
+            result = await handleSearchCourseContent(
+              input.query as string,
+              input.session_number as number | undefined,
+              input.module as number | undefined
+            );
             break;
           default:
             result = JSON.stringify({ error: `Unknown tool: ${toolUse.name}` });
