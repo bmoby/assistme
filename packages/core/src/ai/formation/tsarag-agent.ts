@@ -16,6 +16,7 @@ import {
   searchFormationKnowledge,
 } from '../../db/formation/index.js';
 import { getEmbedding } from '../embeddings.js';
+import { buildFormationContext, invalidateFormationContext } from './formation-context.js';
 import type {
   TsaragAgentContext,
   TsaragAgentResponse,
@@ -416,6 +417,8 @@ async function handleCreateSession(
     );
   }
 
+  invalidateFormationContext();
+
   return JSON.stringify({
     success: true,
     session_id: session.id,
@@ -443,6 +446,7 @@ async function handleUpdateSession(input: Record<string, unknown>): Promise<stri
   if (input.status) updates.status = input.status;
 
   const updated = await updateSession(session.id, updates);
+  invalidateFormationContext();
   return JSON.stringify({ success: true, session: updated });
 }
 
@@ -710,8 +714,9 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
     }
   }
 
-  // Inject pending action context if present
-  let systemPrompt = SYSTEM_PROMPT;
+  // Inject formation context (Layer 1 — global knowledge) + pending action
+  const formationCtx = await buildFormationContext();
+  let systemPrompt = `${SYSTEM_PROMPT}\n\n--- PROGRAMME DE LA FORMATION ---\n${formationCtx}`;
   if (context.pendingAction) {
     systemPrompt += `\n\nACTION EN ATTENTE DE CONFIRMATION :\nType: ${context.pendingAction.type}\nResume: ${context.pendingAction.summary}\nSi l'utilisateur confirme, appelle execute_pending. Si il veut modifier, appelle propose_action avec les nouveaux params.`;
   }

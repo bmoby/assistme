@@ -11,6 +11,7 @@ import {
 } from '../../db/formation/index.js';
 import { submitExercise } from '../../db/formation/exercises.js';
 import { getEmbedding } from '../embeddings.js';
+import { buildFormationContext } from './formation-context.js';
 import type { Student, Session, StudentExercise, AttachmentType } from '../../types/index.js';
 
 // ============================================
@@ -378,7 +379,11 @@ export async function runDmAgent(context: DmAgentContext): Promise<DmAgentRespon
     };
   }
 
-  // 2. Build messages array for Claude
+  // 2. Load formation context (Layer 1 — global knowledge)
+  const formationCtx = await buildFormationContext();
+  const fullSystemPrompt = `${SYSTEM_PROMPT}\n\n--- PROGRAMME DE LA FORMATION ---\n${formationCtx}`;
+
+  // 3. Build messages array for Claude
   const messages: Anthropic.Messages.MessageParam[] = context.messages.map((m) => ({
     role: m.role,
     content: m.content,
@@ -409,7 +414,7 @@ export async function runDmAgent(context: DmAgentContext): Promise<DmAgentRespon
     response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: fullSystemPrompt,
       tools: TOOLS,
       messages,
     });
