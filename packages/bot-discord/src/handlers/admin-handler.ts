@@ -110,9 +110,17 @@ async function processAdminMessage(message: Message): Promise<void> {
   const userText = message.content || '(fichier joint)';
   conv.messages.push({ role: 'user', content: userText });
 
-  // Trim to max messages
+  // Trim to max messages — find a safe cut point (user message)
+  // to avoid splitting tool_use/tool_result pairs
   if (conv.messages.length > MAX_MESSAGES) {
-    conv.messages = conv.messages.slice(-MAX_MESSAGES);
+    let cutIndex = conv.messages.length - MAX_MESSAGES;
+    // Walk forward to the next plain user text message (safe boundary)
+    while (cutIndex < conv.messages.length - 1) {
+      const msg = conv.messages[cutIndex]!;
+      if (msg.role === 'user' && typeof msg.content === 'string') break;
+      cutIndex++;
+    }
+    conv.messages = conv.messages.slice(cutIndex);
   }
 
   // Send typing + call agent
