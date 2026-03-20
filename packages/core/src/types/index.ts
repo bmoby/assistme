@@ -359,7 +359,7 @@ export interface FormationKnowledge {
 }
 
 // ============================================
-// Tsarak Agent Types
+// Tsarag Agent Types
 // ============================================
 
 export interface AdminConversationMessage {
@@ -373,13 +373,13 @@ export interface DiscordActionCallbacks {
   dmStudent: (discordId: string, message: string) => Promise<boolean>;
 }
 
-export interface TsarakAgentContext {
+export interface TsaragAgentContext {
   messages: AdminConversationMessage[];
   attachmentsInfo?: string;
   discordActions: DiscordActionCallbacks;
 }
 
-export interface TsarakAgentResponse {
+export interface TsaragAgentResponse {
   text: string;
   actionsPerformed: string[];
 }
