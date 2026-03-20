@@ -54,11 +54,18 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 ### Correspondance composant → package
 | Spec | Package |
 |------|---------|
+| `specs/00-infrastructure/` | `supabase/` + schemas |
 | `specs/01-cerveau-central/` | `packages/core/` |
 | `specs/02-bot-telegram/` | `packages/bot-telegram/` |
 | `specs/03-bot-telegram-public/` | `packages/bot-telegram-public/` |
 | `specs/04-bot-discord/` | `packages/bot-discord/` |
-| `specs/06-formation/` | Organisation formation Session 2 (curriculum, exercices, outils) |
+| `specs/05-systeme-contenu/` | integre dans core + bots (Phase 4) |
+
+## Contenu pedagogique
+- `recherche/CURRICULUM.md` — Structure du programme (6 modules, 24 sessions)
+- `recherche/recherches/` — Rapports de recherche qui informent le curriculum
+- `recherche/module-*/` — Plans de session detailles, exercices, visuels
+- `recherche/GUIDE-FORMATEUR.md` — Guide operationnel du formateur
 
 ## Commands
 - `pnpm install` — Install all dependencies

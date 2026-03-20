@@ -10,7 +10,7 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 
 ### 1.1 Instance
 - **Instance existante** : Supabase avec PostgreSQL
-- **Migrations** : `supabase/migrations/` (001_initial.sql, 002_memory_and_events.sql, 003_public_knowledge.sql, 004_students_system.sql, 005_sessions_system.sql, 006_memory_tiers.sql, 007_memory_embeddings.sql)
+- **Migrations** : `supabase/migrations/` (001_initial.sql, 002_memory_and_events.sql, 003_public_knowledge.sql, 004_students_system.sql, 005_sessions_system.sql, 006_memory_tiers.sql, 007_memory_embeddings.sql, 008_hybrid_search_decay.sql, 009_agent_jobs.sql, 010_formation_knowledge.sql)
 
 ### 1.2 Schema
 
@@ -206,6 +206,49 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 - task_id UUID REFERENCES tasks(id)
 - created_at
 ```
+
+#### Hybrid Search Memory (migration 008)
+
+Ajoute la recherche hybride (BM25 + vector + temporal decay) a la table `memory` :
+- Colonne `search_text TSVECTOR` (auto-peuplee par trigger sur insert/update de key/content)
+- Index GIN `idx_memory_search_text`
+- Fonction RPC `search_memory_hybrid(query_text, query_embedding, match_count, match_tier, similarity_threshold, decay_half_life_days, vector_weight, text_weight)` :
+  - Score final = (vector_weight * cosine_similarity + text_weight * BM25_rank) * temporal_decay
+  - Temporal decay : exponentiel base sur `last_confirmed`, demi-vie configurable (default 30 jours)
+  - Filtre optionnel par tier
+
+#### Table `agent_jobs` (migration 009)
+```sql
+- id UUID PRIMARY KEY
+- agent_name TEXT NOT NULL
+- input JSONB NOT NULL DEFAULT '{}'
+- origin JSONB NOT NULL DEFAULT '{}'
+- status TEXT ('pending', 'processing', 'completed', 'failed')
+- result_text TEXT
+- result_files JSONB DEFAULT '[]'
+- chain_to JSONB
+- error TEXT
+- parent_job_id UUID REFERENCES agent_jobs(id)
+- created_at, started_at, completed_at TIMESTAMPTZ
+```
+
+Systeme de jobs asynchrones pour les agents autonomes. Index sur `status = 'pending'` et `agent_name`. Bucket Storage `agent-outputs` associe.
+
+#### Table `formation_knowledge` (migration 010)
+```sql
+- id UUID PRIMARY KEY
+- session_number INTEGER, module INTEGER
+- content_type TEXT ('lesson_plan', 'exercise', 'research', 'pedagogical_note', 'setup_guide')
+- title TEXT NOT NULL, content TEXT NOT NULL
+- tags TEXT[] DEFAULT '{}'
+- source_file TEXT
+- embedding VECTOR(384)
+- search_text TSVECTOR (auto-genere)
+- created_at, updated_at TIMESTAMPTZ
+- UNIQUE(source_file, title)
+```
+
+Base de connaissances pedagogique. Recherche hybride via RPC `search_formation_knowledge(query_text, query_embedding, filters)`. Peuplee par `pnpm seed:knowledge` (idempotent). Consommee par DM Agent, FAQ Agent, Exercise Reviewer.
 
 ### 1.3 Supabase Storage
 - **Bucket `course-videos`** : Videos des cours

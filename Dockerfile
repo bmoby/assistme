@@ -42,3 +42,12 @@ COPY --from=builder /app/packages/bot-telegram-public/dist packages/bot-telegram
 COPY --from=builder /app/packages/bot-discord/dist packages/bot-discord/dist
 
 ENV NODE_ENV=production
+
+## ─── Stage 3: Seed runner (knowledge base) ──────────────────
+FROM builder AS seed
+
+# Copy content files needed by the seed script
+COPY recherche/ recherche/
+COPY scripts/ scripts/
+
+CMD ["npx", "tsx", "scripts/seed-formation-knowledge.ts"]

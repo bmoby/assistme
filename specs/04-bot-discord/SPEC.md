@@ -97,7 +97,7 @@ Admin : /add-student Ahmed @discord_user [pod:3]
 
 ## 5. Ceremonies
 
-Reference detaillee : `specs/06-formation/SPEC.md`
+Reference detaillee : `recherche/CURRICULUM.md`
 
 | Ceremonie | Quand | Objectif |
 |-----------|-------|----------|

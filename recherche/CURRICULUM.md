@@ -1,4 +1,4 @@
-# 06 — Formation "Pilote Neuro" Session 2
+# Formation "Pilote Neuro" Session 2 — Curriculum
 
 > **Statut : EN PREPARATION**
 
@@ -44,72 +44,7 @@ La formation ne vise PAS a enseigner la programmation. Elle vise a transmettre :
 
 ---
 
-## Roadmap — Etape par etape
-
-Chaque etape est un travail en profondeur. On ne passe a la suivante que quand l'etape en cours est terminee et validee.
-
----
-
-### ETAPE 1 — Recherches approfondies ✅
-> **Statut : TERMINE** | Completee le 2026-03-13
-
-3 recherches profondes lancees via le Research Agent. Rapports dans `specs/06-formation/recherches/`.
-
-#### Recherche A — Psychologie des apprenants non-techniques
-
-**Objectif** : Comprendre comment pensent les gens sans background technique quand ils approchent la tech. Quelles sont leurs peurs, leurs blocages, et comment les depasser.
-
-**Points cles a explorer :**
-- Barrieres cognitives face au code et a l'abstraction
-- Syndrome de l'imposteur dans l'apprentissage tech
-- Courbe de motivation sur 3 mois (lune de miel → vallee du desespoir → plateau → maitrise)
-- Comment transformer un "consommateur de tech" en "createur de tech"
-- Growth mindset applique a l'apprentissage tech
-- Techniques de motivation qui marchent pour des adultes autodidactes
-- Comment gerer le moment "je suis pas fait pour ca"
-
-#### Recherche B — Pedagogie pour enseigner la tech (concepts, pas syntaxe)
-
-**Objectif** : Trouver les meilleures methodes pour enseigner des concepts techniques a des non-techniques, sans jamais tomber dans la syntaxe pure.
-
-**Points cles a explorer :**
-- Computational thinking (decomposition, patterns, abstraction, algorithmes)
-- Apprentissage par analogies (recette = algorithme, restaurant = client-serveur, etc.)
-- Project-based learning vs theorie-first pour adultes
-- Comment expliquer le code sans enseigner le code
-- Feedback loops efficaces en formation en ligne
-- Gestion d'une cohorte de 30 personnes avec des vitesses differentes
-- Role des exercices pratiques dans la retention a long terme
-- Pair programming / entraide entre etudiants
-
-#### Recherche C — Structure optimale d'un programme de 3 mois en ligne
-
-**Objectif** : Definir la meilleure structure pour un programme de 12 semaines avec 2 sessions de 2h par semaine.
-
-**Points cles a explorer :**
-- Frequence et duree ideales des sessions (pourquoi 2x2h est bon ou pas)
-- Spacing effect et retention a long terme
-- Design d'exercices progressifs : guides → semi-ouverts → projets libres
-- Discord comme plateforme d'apprentissage (canaux, gamification, bots)
-- Onboarding premiere semaine (comment bien demarrer une cohorte)
-- Comment gerer l'abandon (quand et pourquoi les gens decrochent)
-- Mix optimal live vs pre-enregistre vs lecture vs exercice
-- Evaluation et feedback : comment evaluer sans decourager
-
-#### Livrable etape 1
-3 rapports de recherche detailles qui servent de fondation pour toutes les decisions de l'etape 2.
-- `recherches/recherche-A-psychologie-apprenants.md` (50K chars)
-- `recherches/recherche-B-pedagogie-tech-non-techniques.md` (52K chars)
-- `recherches/recherche-C-structure-programme-3-mois.md` (49K chars)
-
----
-
-### ETAPE 2 — Structurer le curriculum
-> **Statut : EN COURS** | **Prochaine action**
-
----
-
-#### Principes pedagogiques
+## Principes pedagogiques
 
 1. **Concret avant abstrait** — L'etudiant vit le probleme (1 session de chaos controle) puis recoit la methode comme solution desiree. Jamais de theorie sans experience prealable.
 2. **Spec-Driven Development** — La spec est la source de verite. Enseigne APRES que l'etudiant ait vecu le chaos — cycle chaos→revelation en 4 sessions max, pas 8.
@@ -126,7 +61,7 @@ Chaque etape est un travail en profondeur. On ne passe a la suivante que quand l
 
 ---
 
-#### Format de chaque session (2h)
+## Format de chaque session (2h)
 
 | Temps | Bloc | Contenu |
 |-------|------|---------|
@@ -143,12 +78,12 @@ Chaque etape est un travail en profondeur. On ne passe a la suivante que quand l
 
 ---
 
-#### Repartition hebdomadaire
+## Repartition hebdomadaire
 
 | Format | Volume | Quand |
 |--------|--------|-------|
-| Live (2x2h) | 4h | Mercredi soir + Dimanche apres-midi ← *ajustable* |
-| Video pre-session | 2x 10-15 min | Mardi soir + Samedi soir (veille de chaque live) ← *ajustable* |
+| Live (2x2h) | 4h | Mercredi soir + Dimanche apres-midi |
+| Video pre-session | 2x 10-15 min | Mardi soir + Samedi soir (veille de chaque live) |
 | Exercice | 3-5h | Entre les sessions |
 | Recap PDF | 15-20 min lecture | Apres chaque session |
 
@@ -156,7 +91,7 @@ Chaque etape est un travail en profondeur. On ne passe a la suivante que quand l
 
 ---
 
-#### Systeme de deadlines (exercices)
+## Systeme de deadlines (exercices)
 
 | Type | Delai | Feedback |
 |------|-------|----------|
@@ -166,7 +101,7 @@ Chaque etape est un travail en profondeur. On ne passe a la suivante que quand l
 
 ---
 
-#### Systeme anti-decrochage
+## Systeme anti-decrochage
 
 **4 moments critiques de decrochage :**
 1. **Semaines 1-2** : Mauvais fit, problemes techniques, isolement → Pre-boarding solide + contact individuel dans les 72h
@@ -184,7 +119,7 @@ Chaque etape est un travail en profondeur. On ne passe a la suivante que quand l
 
 ---
 
-#### Ceremonies
+## Ceremonies
 
 | Ceremonie | Quand | Objectif |
 |-----------|-------|----------|
@@ -195,9 +130,9 @@ Chaque etape est un travail en profondeur. On ne passe a la suivante que quand l
 
 ---
 
-### Le curriculum — 12 semaines, 24 sessions
+## Le curriculum — 12 semaines, 24 sessions
 
-#### Fil rouge de progression
+### Fil rouge de progression
 
 ```
 Semaines 1-2 : DECOUVRIR       → "Je comprends le digital et je sais utiliser l'IA"
@@ -212,7 +147,7 @@ Semaines 11-12: LIVRER          → Tests, deploy, demo day, graduation
 
 ---
 
-#### MODULE 1 — Decouvrir (Semaines 1-2)
+### MODULE 1 — Decouvrir (Semaines 1-2)
 
 **Objectif module** : L'etudiant comprend le digital, sait decomposer, et decouvre les outils IA. Concepts tech repartis sur 2 sessions (spacing). Identite "createur" installee.
 
@@ -305,14 +240,14 @@ Semaines 11-12: LIVRER          → Tests, deploy, demo day, graduation
 
 ---
 
-#### MODULE 2 — La Methode (Semaines 3-4)
+### MODULE 2 — La Methode (Semaines 3-4)
 
 **Objectif module** : L'etudiant vit 1 session de chaos controle, puis decouvre la methode spec-driven comme solution. Il ecrit sa spec, pilote l'IA methodiquement, et fait reviewer par ses pairs. Le cycle chaos→revelation est COMPLET en 4 sessions.
 
 **Bloom** : Analyser + Appliquer
 **Scaffolding** : Semi-ouvert (cadre donne, l'etudiant fait des choix)
 
-**⚠️ S5 : Annoncer la vallee.** "Dans 2-3 semaines, vous voudrez abandonner. C'est prevu."
+**S5 : Annoncer la vallee.** "Dans 2-3 semaines, vous voudrez abandonner. C'est prevu."
 
 ---
 
@@ -428,14 +363,14 @@ Semaines 11-12: LIVRER          → Tests, deploy, demo day, graduation
 
 ---
 
-#### MODULE 3 — L'Arsenal IA (Semaines 5-6)
+### MODULE 3 — L'Arsenal IA (Semaines 5-6)
 
 **Objectif module** : L'etudiant configure son infra IA complete (skills, agents) et avance significativement sur son projet. Chaque outil est introduit au moment ou il sert. Ceremonie mi-parcours.
 
 **Bloom** : Appliquer + Analyser
 **Scaffolding** : Semi-ouvert → debut d'autonomie
 
-**⚠️ Semaines 5-6 : Zone vallee du desespoir. MAIS : la revelation de M2 a cree un pic de motivation. Les outils IA donnent des wins tangibles a chaque session. Message vocal personnel de Magomed.**
+**Semaines 5-6 : Zone vallee du desespoir. MAIS : la revelation de M2 a cree un pic de motivation. Les outils IA donnent des wins tangibles a chaque session. Message vocal personnel de Magomed.**
 
 ---
 
@@ -529,7 +464,7 @@ Semaines 11-12: LIVRER          → Tests, deploy, demo day, graduation
 
 ---
 
-#### MODULE 4 — Construire (Semaines 7-8)
+### MODULE 4 — Construire (Semaines 7-8)
 
 **Objectif module** : L'etudiant construit son projet en autonomie croissante. Sprints structures. Debug et esprit critique. Le projet devient un vrai produit.
 
@@ -612,7 +547,7 @@ Semaines 11-12: LIVRER          → Tests, deploy, demo day, graduation
 
 ---
 
-#### MODULE 5 — Professionnaliser (Semaines 9-10)
+### MODULE 5 — Professionnaliser (Semaines 9-10)
 
 **Objectif module** : Appliquer la methode en contexte pro reel. Peer review avancee avec propositions d'alternatives. Autonomie totale. MVP.
 
@@ -679,7 +614,7 @@ Semaines 11-12: LIVRER          → Tests, deploy, demo day, graduation
 
 ---
 
-#### MODULE 6 — Livrer (Semaines 11-12)
+### MODULE 6 — Livrer (Semaines 11-12)
 
 **Objectif module** : Polir, tester, deployer, presenter. Graduation.
 
@@ -731,77 +666,20 @@ Semaines 11-12: LIVRER          → Tests, deploy, demo day, graduation
 
 ---
 
-#### Livrable etape 2
-Curriculum complet : 6 modules, 24 sessions. Chaos→revelation en 4 sessions. Scaffolding coherent (guide→semi-ouvert→libre). Chaque outil just-in-time. Chaque session = artefact concret. Alumni-mentors integres. Vallee contrecarree par la revelation methodologique.
+## Etapes de preparation
 
----
-
-### ETAPE 3 — Designer les exercices et livrables
-> **Statut : EN ATTENTE** | Depend de l'etape 2
-
-Pour chaque session : quel exercice, quel livrable, quels criteres d'evaluation. Comment rendre les exercices progressifs et motivants.
-
----
-
-### ETAPE 4 — Concevoir les outils et l'automatisation
-> **Statut : TERMINE**
-
-Decider quels outils techniques mettre en place en fonction des besoins reels identifies aux etapes precedentes. Discord bot, systeme d'exercices, FAQ auto, ressources, notifications.
-
-Systeme de gestion concu avec isolation (namespace formation/), auth par roles Discord, communication inter-bots via table events.
-
----
-
-### ETAPE 5 — Implementer le systeme technique
-> **Statut : TERMINE**
-
-Coder : bot Discord, agents IA (review exercices, FAQ), CRUD database (students, exercises), integration avec le systeme existant (Telegram, notifications dynamiques).
-
-Migration 004 (students table), CRUD formation, AI agents (exercise-reviewer, faq-agent), Bot Discord complet (11 commandes slash, FAQ auto, crons), integration Telegram.
-
----
-
-### ETAPE 6 — Creer le contenu et les supports
-> **Statut : EN ATTENTE** | Depend des etapes 2+5
-
-Preparer les slides, documents, ressources pour chaque session. Automatiser la generation de supports quand possible.
-
----
-
-### ETAPE 7 — Tester et lancer
-> **Statut : EN ATTENTE** | Depend de l'etape 6
-
-Test end-to-end avec l'equipe comme cobayes. Ajustements. Deploiement. Lancement session 2.
-
----
-
-## Infrastructure existante (deja prete)
-
-| Composant | Statut | Details |
-|-----------|--------|---------|
-| Table `student_exercises` | ✅ Schema cree | Supabase migration 001 |
-| Table `faq_entries` | ✅ Schema cree | Supabase migration 001 |
-| Table `team_members` | ✅ Schema cree | Supabase migration 001 |
-| Table `students` | ✅ Schema cree | Supabase migration 004 |
-| Types TypeScript | ✅ Definis | Student, StudentExercise, TeamMember dans types/index.ts |
-| Storage buckets | ✅ Definis | course-videos, course-resources, exercise-submissions |
-| Bot Discord package | ✅ Cree | packages/bot-discord (vide, src/ a implementer) |
-| Spec Discord | ✅ Ecrite | specs/04-bot-discord/SPEC.md |
-| Notification dynamiques | ✅ Implemente | Systeme IA-driven dans le bot Telegram |
-| Research Agent | ✅ Implemente | Pour lancer les recherches de l'etape 1 |
-| CRUD Formation (core) | ✅ Implemente | db/formation/ (students, exercises, faq, events) |
-| AI Agents Formation | ✅ Implemente | ai/formation/ (exercise-reviewer, faq-agent) |
-| Bot Discord | ✅ Structure creee | packages/bot-discord/ (commandes, handlers, crons) |
-| Integration Telegram | ✅ Implemente | formation-events cron dans bot-telegram |
-
----
+| Etape | Statut | Description |
+|-------|--------|-------------|
+| 1. Recherches approfondies | TERMINE | 6 rapports dans `recherche/recherches/` |
+| 2. Structurer le curriculum | EN COURS | Ce document |
+| 3. Designer les exercices | EN ATTENTE | Exercices detailles + criteres d'evaluation |
+| 4. Concevoir les outils | TERMINE | Discord bot, systeme d'exercices, FAQ |
+| 5. Implementer le systeme | TERMINE | Bot Discord, agents IA, CRUD, integrations |
+| 6. Creer le contenu | EN ATTENTE | Slides, documents, ressources |
+| 7. Tester et lancer | EN ATTENTE | Test E2E + deploiement |
 
 ## Documents associes
 
 - [recherches/](recherches/) — 6 rapports de recherche approfondis (psychologie, pedagogie, structure, analogie restaurant, paysage IA, quick-win)
-- [../../recherche/module-1/](../../recherche/module-1/) — Plans de session, exercices, synthese, visuels (contenu synchronise vers DB via `pnpm seed:knowledge`)
-- [../../recherche/GUIDE-FORMATEUR.md](../../recherche/GUIDE-FORMATEUR.md) — Guide etape par etape pour le formateur (configuration Discord, routine hebdomadaire, correction exercices)
-
----
-
-*Ce fichier evolue etape par etape. Chaque etape sera detaillee quand on y arrive.*
+- [module-1/](module-1/) — Plans de session, exercices, synthese, visuels (contenu synchronise vers DB via `pnpm seed:knowledge`)
+- [GUIDE-FORMATEUR.md](GUIDE-FORMATEUR.md) — Guide etape par etape pour le formateur (configuration Discord, routine hebdomadaire, correction exercices)
