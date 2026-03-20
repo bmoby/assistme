@@ -357,3 +357,29 @@ export interface FormationKnowledge {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================
+// Tsarak Agent Types
+// ============================================
+
+export interface AdminConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface DiscordActionCallbacks {
+  sendAnnouncement: (text: string, mentionStudents: boolean) => Promise<void>;
+  sendToSessionsForum: (sessionNumber: number, title: string, content: string, module: number) => Promise<string | null>;
+  dmStudent: (discordId: string, message: string) => Promise<boolean>;
+}
+
+export interface TsarakAgentContext {
+  messages: AdminConversationMessage[];
+  attachmentsInfo?: string;
+  discordActions: DiscordActionCallbacks;
+}
+
+export interface TsarakAgentResponse {
+  text: string;
+  actionsPerformed: string[];
+}
