@@ -1,6 +1,6 @@
 import { Client, Message, TextChannel, ForumChannel, ChannelType } from 'discord.js';
 import { logger, runTsaragAgent } from '@assistme/core';
-import type { AdminConversationMessage, DiscordActionCallbacks } from '@assistme/core';
+import type { AdminConversationMessage, DiscordActionCallbacks, PendingAction } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 import { CHANNELS, ROLES } from '../config.js';
 
@@ -10,6 +10,7 @@ import { CHANNELS, ROLES } from '../config.js';
 
 interface AdminConversationState {
   messages: AdminConversationMessage[];
+  pendingAction: PendingAction | null;
   lastActivityAt: Date;
 }
 
@@ -92,7 +93,7 @@ async function processAdminMessage(message: Message): Promise<void> {
   // Get or create conversation
   let conv = conversations.get(channelId);
   if (!conv) {
-    conv = { messages: [], lastActivityAt: new Date() };
+    conv = { messages: [], pendingAction: null, lastActivityAt: new Date() };
     conversations.set(channelId, conv);
   }
   conv.lastActivityAt = new Date();
@@ -122,13 +123,19 @@ async function processAdminMessage(message: Message): Promise<void> {
       messages: conv.messages,
       attachmentsInfo: attachmentParts.length > 0 ? attachmentParts.join('\n') : undefined,
       discordActions: createDiscordCallbacks(message),
+      pendingAction: conv.pendingAction,
     });
 
-    // Add assistant response to conversation (with action log to prevent re-execution)
-    const assistantContent = result.actionsPerformed.length > 0
-      ? `${result.text}\n\n[ACTIONS DEJA EXECUTEES: ${result.actionsPerformed.join(', ')}]`
-      : result.text;
-    conv.messages.push({ role: 'assistant', content: assistantContent });
+    // Update pending action state
+    if (result.pendingConsumed) {
+      conv.pendingAction = null;
+    }
+    if (result.proposedAction) {
+      conv.pendingAction = result.proposedAction;
+    }
+
+    // Add assistant response to conversation
+    conv.messages.push({ role: 'assistant', content: result.text });
 
     // Send response (split if > 2000 chars)
     await sendLongMessage(textChannel, result.text);

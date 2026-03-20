@@ -373,13 +373,24 @@ export interface DiscordActionCallbacks {
   dmStudent: (discordId: string, message: string) => Promise<boolean>;
 }
 
+export interface PendingAction {
+  type: string;
+  params: Record<string, unknown>;
+  summary: string;
+}
+
 export interface TsaragAgentContext {
   messages: AdminConversationMessage[];
   attachmentsInfo?: string;
   discordActions: DiscordActionCallbacks;
+  pendingAction: PendingAction | null;
 }
 
 export interface TsaragAgentResponse {
   text: string;
   actionsPerformed: string[];
+  /** New action proposed by the agent — store in conversation state */
+  proposedAction: PendingAction | null;
+  /** Whether the existing pending action was consumed (executed) */
+  pendingConsumed: boolean;
 }
