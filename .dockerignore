@@ -10,8 +10,6 @@ dist/
 .turbo
 specs/
 docs/
-recherche/
-scripts/
 supabase/
 *.md
 !package.json
