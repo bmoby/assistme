@@ -11,13 +11,14 @@ import { CHANNELS, ROLES } from '../config.js';
 interface AdminConversationState {
   messages: AdminConversationMessage[];
   pendingAction: PendingAction | null;
+  executedActionIds: Set<string>;
   lastActivityAt: Date;
 }
 
 const conversations = new Map<string, AdminConversationState>();
 const processingLocks = new Map<string, Promise<void>>();
 
-const MAX_MESSAGES = 30;
+const MAX_MESSAGES = 50;
 const CONVERSATION_TTL = 60 * 60 * 1000; // 60 min
 
 // ============================================
@@ -93,7 +94,7 @@ async function processAdminMessage(message: Message): Promise<void> {
   // Get or create conversation
   let conv = conversations.get(channelId);
   if (!conv) {
-    conv = { messages: [], pendingAction: null, lastActivityAt: new Date() };
+    conv = { messages: [], pendingAction: null, executedActionIds: new Set(), lastActivityAt: new Date() };
     conversations.set(channelId, conv);
   }
   conv.lastActivityAt = new Date();
@@ -124,6 +125,7 @@ async function processAdminMessage(message: Message): Promise<void> {
       attachmentsInfo: attachmentParts.length > 0 ? attachmentParts.join('\n') : undefined,
       discordActions: createDiscordCallbacks(message),
       pendingAction: conv.pendingAction,
+      executedActionIds: conv.executedActionIds,
     });
 
     // Update pending action state
@@ -134,8 +136,15 @@ async function processAdminMessage(message: Message): Promise<void> {
       conv.pendingAction = result.proposedAction;
     }
 
-    // Add assistant response to conversation
-    conv.messages.push({ role: 'assistant', content: result.text });
+    // Track executed action ID (layer 2 — idempotency)
+    if (result.executedActionId) {
+      conv.executedActionIds.add(result.executedActionId);
+    }
+
+    // Store full turn history (layer 1 — tool_use + tool_result + final text)
+    for (const msg of result.turnMessages) {
+      conv.messages.push(msg);
+    }
 
     // Send response (split if > 2000 chars)
     await sendLongMessage(textChannel, result.text);

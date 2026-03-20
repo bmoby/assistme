@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { randomUUID } from 'node:crypto';
 import { logger } from '../../logger.js';
 import {
   getStudentsBySession,
@@ -682,6 +683,7 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
   let proposedAction: PendingAction | null = null;
   let pendingConsumed = false;
   let pendingExecutedThisTurn = false;
+  let executedActionId: string | null = null;
 
   // Build tools list: READ tools + propose_action + execute_pending (only if there's a pending action)
   const tools: Anthropic.Messages.Tool[] = [...READ_TOOLS, PROPOSE_ACTION_TOOL];
@@ -708,6 +710,9 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
   if (context.pendingAction) {
     systemPrompt += `\n\nACTION EN ATTENTE DE CONFIRMATION :\nType: ${context.pendingAction.type}\nResume: ${context.pendingAction.summary}\nSi l'utilisateur confirme, appelle execute_pending. Si il veut modifier, appelle propose_action avec les nouveaux params.`;
   }
+
+  // Track initial message count to extract turn messages later
+  const initialMessageCount = messages.length;
 
   // Tool use loop
   let response: Anthropic.Messages.Message;
@@ -780,7 +785,7 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
             const actionType = input.action_type as string;
             const params = input.params as Record<string, unknown>;
             const summary = input.summary as string;
-            proposedAction = { type: actionType, params, summary };
+            proposedAction = { type: actionType, params, summary, id: randomUUID() };
             result = JSON.stringify({ proposed: true, summary });
             break;
           }
@@ -794,8 +799,13 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
               result = JSON.stringify({ error: 'no_pending', message: 'Aucune action en attente.' });
               break;
             }
+            if (context.executedActionIds.has(context.pendingAction.id)) {
+              result = JSON.stringify({ already_executed: true, message: 'Action deja executee (idempotency).' });
+              break;
+            }
             pendingExecutedThisTurn = true;
             pendingConsumed = true;
+            executedActionId = context.pendingAction.id;
             const execResult = await executePendingAction(context.pendingAction, context);
             actionsPerformed.push(execResult.label);
             result = execResult.result;
@@ -826,10 +836,22 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
   );
   const text = textBlocks.map((b) => b.text).join('\n') || 'Erreur de traitement. Reessaie.';
 
+  // Collect turn messages: all assistant/user messages added during the tool-use loop + final text
+  const turnMessages: import('../../types/index.js').AdminConversationMessage[] = [];
+  for (let i = initialMessageCount; i < messages.length; i++) {
+    const msg = messages[i]!;
+    turnMessages.push({
+      role: msg.role,
+      content: msg.content as string | Anthropic.Messages.ContentBlockParam[],
+    });
+  }
+  // Add the final assistant text (or full content if no tool calls happened)
+  turnMessages.push({ role: 'assistant', content: response!.content });
+
   logger.info(
     { iterations, actionsCount: actionsPerformed.length },
     'Tsarag agent response ready'
   );
 
-  return { text, actionsPerformed, proposedAction, pendingConsumed };
+  return { text, actionsPerformed, proposedAction, pendingConsumed, turnMessages, executedActionId };
 }
