@@ -13,4 +13,5 @@ export const CHANNELS = {
   chat: 'чат',
   faq: 'faq',
   wins: 'победы',
+  admin: 'админ',
 } as const;

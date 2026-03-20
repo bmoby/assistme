@@ -12,6 +12,7 @@ import { registerSlashCommands, setupCommandHandler } from './commands/index.js'
 import { setupFaqHandler } from './handlers/faq.js';
 import { setupGuildMemberHandler } from './handlers/guild-member.js';
 import { setupDmHandler } from './handlers/dm-handler.js';
+import { setupAdminHandler } from './handlers/admin-handler.js';
 import { registerCronJobs } from './cron/index.js';
 
 async function main(): Promise<void> {
@@ -47,6 +48,7 @@ async function main(): Promise<void> {
   setupFaqHandler(client);
   setupGuildMemberHandler(client);
   setupDmHandler(client);
+  setupAdminHandler(client);
 
   // Client ready event
   client.once('ready', (readyClient) => {

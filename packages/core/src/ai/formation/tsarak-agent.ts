@@ -1,0 +1,817 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { logger } from '../../logger.js';
+import {
+  getStudentsBySession,
+  searchStudentByName,
+  getExercisesByStudent,
+  getPendingExercises,
+  getSessionByNumber,
+  getAllSessions,
+  getExerciseSummary,
+  createSession,
+  updateSession,
+  updateExerciseStatus,
+  createFormationEvent,
+  searchFormationKnowledge,
+} from '../../db/formation/index.js';
+import { getEmbedding } from '../embeddings.js';
+import type {
+  TsarakAgentContext,
+  TsarakAgentResponse,
+  Student,
+} from '../../types/index.js';
+
+// ============================================
+// System prompt
+// ============================================
+
+const SYSTEM_PROMPT = `Tu es Tsarak, l'assistant admin de la formation "Pilote Neuro".
+Tu parles en francais avec Magomed (le formateur/admin). Le contenu destine aux etudiants est TOUJOURS en russe.
+
+TON :
+- Direct, efficace, pas de blabla
+- Tutoiement
+- Proactif : si tu detectes un probleme ou une opportunite, signale-le
+
+TU FAIS :
+- Gerer les sessions (creer, modifier, publier)
+- Gerer les exercices (approuver, demander revision, lister en attente)
+- Gerer les etudiants (voir profil, progression, envoyer DM)
+- Envoyer des annonces (en russe) dans le canal annonces
+- Chercher dans les materiaux de cours
+- Donner des stats sur la formation
+
+FLOW DE CONFIRMATION (obligatoire pour toute operation d'ecriture) :
+1. Tu collectes les infos necessaires (appels READ si besoin)
+2. Tu presentes un resume clair de ce qui va etre fait
+3. Tu demandes "Tu confirmes ?"
+4. Si "oui" / "go" / "ok" -> tu executes l'operation WRITE
+5. Si "change X" / "modifie Y" -> tu ajustes et re-presentes
+6. Si "annule" / "non" -> tu abandonnes
+
+REGLES :
+- Ne fais JAMAIS d'operation d'ecriture sans confirmation explicite
+- Quand tu generes du contenu etudiant (annonces, DM, posts forum), genere-le en russe
+- Si un etudiant n'est pas trouve, demande de preciser le nom
+- Si plusieurs exercices en attente pour un etudiant, liste-les et demande lequel traiter`;
+
+// ============================================
+// Tool definitions
+// ============================================
+
+const TOOLS: Anthropic.Messages.Tool[] = [
+  // === READ tools (7) ===
+  {
+    name: 'list_students',
+    description: 'Lister les etudiants de la session 2. Filtre optionnel par statut.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        status_filter: {
+          type: 'string',
+          description: 'Filtre par statut: interested, registered, paid, active, completed, dropped',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'get_student_details',
+    description: 'Obtenir le profil et la progression d\'un etudiant par nom.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        student_name: {
+          type: 'string',
+          description: 'Nom (ou partie du nom) de l\'etudiant',
+        },
+      },
+      required: ['student_name'],
+    },
+  },
+  {
+    name: 'list_pending_exercises',
+    description: 'Lister tous les exercices en attente de correction (submitted ou ai_reviewed).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'get_session_details',
+    description: 'Obtenir les details d\'une session par son numero.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        session_number: {
+          type: 'integer',
+          description: 'Numero de la session',
+        },
+      },
+      required: ['session_number'],
+    },
+  },
+  {
+    name: 'list_sessions',
+    description: 'Lister toutes les sessions de la formation.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'search_course_content',
+    description: 'Chercher dans les materiaux de cours (lecons, concepts, exercices).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Texte de recherche',
+        },
+        session_number: {
+          type: 'integer',
+          description: 'Numero de session (optionnel)',
+        },
+        module: {
+          type: 'integer',
+          description: 'Numero de module (optionnel)',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'get_formation_stats',
+    description: 'Obtenir les statistiques agregees de la formation (etudiants, exercices, sessions).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {},
+      required: [],
+    },
+  },
+  // === WRITE tools (6) ===
+  {
+    name: 'create_session',
+    description: 'Creer une nouvelle session. Cree en DB + post dans le forum + annonce si published. TOUJOURS demander confirmation avant.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        session_number: { type: 'integer', description: 'Numero de la session' },
+        module: { type: 'integer', description: 'Numero du module (1-6)' },
+        title: { type: 'string', description: 'Titre de la session' },
+        description: { type: 'string', description: 'Description de la session' },
+        exercise_description: { type: 'string', description: 'Description de l\'exercice' },
+        expected_deliverables: { type: 'string', description: 'Livrables attendus' },
+        exercise_tips: { type: 'string', description: 'Conseils pour l\'exercice' },
+        deadline: { type: 'string', description: 'Date limite (ISO 8601)' },
+        video_url: { type: 'string', description: 'URL de la video' },
+        status: { type: 'string', description: 'Statut: draft ou published (defaut: published)' },
+      },
+      required: ['session_number', 'module', 'title'],
+    },
+  },
+  {
+    name: 'update_session',
+    description: 'Modifier une session existante. TOUJOURS demander confirmation avant.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        session_number: { type: 'integer', description: 'Numero de la session a modifier' },
+        title: { type: 'string', description: 'Nouveau titre' },
+        description: { type: 'string', description: 'Nouvelle description' },
+        exercise_description: { type: 'string', description: 'Nouvelle description d\'exercice' },
+        expected_deliverables: { type: 'string', description: 'Nouveaux livrables attendus' },
+        exercise_tips: { type: 'string', description: 'Nouveaux conseils' },
+        deadline: { type: 'string', description: 'Nouvelle date limite (ISO 8601)' },
+        video_url: { type: 'string', description: 'Nouvelle URL video' },
+        status: { type: 'string', description: 'Nouveau statut: draft, published, completed' },
+      },
+      required: ['session_number'],
+    },
+  },
+  {
+    name: 'approve_exercise',
+    description: 'Approuver un exercice d\'un etudiant. Envoie un DM a l\'etudiant. TOUJOURS demander confirmation avant.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        student_name: { type: 'string', description: 'Nom de l\'etudiant' },
+        feedback: { type: 'string', description: 'Feedback en russe pour l\'etudiant (optionnel)' },
+        exercise_id: { type: 'string', description: 'ID specifique de l\'exercice (si plusieurs en attente)' },
+      },
+      required: ['student_name'],
+    },
+  },
+  {
+    name: 'request_revision',
+    description: 'Demander une revision d\'exercice a un etudiant. Envoie un DM. TOUJOURS demander confirmation avant.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        student_name: { type: 'string', description: 'Nom de l\'etudiant' },
+        feedback: { type: 'string', description: 'Feedback en russe expliquant ce qui doit etre corrige' },
+        exercise_id: { type: 'string', description: 'ID specifique de l\'exercice (si plusieurs en attente)' },
+      },
+      required: ['student_name', 'feedback'],
+    },
+  },
+  {
+    name: 'send_announcement',
+    description: 'Envoyer une annonce dans le canal annonces Discord. Le texte doit etre en russe. TOUJOURS demander confirmation avant.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        text: { type: 'string', description: 'Texte de l\'annonce (en russe)' },
+        mention_students: { type: 'boolean', description: 'Mentionner @student (defaut: false)' },
+      },
+      required: ['text'],
+    },
+  },
+  {
+    name: 'dm_student',
+    description: 'Envoyer un DM a un etudiant. Le message doit etre en russe. TOUJOURS demander confirmation avant.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        student_name: { type: 'string', description: 'Nom de l\'etudiant' },
+        message: { type: 'string', description: 'Message a envoyer (en russe)' },
+      },
+      required: ['student_name', 'message'],
+    },
+  },
+];
+
+// ============================================
+// Tool handlers
+// ============================================
+
+async function handleListStudents(statusFilter?: string): Promise<string> {
+  const students = await getStudentsBySession(2);
+  const filtered = statusFilter
+    ? students.filter((s) => s.status === statusFilter)
+    : students;
+
+  return JSON.stringify({
+    total: filtered.length,
+    students: filtered.map((s) => ({
+      name: s.name,
+      status: s.status,
+      payment_status: s.payment_status,
+      discord_id: s.discord_id,
+      pod_id: s.pod_id,
+    })),
+  });
+}
+
+async function handleGetStudentDetails(studentName: string): Promise<string> {
+  const students = await searchStudentByName(studentName);
+  if (students.length === 0) {
+    return JSON.stringify({ error: 'student_not_found', message: `Aucun etudiant trouve avec le nom "${studentName}"` });
+  }
+
+  const student = students[0]!;
+  const exercises = await getExercisesByStudent(student.id);
+
+  return JSON.stringify({
+    student: {
+      id: student.id,
+      name: student.name,
+      status: student.status,
+      payment_status: student.payment_status,
+      discord_id: student.discord_id,
+      pod_id: student.pod_id,
+      enrolled_at: student.enrolled_at,
+      notes: student.notes,
+    },
+    exercises: exercises.map((e) => ({
+      id: e.id,
+      module: e.module,
+      exercise_number: e.exercise_number,
+      status: e.status,
+      submitted_at: e.submitted_at,
+      feedback: e.feedback,
+      score: (e.ai_review as Record<string, unknown>)?.score ?? null,
+    })),
+    multiple_matches: students.length > 1 ? students.map((s) => s.name) : undefined,
+  });
+}
+
+async function handleListPendingExercises(): Promise<string> {
+  const pending = await getPendingExercises();
+
+  // Enrich with student names
+  const studentCache = new Map<string, string>();
+  const enriched = [];
+  for (const ex of pending) {
+    if (!studentCache.has(ex.student_id)) {
+      const students = await getStudentsBySession(2);
+      for (const s of students) studentCache.set(s.id, s.name);
+    }
+    enriched.push({
+      id: ex.id,
+      student_name: studentCache.get(ex.student_id) ?? 'Inconnu',
+      module: ex.module,
+      exercise_number: ex.exercise_number,
+      status: ex.status,
+      submitted_at: ex.submitted_at,
+      score: (ex.ai_review as Record<string, unknown>)?.score ?? null,
+    });
+  }
+
+  return JSON.stringify({ total: enriched.length, exercises: enriched });
+}
+
+async function handleGetSessionDetails(sessionNumber: number): Promise<string> {
+  const session = await getSessionByNumber(sessionNumber);
+  if (!session) {
+    return JSON.stringify({ error: 'session_not_found', message: `Session ${sessionNumber} non trouvee` });
+  }
+  return JSON.stringify(session);
+}
+
+async function handleListSessions(): Promise<string> {
+  const sessions = await getAllSessions();
+  return JSON.stringify({
+    total: sessions.length,
+    sessions: sessions.map((s) => ({
+      session_number: s.session_number,
+      module: s.module,
+      title: s.title,
+      status: s.status,
+      deadline: s.deadline,
+    })),
+  });
+}
+
+async function handleSearchCourseContent(
+  query: string,
+  sessionNumber?: number,
+  module?: number
+): Promise<string> {
+  const queryEmbedding = await getEmbedding(query);
+  const results = await searchFormationKnowledge(query, queryEmbedding, {
+    matchCount: 5,
+    sessionNumber: sessionNumber ?? null,
+    module: module ?? null,
+  });
+
+  if (results.length === 0) {
+    return JSON.stringify({ results: [], message: 'Rien trouve pour cette requete.' });
+  }
+
+  return JSON.stringify({
+    results: results.map((r) => ({
+      title: r.title,
+      content: r.content,
+      module: r.module,
+      session_number: r.session_number,
+      type: r.content_type,
+      score: Math.round(r.final_score * 100) / 100,
+    })),
+  });
+}
+
+async function handleGetFormationStats(): Promise<string> {
+  const students = await getStudentsBySession(2);
+  const summary = await getExerciseSummary();
+  const sessions = await getAllSessions();
+
+  const statusCounts: Record<string, number> = {};
+  for (const s of students) {
+    statusCounts[s.status] = (statusCounts[s.status] ?? 0) + 1;
+  }
+
+  return JSON.stringify({
+    students: {
+      total: students.length,
+      by_status: statusCounts,
+    },
+    exercises: summary,
+    sessions: {
+      total: sessions.length,
+      published: sessions.filter((s) => s.status === 'published').length,
+      draft: sessions.filter((s) => s.status === 'draft').length,
+      completed: sessions.filter((s) => s.status === 'completed').length,
+    },
+  });
+}
+
+async function handleCreateSession(
+  input: Record<string, unknown>,
+  context: TsarakAgentContext
+): Promise<string> {
+  const sessionNumber = input.session_number as number;
+  const module = input.module as number;
+  const title = input.title as string;
+  const status = (input.status as string) ?? 'published';
+
+  const session = await createSession({
+    session_number: sessionNumber,
+    module,
+    title,
+    description: input.description as string | undefined,
+    exercise_description: input.exercise_description as string | undefined,
+    expected_deliverables: input.expected_deliverables as string | undefined,
+    exercise_tips: input.exercise_tips as string | undefined,
+    deadline: input.deadline as string | undefined,
+    status: status as 'draft' | 'published',
+  });
+
+  // Update video URL if provided
+  if (input.video_url) {
+    await updateSession(session.id, { pre_session_video_url: input.video_url as string });
+  }
+
+  let threadId: string | null = null;
+
+  // Post to forum
+  if (status === 'published') {
+    const forumContent = [
+      `\ud83d\udccc **\u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber} \u2014 ${title}**`,
+      `\u041c\u043e\u0434\u0443\u043b\u044c ${module}`,
+      '',
+      input.video_url ? `\ud83c\udfac **\u0412\u0418\u0414\u0415\u041e:** ${input.video_url as string}` : '\ud83c\udfac **\u0412\u0418\u0414\u0415\u041e:** _(\u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c)_',
+      '',
+      input.description ? `\ud83d\udcdd **\u0422\u0415\u041c\u0410:**\n${input.description as string}` : '',
+      '',
+      input.exercise_description ? `\ud83d\udccb **\u0417\u0410\u0414\u0410\u041d\u0418\u0415:**\n${input.exercise_description as string}` : '',
+      input.expected_deliverables ? `\ud83d\udce6 **\u0427\u0442\u043e \u0441\u0434\u0430\u0442\u044c:** ${input.expected_deliverables as string}` : '',
+      input.exercise_tips ? `\ud83d\udca1 **\u0421\u043e\u0432\u0435\u0442\u044b:** ${input.exercise_tips as string}` : '',
+      input.deadline ? `\u23f0 **\u0414\u0435\u0434\u043b\u0430\u0439\u043d:** ${input.deadline as string}` : '',
+    ].filter(Boolean).join('\n');
+
+    threadId = await context.discordActions.sendToSessionsForum(sessionNumber, title, forumContent, module);
+
+    if (threadId) {
+      await updateSession(session.id, { discord_thread_id: threadId });
+    }
+
+    // Announce
+    await context.discordActions.sendAnnouncement(
+      `\ud83c\udd95 **\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber}!**\n${title}\n\n\u041f\u043e\u0441\u043c\u043e\u0442\u0440\u0438 \u0432\u0438\u0434\u0435\u043e \u0438 \u043f\u0440\u0438\u0445\u043e\u0434\u0438 \u043d\u0430 \u044d\u0444\u0438\u0440.`,
+      true
+    );
+  }
+
+  return JSON.stringify({
+    success: true,
+    session_id: session.id,
+    session_number: sessionNumber,
+    thread_id: threadId,
+    status,
+  });
+}
+
+async function handleUpdateSession(input: Record<string, unknown>): Promise<string> {
+  const sessionNumber = input.session_number as number;
+  const session = await getSessionByNumber(sessionNumber);
+  if (!session) {
+    return JSON.stringify({ error: 'session_not_found', message: `Session ${sessionNumber} non trouvee` });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (input.title) updates.title = input.title;
+  if (input.description) updates.description = input.description;
+  if (input.exercise_description) updates.exercise_description = input.exercise_description;
+  if (input.expected_deliverables) updates.expected_deliverables = input.expected_deliverables;
+  if (input.exercise_tips) updates.exercise_tips = input.exercise_tips;
+  if (input.deadline) updates.deadline = input.deadline;
+  if (input.video_url) updates.pre_session_video_url = input.video_url;
+  if (input.status) updates.status = input.status;
+
+  const updated = await updateSession(session.id, updates);
+  return JSON.stringify({ success: true, session: updated });
+}
+
+async function handleApproveExercise(
+  input: Record<string, unknown>,
+  context: TsarakAgentContext
+): Promise<string> {
+  const studentName = input.student_name as string;
+  const feedback = input.feedback as string | undefined;
+  const exerciseId = input.exercise_id as string | undefined;
+
+  const students = await searchStudentByName(studentName);
+  if (students.length === 0) {
+    return JSON.stringify({ error: 'student_not_found', message: `Etudiant "${studentName}" non trouve` });
+  }
+
+  const student = students[0]!;
+  const exercises = await getExercisesByStudent(student.id);
+  const pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed');
+
+  if (pending.length === 0) {
+    return JSON.stringify({ error: 'no_pending', message: `${student.name} n'a aucun exercice en attente` });
+  }
+
+  const exercise = exerciseId
+    ? pending.find((e) => e.id === exerciseId)
+    : pending[0];
+
+  if (!exercise) {
+    return JSON.stringify({ error: 'exercise_not_found', message: `Exercice non trouve` });
+  }
+
+  if (pending.length > 1 && !exerciseId) {
+    return JSON.stringify({
+      error: 'multiple_pending',
+      message: `${student.name} a ${pending.length} exercices en attente. Precise lequel :`,
+      exercises: pending.map((e) => ({
+        id: e.id,
+        module: e.module,
+        exercise_number: e.exercise_number,
+        submitted_at: e.submitted_at,
+      })),
+    });
+  }
+
+  await updateExerciseStatus(exercise.id, 'approved', feedback);
+
+  await createFormationEvent({
+    type: 'exercise_reviewed',
+    source: 'discord',
+    target: 'telegram-admin',
+    data: {
+      student_name: student.name,
+      module: exercise.module,
+      exercise_number: exercise.exercise_number,
+      status: 'approved',
+    },
+  });
+
+  // DM the student
+  if (student.discord_id) {
+    const dmText = `\u2705 **\u0417\u0430\u0434\u0430\u043d\u0438\u0435 \u043e\u0434\u043e\u0431\u0440\u0435\u043d\u043e!** M${exercise.module}-\u0417${exercise.exercise_number}\n` +
+      (feedback ? `\n\ud83d\udcac \u041e\u0442\u0437\u044b\u0432: ${feedback}` : '\n\u0425\u043e\u0440\u043e\u0448\u0430\u044f \u0440\u0430\u0431\u043e\u0442\u0430!');
+    await context.discordActions.dmStudent(student.discord_id, dmText);
+  }
+
+  return JSON.stringify({
+    success: true,
+    student_name: student.name,
+    module: exercise.module,
+    exercise_number: exercise.exercise_number,
+  });
+}
+
+async function handleRequestRevision(
+  input: Record<string, unknown>,
+  context: TsarakAgentContext
+): Promise<string> {
+  const studentName = input.student_name as string;
+  const feedback = input.feedback as string;
+  const exerciseId = input.exercise_id as string | undefined;
+
+  const students = await searchStudentByName(studentName);
+  if (students.length === 0) {
+    return JSON.stringify({ error: 'student_not_found', message: `Etudiant "${studentName}" non trouve` });
+  }
+
+  const student = students[0]!;
+  const exercises = await getExercisesByStudent(student.id);
+  const pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed');
+
+  if (pending.length === 0) {
+    return JSON.stringify({ error: 'no_pending', message: `${student.name} n'a aucun exercice en attente` });
+  }
+
+  const exercise = exerciseId
+    ? pending.find((e) => e.id === exerciseId)
+    : pending[0];
+
+  if (!exercise) {
+    return JSON.stringify({ error: 'exercise_not_found', message: `Exercice non trouve` });
+  }
+
+  if (pending.length > 1 && !exerciseId) {
+    return JSON.stringify({
+      error: 'multiple_pending',
+      message: `${student.name} a ${pending.length} exercices en attente. Precise lequel :`,
+      exercises: pending.map((e) => ({
+        id: e.id,
+        module: e.module,
+        exercise_number: e.exercise_number,
+        submitted_at: e.submitted_at,
+      })),
+    });
+  }
+
+  await updateExerciseStatus(exercise.id, 'revision_needed', feedback);
+
+  await createFormationEvent({
+    type: 'exercise_reviewed',
+    source: 'discord',
+    target: 'telegram-admin',
+    data: {
+      student_name: student.name,
+      module: exercise.module,
+      exercise_number: exercise.exercise_number,
+      status: 'revision_needed',
+    },
+  });
+
+  // DM the student
+  if (student.discord_id) {
+    const dmText = `\ud83d\udd04 **\u0417\u0430\u0434\u0430\u043d\u0438\u0435 \u043d\u0430 \u0434\u043e\u0440\u0430\u0431\u043e\u0442\u043a\u0443** M${exercise.module}-\u0417${exercise.exercise_number}\n\n\ud83d\udcac ${feedback}`;
+    await context.discordActions.dmStudent(student.discord_id, dmText);
+  }
+
+  return JSON.stringify({
+    success: true,
+    student_name: student.name,
+    module: exercise.module,
+    exercise_number: exercise.exercise_number,
+  });
+}
+
+async function handleSendAnnouncement(
+  input: Record<string, unknown>,
+  context: TsarakAgentContext
+): Promise<string> {
+  const text = input.text as string;
+  const mentionStudents = (input.mention_students as boolean) ?? false;
+
+  await context.discordActions.sendAnnouncement(text, mentionStudents);
+
+  return JSON.stringify({ success: true, message: 'Annonce envoyee' });
+}
+
+async function handleDmStudent(
+  input: Record<string, unknown>,
+  context: TsarakAgentContext
+): Promise<string> {
+  const studentName = input.student_name as string;
+  const message = input.message as string;
+
+  const students = await searchStudentByName(studentName);
+  if (students.length === 0) {
+    return JSON.stringify({ error: 'student_not_found', message: `Etudiant "${studentName}" non trouve` });
+  }
+
+  const student = students[0]!;
+  if (!student.discord_id) {
+    return JSON.stringify({ error: 'no_discord_id', message: `${student.name} n'a pas de Discord ID lie` });
+  }
+
+  const sent = await context.discordActions.dmStudent(student.discord_id, message);
+  return JSON.stringify({
+    success: sent,
+    student_name: student.name,
+    message: sent ? 'DM envoye' : 'Echec de l\'envoi du DM',
+  });
+}
+
+// ============================================
+// Main agent function
+// ============================================
+
+let anthropicClient: Anthropic | null = null;
+
+function getAnthropicClient(): Anthropic {
+  if (anthropicClient) return anthropicClient;
+  const apiKey = process.env['ANTHROPIC_API_KEY'];
+  if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
+  anthropicClient = new Anthropic({ apiKey });
+  return anthropicClient;
+}
+
+export async function runTsarakAgent(context: TsarakAgentContext): Promise<TsarakAgentResponse> {
+  const client = getAnthropicClient();
+  const actionsPerformed: string[] = [];
+
+  // Build messages array for Claude
+  const messages: Anthropic.Messages.MessageParam[] = context.messages.map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+
+  // Append attachment info to the last user message if present
+  if (context.attachmentsInfo && messages.length > 0) {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'user' && typeof lastMsg.content === 'string') {
+      lastMsg.content = `${lastMsg.content}\n\n[Pieces jointes: ${context.attachmentsInfo}]`;
+    }
+  }
+
+  // Tool use loop
+  let response: Anthropic.Messages.Message;
+  let iterations = 0;
+  const maxIterations = 8;
+
+  while (iterations < maxIterations) {
+    iterations++;
+
+    logger.debug(
+      { iteration: iterations, messageCount: messages.length },
+      'Tsarak agent calling Claude'
+    );
+
+    response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      system: SYSTEM_PROMPT,
+      tools: TOOLS,
+      messages,
+    });
+
+    const toolUseBlocks = response.content.filter(
+      (block): block is Anthropic.Messages.ToolUseBlock => block.type === 'tool_use'
+    );
+
+    if (toolUseBlocks.length === 0) {
+      break;
+    }
+
+    messages.push({ role: 'assistant', content: response.content });
+
+    const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
+
+    for (const toolUse of toolUseBlocks) {
+      const input = toolUse.input as Record<string, unknown>;
+      let result: string;
+
+      try {
+        switch (toolUse.name) {
+          case 'list_students':
+            result = await handleListStudents(input.status_filter as string | undefined);
+            break;
+          case 'get_student_details':
+            result = await handleGetStudentDetails(input.student_name as string);
+            break;
+          case 'list_pending_exercises':
+            result = await handleListPendingExercises();
+            break;
+          case 'get_session_details':
+            result = await handleGetSessionDetails(input.session_number as number);
+            break;
+          case 'list_sessions':
+            result = await handleListSessions();
+            break;
+          case 'search_course_content':
+            result = await handleSearchCourseContent(
+              input.query as string,
+              input.session_number as number | undefined,
+              input.module as number | undefined
+            );
+            break;
+          case 'get_formation_stats':
+            result = await handleGetFormationStats();
+            break;
+          case 'create_session':
+            result = await handleCreateSession(input, context);
+            actionsPerformed.push(`Session ${input.session_number} creee`);
+            break;
+          case 'update_session':
+            result = await handleUpdateSession(input);
+            actionsPerformed.push(`Session ${input.session_number} mise a jour`);
+            break;
+          case 'approve_exercise':
+            result = await handleApproveExercise(input, context);
+            actionsPerformed.push(`Exercice de ${input.student_name} approuve`);
+            break;
+          case 'request_revision':
+            result = await handleRequestRevision(input, context);
+            actionsPerformed.push(`Revision demandee a ${input.student_name}`);
+            break;
+          case 'send_announcement':
+            result = await handleSendAnnouncement(input, context);
+            actionsPerformed.push('Annonce envoyee');
+            break;
+          case 'dm_student':
+            result = await handleDmStudent(input, context);
+            actionsPerformed.push(`DM envoye a ${input.student_name}`);
+            break;
+          default:
+            result = JSON.stringify({ error: `Unknown tool: ${toolUse.name}` });
+        }
+      } catch (err) {
+        logger.error({ err, tool: toolUse.name }, 'Tsarak agent tool error');
+        result = JSON.stringify({ error: 'internal_error', message: 'Erreur lors du traitement' });
+      }
+
+      toolResults.push({
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: result,
+      });
+    }
+
+    messages.push({ role: 'user', content: toolResults });
+  }
+
+  // Extract text from final response
+  const textBlocks = response!.content.filter(
+    (block): block is Anthropic.Messages.TextBlock => block.type === 'text'
+  );
+  const text = textBlocks.map((b) => b.text).join('\n') || 'Erreur de traitement. Reessaie.';
+
+  logger.info(
+    { iterations, actionsCount: actionsPerformed.length },
+    'Tsarak agent response ready'
+  );
+
+  return { text, actionsPerformed };
+}
