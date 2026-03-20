@@ -1,13 +1,14 @@
 # Regle : Formation Knowledge Base
 
 ## Principe
-Le contenu pedagogique (recherche/, specs/06-formation/) est synchronise vers la table `formation_knowledge` via un script de seed. Les fichiers markdown restent la source de verite.
+Le contenu pedagogique (`recherche/`) est synchronise vers la table `formation_knowledge` via un script de seed. Les fichiers markdown restent la source de verite.
 
 ## Apres modification de fichiers formation
 Si tu modifies un fichier dans :
 - `recherche/GUIDE-FORMATEUR.md` (guide formateur)
+- `recherche/CURRICULUM.md` (curriculum complet)
 - `recherche/module-*/` (plans de session, exercices, syntheses)
-- `specs/06-formation/` (spec, recherches)
+- `recherche/recherches/` (rapports de recherche)
 
 **Rappelle a l'utilisateur** de re-synchroniser la base de connaissances :
 ```

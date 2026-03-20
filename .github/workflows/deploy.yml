@@ -12,6 +12,7 @@ jobs:
       bot-telegram-public: ${{ steps.changes.outputs.bot-telegram-public }}
       bot-discord: ${{ steps.changes.outputs.bot-discord }}
       embedding-server: ${{ steps.changes.outputs.embedding-server }}
+      knowledge: ${{ steps.changes.outputs.knowledge }}
       migrations: ${{ steps.changes.outputs.migrations }}
       infra: ${{ steps.changes.outputs.infra }}
       anything: ${{ steps.anything.outputs.changed }}
@@ -32,6 +33,9 @@ jobs:
               - 'packages/core/**'
             embedding-server:
               - 'embedding-server/**'
+            knowledge:
+              - 'recherche/**'
+              - 'scripts/seed-formation-knowledge.ts'
             migrations:
               - 'supabase/migrations/**'
             infra:
@@ -47,6 +51,7 @@ jobs:
             "${{ steps.changes.outputs.bot-telegram-public }}" == "true" || \
             "${{ steps.changes.outputs.bot-discord }}" == "true" || \
             "${{ steps.changes.outputs.embedding-server }}" == "true" || \
+            "${{ steps.changes.outputs.knowledge }}" == "true" || \
             "${{ steps.changes.outputs.migrations }}" == "true" || \
             "${{ steps.changes.outputs.infra }}" == "true" \
           ]]; then
@@ -151,6 +156,14 @@ jobs:
               echo "Rebuilding:$SERVICES"
               docker compose -f docker-compose.prod.yml build $SERVICES
               docker compose -f docker-compose.prod.yml up -d $SERVICES
+            fi
+
+            # Re-seed knowledge base if content changed
+            if [ "${{ needs.detect-changes.outputs.knowledge }}" == "true" ]; then
+              echo "Knowledge content changed — re-seeding..."
+              docker compose -f docker-compose.prod.yml build seed-knowledge
+              docker compose -f docker-compose.prod.yml run --rm seed-knowledge
+              echo "Knowledge seed complete"
             fi
 
             docker image prune -f

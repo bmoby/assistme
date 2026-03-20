@@ -1,5 +1,5 @@
 /**
- * Idempotent seed script: reads markdown files from recherche/ and specs/06-formation/,
+ * Idempotent seed script: reads markdown files from recherche/,
  * chunks by ## headings, and upserts into formation_knowledge with embeddings.
  *
  * Run with: pnpm seed:knowledge
@@ -26,7 +26,7 @@ interface SourceMapping {
   defaultTags: string[];
 }
 
-const PROJECT_ROOT = path.resolve(import.meta.dirname, '..');
+const PROJECT_ROOT = process.cwd();
 
 const SOURCE_MAPPINGS: SourceMapping[] = [
   // Module 1 session plans
@@ -107,9 +107,9 @@ const SOURCE_MAPPINGS: SourceMapping[] = [
     defaultTags: ['visuels', 'session-1', 'slides', 'schemas'],
   },
 
-  // Formation spec (curriculum)
+  // Formation curriculum
   {
-    filePath: 'specs/06-formation/SPEC.md',
+    filePath: 'recherche/CURRICULUM.md',
     module: 1,
     sessionNumber: null,
     contentType: 'pedagogical_note',
@@ -118,42 +118,42 @@ const SOURCE_MAPPINGS: SourceMapping[] = [
 
   // Research documents
   {
-    filePath: 'specs/06-formation/recherches/recherche-A-psychologie-apprenants.md',
+    filePath: 'recherche/recherches/recherche-A-psychologie-apprenants.md',
     module: 1,
     sessionNumber: null,
     contentType: 'research',
     defaultTags: ['psychologie', 'apprenants', 'blocages', 'motivation'],
   },
   {
-    filePath: 'specs/06-formation/recherches/recherche-B-pedagogie-tech-non-techniques.md',
+    filePath: 'recherche/recherches/recherche-B-pedagogie-tech-non-techniques.md',
     module: 1,
     sessionNumber: null,
     contentType: 'research',
     defaultTags: ['pedagogie', 'non-techniques', 'methodes'],
   },
   {
-    filePath: 'specs/06-formation/recherches/recherche-C-structure-programme-3-mois.md',
+    filePath: 'recherche/recherches/recherche-C-structure-programme-3-mois.md',
     module: 1,
     sessionNumber: null,
     contentType: 'research',
     defaultTags: ['structure', 'programme', '3-mois', 'progression'],
   },
   {
-    filePath: 'specs/06-formation/recherches/recherche-D-analogie-restaurant-architecture-logicielle.md',
+    filePath: 'recherche/recherches/recherche-D-analogie-restaurant-architecture-logicielle.md',
     module: 1,
     sessionNumber: null,
     contentType: 'research',
     defaultTags: ['analogie', 'restaurant', 'architecture', 'front-end', 'back-end', 'api', 'database'],
   },
   {
-    filePath: 'specs/06-formation/recherches/recherche-D-paysage-outils-IA-coding.md',
+    filePath: 'recherche/recherches/recherche-D-paysage-outils-IA-coding.md',
     module: 1,
     sessionNumber: null,
     contentType: 'research',
     defaultTags: ['ia', 'outils', 'cursor', 'claude', 'codex', 'v0', 'bolt'],
   },
   {
-    filePath: 'specs/06-formation/recherches/recherche-E-quick-win-premier-deploiement.md',
+    filePath: 'recherche/recherches/recherche-E-quick-win-premier-deploiement.md',
     module: 1,
     sessionNumber: null,
     contentType: 'research',

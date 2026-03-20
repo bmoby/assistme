@@ -319,7 +319,7 @@ Recherche semantique :
 
 ```
 Seed (pnpm seed:knowledge) :
-  → Lit 14 fichiers markdown (recherche/module-1/*, specs/06-formation/*)
+  → Lit 14 fichiers markdown (recherche/*)
   → Chunking par headings H2, split H3 si chunk > 3000 chars
   → extractTags() : termes en gras + defaultTags
   → upsertFormationKnowledge() par chunk (idempotent, upsert sur source_file+title)
@@ -344,6 +344,38 @@ Consommateurs :
     → Injecte contenu pedagogique dans le prompt d'evaluation (max 4000 chars)
 ```
 
+### Flux 16 : Tsarag Agent — Admin Discord conversationnel
+
+```
+Admin ecrit dans #admin (guild channel, role @tsarag verifie)
+  → admin-handler.ts intercepte (messageCreate, channel.name === 'admin')
+  → Lock sequentiel par channel (pas de traitement concurrent)
+  → Conversation state (in-memory, max 50 messages, TTL 60 min)
+    → pendingAction (PendingAction | null)
+    → executedActionIds (Set<string> — idempotency)
+  → runTsaragAgent(context) :
+    → System prompt (francais, direct, ton admin)
+    → Claude Sonnet tool_use loop (max 8 iterations)
+    → Outils READ (7) : list_students, get_student_details, list_pending_exercises,
+        get_session_details, list_sessions, search_course_content, get_formation_stats
+    → Outils ACTION (2) :
+      → propose_action(type, params, summary) → stocke PendingAction avec UUID
+      → execute_pending() → execute l'action en attente (avec idempotency check)
+    → Pattern : READ → propose_action → "Tu confirmes ?" → confirm → execute_pending
+  → Retourne TsaragAgentResponse :
+    → text, proposedAction, pendingConsumed, executedActionId, turnMessages
+  → admin-handler met a jour conversation state + envoie la reponse
+  → Si action executee (approve, revision) → cree event Telegram + DM etudiant
+
+Actions possibles via execute_pending :
+  - create_session → DB + Forum Discord + annonce
+  - update_session → DB
+  - approve_exercise → DB + DM etudiant + event Telegram
+  - request_revision → DB + DM etudiant + event Telegram
+  - send_announcement → #annonces Discord
+  - dm_student → DM via member.createDM()
+```
+
 ---
 
 ## Matrice de Dependances
@@ -358,15 +390,17 @@ Consommateurs :
 | Core/Memory Consolidator | Claude API, Core/DB, Core/Cache | — |
 | Core/Scheduler | Core/AI, Core/DB | Bot Admin |
 | Core/DM Agent | Claude API, Core/DB (formation), Core/Embeddings, formation_knowledge | — |
+| Core/Tsarag Agent | Claude API, Core/DB (formation), Core/Embeddings, formation_knowledge | Bot Admin (events), Discord (annonces, DM, forum) |
 | Core/FAQ Agent | Claude API, Core/DB (faq), Core/Embeddings, formation_knowledge | — |
 | Core/Exercise Reviewer | Claude API, formation_knowledge (par session) | — |
-| Core/Knowledge Base | Supabase (formation_knowledge), Embedding Server | DM Agent, FAQ Agent, Exercise Reviewer |
+| Core/Knowledge Base | Supabase (formation_knowledge), Embedding Server | DM Agent, FAQ Agent, Exercise Reviewer, Tsarag Agent |
 | Redis | — | Core/Cache |
 | Embedding Server | — | Core/Embeddings |
 | Bot Admin | Core (AI, DB, Cache, Scheduler) | — |
 | Bot Public | Core/DB, Claude API | Bot Admin (leads) |
-| Bot Discord | Core (AI, DB, DM Agent, FAQ Agent) | Bot Admin (events) |
+| Bot Discord | Core (AI, DB, DM Agent, FAQ Agent, Tsarag Agent) | Bot Admin (events) |
 | Bot Discord / DM Handler | Core/DM Agent, Supabase Storage | Bot Admin (exercise_submitted) |
+| Bot Discord / Admin Handler | Core/Tsarag Agent | Discord (annonces, DM, forum), Bot Admin (events) |
 | Bot Discord / Event Dispatcher | Core/DB (events) | Discord channels |
 | Bot Discord / Deadline Reminders | Core/DB (sessions, students, exercises) | Etudiants (DM) |
 | Bot Discord / Exercise Digest | Core/DB (exercises) | Bot Admin (daily_exercise_digest) |
@@ -381,12 +415,13 @@ Core (DB + AI + Scheduler) ✅
         └──▶ Bot Telegram Public ✅
               └──▶ Agents Specialises (Memory Manager, Research) ✅
                     └──▶ Bot Discord (Phase 3)
-                    │     ├── DM Agent + Handler (soumission exercices)
-                    │     ├── Session Management (/session)
-                    │     ├── FAQ Agent + Handler
-                    │     ├── Formation Knowledge Base (RAG pedagogique)
-                    │     ├── Event Dispatcher (Discord ↔ Telegram)
-                    │     ├── Deadline Reminders (cron)
-                    │     └── Exercise Digest (cron)
+                    │     ├── DM Agent + Handler (soumission exercices) ✅
+                    │     ├── Tsarag Agent + Admin Handler (gestion formation) ✅
+                    │     ├── Session Management (/session) ✅
+                    │     ├── FAQ Agent + Handler ✅
+                    │     ├── Formation Knowledge Base (RAG pedagogique) ✅
+                    │     ├── Event Dispatcher (Discord ↔ Telegram) ✅
+                    │     ├── Deadline Reminders (cron) ✅
+                    │     └── Exercise Digest (cron) ✅
                     └──▶ Systeme Contenu (Phase 4)
 ```

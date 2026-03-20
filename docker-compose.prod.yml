@@ -95,5 +95,20 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  seed-knowledge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: seed
+    container_name: vibe-seed-knowledge
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - EMBEDDING_SERVER_URL=http://embedding-server:8090/embed
+    depends_on:
+      - embedding-server
+    profiles:
+      - seed
+
 volumes:
   redis-data:

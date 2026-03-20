@@ -82,9 +82,9 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 
 ## Phase 3 — Formation Session 2 + Bot Discord 🚧
 
-*En cours d'implementation*
+*Quasi-complet — reste : notifications groupees, CRUD team members*
 
-### Organisation Formation (`specs/06-formation/SPEC.md`)
+### Organisation Formation (`recherche/CURRICULUM.md`)
 - [x] Recherches approfondies (psychologie, pedagogie, structure programme)
 - [x] Structurer le curriculum (modules, sujets, progression)
 - [x] Designer les exercices et livrables
@@ -95,8 +95,9 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 - [x] Systeme de roles (@tsarag, @student, @mentor)
 - [x] FAQ automatique (#faq) avec base de connaissances
 - [x] Pre-review IA des exercices (exercise-reviewer.ts)
-- [x] Agent DM conversationnel — remplace /submit et /progress (SPEC-DM-AGENT.md)
+- [x] Agent DM conversationnel — remplace /submit et /progress (`SPEC-DM-AGENT.md`)
 - [x] Handler DM (upload fichiers Supabase Storage, queue par etudiant, memoire conversation)
+- [x] Agent admin Tsarag — assistant conversationnel dans #admin (`SPEC-TSARAG-AGENT.md`)
 - [x] Commande `/session` (cree post Forum + DB)
 - [x] Commande `/session-update` (met a jour exercice/deadline)
 - [x] Role mentor (isMentor, /review + FAQ pour mentors)
@@ -111,6 +112,7 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 - [x] Agent pre-review exercices
 - [x] Agent FAQ
 - [x] Agent DM conversationnel (Claude tool_use, 5 outils dont search_course_content)
+- [x] Agent admin Tsarag (Claude tool_use, 9 outils, pattern propose/confirm/execute)
 - [x] Knowledge Base formation (table formation_knowledge, recherche hybride vector+BM25)
 - [ ] CRUD Team Members
 - [ ] Generation briefs clients
@@ -118,6 +120,8 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 ### Migrations DB
 - [x] 004_students_system.sql (students, student_exercises, faq_entries)
 - [x] 005_sessions_system.sql (sessions, submission_attachments, session_id FK)
+- [x] 008_hybrid_search_decay.sql (BM25 + temporal decay sur memory)
+- [x] 009_agent_jobs.sql (jobs asynchrones pour agents)
 - [x] 010_formation_knowledge.sql (formation_knowledge, pgvector 384d, tsvector, RPC hybrid search)
 
 ### Knowledge Base Formation
@@ -129,7 +133,12 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 - [x] Integration FAQ Agent : auto-search knowledge si pas de contexte explicite
 - [x] Integration Exercise Reviewer : charge contenu session pour evaluer en contexte
 
-**Livrable** : Discord pret pour la session 2 avec agent DM, exercices multi-format, et FAQ.
+### Reste a faire
+- [ ] Notifications groupees vers bot admin (event dispatcher daily digest)
+- [ ] CRUD Team Members (table existe, pas de module DB/AI)
+- [ ] Generation briefs clients (Phase 3/4 overlap)
+
+**Livrable** : Discord pret pour la session 2 avec agent DM, agent admin Tsarag, exercices multi-format, et FAQ.
 
 ---
 

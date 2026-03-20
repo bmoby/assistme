@@ -16,4 +16,4 @@ Ce dossier contient les documents du scoping initial du projet (profil utilisate
 
 - Pour les specs systeme : `specs/`
 - Pour les donnees utilisateur live : table `memory` dans Supabase
-- Pour le contenu formation : `recherche/` + `specs/06-formation/`
+- Pour le contenu formation : `recherche/` (curriculum, recherches, guides, modules)
