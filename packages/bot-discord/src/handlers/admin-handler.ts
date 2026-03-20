@@ -1,6 +1,6 @@
 import { Client, Message, TextChannel, ForumChannel, ChannelType } from 'discord.js';
 import { logger, runTsaragAgent } from '@assistme/core';
-import type { AdminConversationMessage, DiscordActionCallbacks } from '@assistme/core';
+import type { AdminConversationMessage, DiscordActionCallbacks, PendingAction } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 import { CHANNELS, ROLES } from '../config.js';
 
@@ -10,7 +10,7 @@ import { CHANNELS, ROLES } from '../config.js';
 
 interface AdminConversationState {
   messages: AdminConversationMessage[];
-  completedActionKeys: string[];
+  pendingAction: PendingAction | null;
   lastActivityAt: Date;
 }
 
@@ -93,7 +93,7 @@ async function processAdminMessage(message: Message): Promise<void> {
   // Get or create conversation
   let conv = conversations.get(channelId);
   if (!conv) {
-    conv = { messages: [], completedActionKeys: [], lastActivityAt: new Date() };
+    conv = { messages: [], pendingAction: null, lastActivityAt: new Date() };
     conversations.set(channelId, conv);
   }
   conv.lastActivityAt = new Date();
@@ -123,11 +123,16 @@ async function processAdminMessage(message: Message): Promise<void> {
       messages: conv.messages,
       attachmentsInfo: attachmentParts.length > 0 ? attachmentParts.join('\n') : undefined,
       discordActions: createDiscordCallbacks(message),
-      completedActionKeys: conv.completedActionKeys,
+      pendingAction: conv.pendingAction,
     });
 
-    // Track completed write actions for future calls
-    conv.completedActionKeys.push(...result.actionKeys);
+    // Update pending action state
+    if (result.pendingConsumed) {
+      conv.pendingAction = null;
+    }
+    if (result.proposedAction) {
+      conv.pendingAction = result.proposedAction;
+    }
 
     // Add assistant response to conversation
     conv.messages.push({ role: 'assistant', content: result.text });

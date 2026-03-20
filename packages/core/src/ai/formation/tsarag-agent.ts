@@ -18,6 +18,7 @@ import { getEmbedding } from '../embeddings.js';
 import type {
   TsaragAgentContext,
   TsaragAgentResponse,
+  PendingAction,
   Student,
 } from '../../types/index.js';
 
@@ -41,27 +42,26 @@ TU FAIS :
 - Chercher dans les materiaux de cours
 - Donner des stats sur la formation
 
-FLOW DE CONFIRMATION (obligatoire pour toute operation d'ecriture) :
+FLOW D'ACTIONS (obligatoire pour toute operation d'ecriture) :
 1. Tu collectes les infos necessaires (appels READ si besoin)
-2. Tu presentes un resume clair de ce qui va etre fait
-3. Tu demandes "Tu confirmes ?"
-4. Si "oui" / "go" / "ok" -> tu executes l'operation WRITE
-5. Si "change X" / "modifie Y" -> tu ajustes et re-presentes
-6. Si "annule" / "non" -> tu abandonnes
+2. Tu appelles propose_action avec le type, les params et un resume en francais
+3. Tu presentes le resume et demandes "Tu confirmes ?"
+4. Si l'utilisateur confirme ("oui" / "go" / "ok") -> tu appelles execute_pending
+5. Si "change X" / "modifie Y" -> tu appelles propose_action avec les params ajustes (remplace le precedent)
+6. Si "annule" / "non" -> tu abandonnes (ni propose_action ni execute_pending)
 
 REGLES :
-- Ne fais JAMAIS d'operation d'ecriture sans confirmation explicite
+- N'appelle JAMAIS execute_pending sans confirmation explicite de l'utilisateur dans le DERNIER message
 - Quand tu generes du contenu etudiant (annonces, DM, posts forum), genere-le en russe
 - Si un etudiant n'est pas trouve, demande de preciser le nom
 - Si plusieurs exercices en attente pour un etudiant, liste-les et demande lequel traiter
-- Ne re-appelle PAS un outil d'ecriture deja execute dans cette conversation. Si le tool retourne "already_executed", ne retente PAS.`;
+- Si execute_pending retourne already_executed, ne retente PAS`;
 
 // ============================================
 // Tool definitions
 // ============================================
 
-const TOOLS: Anthropic.Messages.Tool[] = [
-  // === READ tools (7) ===
+const READ_TOOLS: Anthropic.Messages.Tool[] = [
   {
     name: 'list_students',
     description: 'Lister les etudiants de la session 2. Filtre optionnel par statut.',
@@ -153,97 +153,50 @@ const TOOLS: Anthropic.Messages.Tool[] = [
       required: [],
     },
   },
-  // === WRITE tools (6) ===
-  {
-    name: 'create_session',
-    description: 'Creer une nouvelle session. Cree en DB + post dans le forum + annonce si published. TOUJOURS demander confirmation avant.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        session_number: { type: 'integer', description: 'Numero de la session' },
-        module: { type: 'integer', description: 'Numero du module (1-6)' },
-        title: { type: 'string', description: 'Titre de la session' },
-        description: { type: 'string', description: 'Description de la session' },
-        exercise_description: { type: 'string', description: 'Description de l\'exercice' },
-        expected_deliverables: { type: 'string', description: 'Livrables attendus' },
-        exercise_tips: { type: 'string', description: 'Conseils pour l\'exercice' },
-        deadline: { type: 'string', description: 'Date limite (ISO 8601)' },
-        video_url: { type: 'string', description: 'URL de la video' },
-        status: { type: 'string', description: 'Statut: draft ou published (defaut: published)' },
-      },
-      required: ['session_number', 'module', 'title'],
-    },
-  },
-  {
-    name: 'update_session',
-    description: 'Modifier une session existante. TOUJOURS demander confirmation avant.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        session_number: { type: 'integer', description: 'Numero de la session a modifier' },
-        title: { type: 'string', description: 'Nouveau titre' },
-        description: { type: 'string', description: 'Nouvelle description' },
-        exercise_description: { type: 'string', description: 'Nouvelle description d\'exercice' },
-        expected_deliverables: { type: 'string', description: 'Nouveaux livrables attendus' },
-        exercise_tips: { type: 'string', description: 'Nouveaux conseils' },
-        deadline: { type: 'string', description: 'Nouvelle date limite (ISO 8601)' },
-        video_url: { type: 'string', description: 'Nouvelle URL video' },
-        status: { type: 'string', description: 'Nouveau statut: draft, published, completed' },
-      },
-      required: ['session_number'],
-    },
-  },
-  {
-    name: 'approve_exercise',
-    description: 'Approuver un exercice d\'un etudiant. Envoie un DM a l\'etudiant. TOUJOURS demander confirmation avant.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        student_name: { type: 'string', description: 'Nom de l\'etudiant' },
-        feedback: { type: 'string', description: 'Feedback en russe pour l\'etudiant (optionnel)' },
-        exercise_id: { type: 'string', description: 'ID specifique de l\'exercice (si plusieurs en attente)' },
-      },
-      required: ['student_name'],
-    },
-  },
-  {
-    name: 'request_revision',
-    description: 'Demander une revision d\'exercice a un etudiant. Envoie un DM. TOUJOURS demander confirmation avant.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        student_name: { type: 'string', description: 'Nom de l\'etudiant' },
-        feedback: { type: 'string', description: 'Feedback en russe expliquant ce qui doit etre corrige' },
-        exercise_id: { type: 'string', description: 'ID specifique de l\'exercice (si plusieurs en attente)' },
-      },
-      required: ['student_name', 'feedback'],
-    },
-  },
-  {
-    name: 'send_announcement',
-    description: 'Envoyer une annonce dans le canal annonces Discord. Le texte doit etre en russe. TOUJOURS demander confirmation avant.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        text: { type: 'string', description: 'Texte de l\'annonce (en russe)' },
-        mention_students: { type: 'boolean', description: 'Mentionner @student (defaut: false)' },
-      },
-      required: ['text'],
-    },
-  },
-  {
-    name: 'dm_student',
-    description: 'Envoyer un DM a un etudiant. Le message doit etre en russe. TOUJOURS demander confirmation avant.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        student_name: { type: 'string', description: 'Nom de l\'etudiant' },
-        message: { type: 'string', description: 'Message a envoyer (en russe)' },
-      },
-      required: ['student_name', 'message'],
-    },
-  },
 ];
+
+// === ACTION tools (propose + execute) ===
+const PROPOSE_ACTION_TOOL: Anthropic.Messages.Tool = {
+  name: 'propose_action',
+  description: `Proposer une operation d'ecriture. Le systeme la stocke et attend la confirmation de l'utilisateur.
+
+Types d'actions et parametres attendus dans "params" :
+- send_announcement: { text: string (russe), mention_students?: boolean }
+- create_session: { session_number: int, module: int, title: string, description?: string, exercise_description?: string, expected_deliverables?: string, exercise_tips?: string, deadline?: string (ISO), video_url?: string, status?: "draft"|"published" }
+- update_session: { session_number: int, + champs a modifier }
+- approve_exercise: { student_name: string, feedback?: string (russe), exercise_id?: string }
+- request_revision: { student_name: string, feedback: string (russe), exercise_id?: string }
+- dm_student: { student_name: string, message: string (russe) }`,
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      action_type: {
+        type: 'string',
+        enum: ['create_session', 'update_session', 'approve_exercise', 'request_revision', 'send_announcement', 'dm_student'],
+        description: 'Type d\'action',
+      },
+      params: {
+        type: 'object' as const,
+        description: 'Parametres de l\'action (voir description pour le format par type)',
+      },
+      summary: {
+        type: 'string',
+        description: 'Resume en francais de ce qui sera fait (affiche a l\'admin)',
+      },
+    },
+    required: ['action_type', 'params', 'summary'],
+  },
+};
+
+const EXECUTE_PENDING_TOOL: Anthropic.Messages.Tool = {
+  name: 'execute_pending',
+  description: 'Executer l\'action en attente apres confirmation explicite de l\'utilisateur. Aucun parametre — execute ce qui a ete propose.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {},
+    required: [],
+  },
+};
 
 // ============================================
 // Tool handlers
@@ -679,37 +632,62 @@ function getAnthropicClient(): Anthropic {
   return anthropicClient;
 }
 
-// Write tools that modify state — these are guarded against re-execution
-const WRITE_TOOLS = new Set([
-  'create_session', 'update_session', 'approve_exercise',
-  'request_revision', 'send_announcement', 'dm_student',
-]);
-
-/** Build a deterministic key for a write action based on tool name + critical params */
-function buildActionKey(toolName: string, input: Record<string, unknown>): string {
-  switch (toolName) {
-    case 'send_announcement':
-      return `send_announcement:${(input.text as string).slice(0, 80)}`;
+/** Dispatch a pending action to the appropriate write handler */
+async function executePendingAction(
+  action: { type: string; params: Record<string, unknown> },
+  context: TsaragAgentContext
+): Promise<{ result: string; label: string }> {
+  switch (action.type) {
     case 'create_session':
-      return `create_session:${input.session_number}`;
+      return {
+        result: await handleCreateSession(action.params, context),
+        label: `Session ${action.params.session_number} creee`,
+      };
     case 'update_session':
-      return `update_session:${input.session_number}:${Object.keys(input).sort().join(',')}`;
+      return {
+        result: await handleUpdateSession(action.params),
+        label: `Session ${action.params.session_number} mise a jour`,
+      };
     case 'approve_exercise':
-      return `approve_exercise:${input.student_name}:${input.exercise_id ?? 'first'}`;
+      return {
+        result: await handleApproveExercise(action.params, context),
+        label: `Exercice de ${action.params.student_name} approuve`,
+      };
     case 'request_revision':
-      return `request_revision:${input.student_name}:${input.exercise_id ?? 'first'}`;
+      return {
+        result: await handleRequestRevision(action.params, context),
+        label: `Revision demandee a ${action.params.student_name}`,
+      };
+    case 'send_announcement':
+      return {
+        result: await handleSendAnnouncement(action.params, context),
+        label: 'Annonce envoyee',
+      };
     case 'dm_student':
-      return `dm_student:${input.student_name}:${(input.message as string).slice(0, 80)}`;
+      return {
+        result: await handleDmStudent(action.params, context),
+        label: `DM envoye a ${action.params.student_name}`,
+      };
     default:
-      return `${toolName}:${JSON.stringify(input).slice(0, 100)}`;
+      return {
+        result: JSON.stringify({ error: 'unknown_action', message: `Type d'action inconnu: ${action.type}` }),
+        label: `Action inconnue: ${action.type}`,
+      };
   }
 }
 
 export async function runTsaragAgent(context: TsaragAgentContext): Promise<TsaragAgentResponse> {
   const client = getAnthropicClient();
   const actionsPerformed: string[] = [];
-  const actionKeys: string[] = [];
-  const blockedKeys = new Set(context.completedActionKeys);
+  let proposedAction: PendingAction | null = null;
+  let pendingConsumed = false;
+  let pendingExecutedThisTurn = false;
+
+  // Build tools list: READ tools + propose_action + execute_pending (only if there's a pending action)
+  const tools: Anthropic.Messages.Tool[] = [...READ_TOOLS, PROPOSE_ACTION_TOOL];
+  if (context.pendingAction) {
+    tools.push(EXECUTE_PENDING_TOOL);
+  }
 
   // Build messages array for Claude
   const messages: Anthropic.Messages.MessageParam[] = context.messages.map((m) => ({
@@ -723,6 +701,12 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
     if (lastMsg && lastMsg.role === 'user' && typeof lastMsg.content === 'string') {
       lastMsg.content = `${lastMsg.content}\n\n[Pieces jointes: ${context.attachmentsInfo}]`;
     }
+  }
+
+  // Inject pending action context if present
+  let systemPrompt = SYSTEM_PROMPT;
+  if (context.pendingAction) {
+    systemPrompt += `\n\nACTION EN ATTENTE DE CONFIRMATION :\nType: ${context.pendingAction.type}\nResume: ${context.pendingAction.summary}\nSi l'utilisateur confirme, appelle execute_pending. Si il veut modifier, appelle propose_action avec les nouveaux params.`;
   }
 
   // Tool use loop
@@ -741,8 +725,8 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
     response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2048,
-      system: SYSTEM_PROMPT,
-      tools: TOOLS,
+      system: systemPrompt,
+      tools,
       messages,
     });
 
@@ -762,22 +746,9 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
       const input = toolUse.input as Record<string, unknown>;
       let result: string;
 
-      // Code-level guard: block re-execution of write tools
-      if (WRITE_TOOLS.has(toolUse.name)) {
-        const key = buildActionKey(toolUse.name, input);
-        if (blockedKeys.has(key)) {
-          logger.warn({ tool: toolUse.name, key }, 'Blocked duplicate write action');
-          result = JSON.stringify({
-            already_executed: true,
-            message: `Cette action a deja ete executee dans cette conversation. Pas de re-execution.`,
-          });
-          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
-          continue;
-        }
-      }
-
       try {
         switch (toolUse.name) {
+          // === READ tools ===
           case 'list_students':
             result = await handleListStudents(input.status_filter as string | undefined);
             break;
@@ -803,54 +774,34 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
           case 'get_formation_stats':
             result = await handleGetFormationStats();
             break;
-          case 'create_session': {
-            result = await handleCreateSession(input, context);
-            const csKey = buildActionKey('create_session', input);
-            blockedKeys.add(csKey);
-            actionKeys.push(csKey);
-            actionsPerformed.push(`Session ${input.session_number} creee`);
+
+          // === ACTION tools ===
+          case 'propose_action': {
+            const actionType = input.action_type as string;
+            const params = input.params as Record<string, unknown>;
+            const summary = input.summary as string;
+            proposedAction = { type: actionType, params, summary };
+            result = JSON.stringify({ proposed: true, summary });
             break;
           }
-          case 'update_session': {
-            result = await handleUpdateSession(input);
-            const usKey = buildActionKey('update_session', input);
-            blockedKeys.add(usKey);
-            actionKeys.push(usKey);
-            actionsPerformed.push(`Session ${input.session_number} mise a jour`);
+
+          case 'execute_pending': {
+            if (pendingExecutedThisTurn) {
+              result = JSON.stringify({ already_executed: true, message: 'Action deja executee.' });
+              break;
+            }
+            if (!context.pendingAction) {
+              result = JSON.stringify({ error: 'no_pending', message: 'Aucune action en attente.' });
+              break;
+            }
+            pendingExecutedThisTurn = true;
+            pendingConsumed = true;
+            const execResult = await executePendingAction(context.pendingAction, context);
+            actionsPerformed.push(execResult.label);
+            result = execResult.result;
             break;
           }
-          case 'approve_exercise': {
-            result = await handleApproveExercise(input, context);
-            const aeKey = buildActionKey('approve_exercise', input);
-            blockedKeys.add(aeKey);
-            actionKeys.push(aeKey);
-            actionsPerformed.push(`Exercice de ${input.student_name} approuve`);
-            break;
-          }
-          case 'request_revision': {
-            result = await handleRequestRevision(input, context);
-            const rrKey = buildActionKey('request_revision', input);
-            blockedKeys.add(rrKey);
-            actionKeys.push(rrKey);
-            actionsPerformed.push(`Revision demandee a ${input.student_name}`);
-            break;
-          }
-          case 'send_announcement': {
-            result = await handleSendAnnouncement(input, context);
-            const saKey = buildActionKey('send_announcement', input);
-            blockedKeys.add(saKey);
-            actionKeys.push(saKey);
-            actionsPerformed.push('Annonce envoyee');
-            break;
-          }
-          case 'dm_student': {
-            result = await handleDmStudent(input, context);
-            const dsKey = buildActionKey('dm_student', input);
-            blockedKeys.add(dsKey);
-            actionKeys.push(dsKey);
-            actionsPerformed.push(`DM envoye a ${input.student_name}`);
-            break;
-          }
+
           default:
             result = JSON.stringify({ error: `Unknown tool: ${toolUse.name}` });
         }
@@ -880,5 +831,5 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
     'Tsarag agent response ready'
   );
 
-  return { text, actionsPerformed, actionKeys };
+  return { text, actionsPerformed, proposedAction, pendingConsumed };
 }
