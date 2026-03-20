@@ -82,6 +82,31 @@ const SOURCE_MAPPINGS: SourceMapping[] = [
     defaultTags: ['setup', 'outils', 'installation', 'budget'],
   },
 
+  // Formateur guide
+  {
+    filePath: 'recherche/GUIDE-FORMATEUR.md',
+    module: 1,
+    sessionNumber: null,
+    contentType: 'setup_guide',
+    defaultTags: ['formateur', 'guide', 'discord', 'setup', 'correction', 'routine'],
+  },
+
+  // Module 1 additional files
+  {
+    filePath: 'recherche/module-1/SESSION-1-LIVE.md',
+    module: 1,
+    sessionNumber: 1,
+    contentType: 'lesson_plan',
+    defaultTags: ['session-1', 'live', 'kick-off', 'notes'],
+  },
+  {
+    filePath: 'recherche/module-1/visuels-session-1.md',
+    module: 1,
+    sessionNumber: 1,
+    contentType: 'pedagogical_note',
+    defaultTags: ['visuels', 'session-1', 'slides', 'schemas'],
+  },
+
   // Formation spec (curriculum)
   {
     filePath: 'specs/06-formation/SPEC.md',
@@ -297,9 +322,35 @@ async function main(): Promise<void> {
   }
   console.log(`\n\nUpserted ${totalChunks} chunks.\n`);
 
+  // Clean up orphaned entries (source_file no longer in SOURCE_MAPPINGS)
+  const validSourceFiles = SOURCE_MAPPINGS.map((m) => m.filePath);
+  const db = getSupabase();
+
+  if (upsertedIds.length > 0) {
+    const { data: orphans } = await db
+      .from('formation_knowledge')
+      .select('id, source_file')
+      .not('source_file', 'in', `(${validSourceFiles.join(',')})`);
+
+    if (orphans && orphans.length > 0) {
+      const orphanIds = orphans.map((row) => (row as Record<string, string>)['id']!);
+      const { error } = await db
+        .from('formation_knowledge')
+        .delete()
+        .in('id', orphanIds);
+
+      if (!error) {
+        console.log(`Cleaned up ${orphans.length} orphaned entries.`);
+      } else {
+        console.error(`Failed to clean orphans: ${error.message}`);
+      }
+    } else {
+      console.log('No orphaned entries found.');
+    }
+  }
+
   // Batch embed all entries that don't have embeddings yet
   console.log('Generating embeddings...');
-  const db = getSupabase();
   const { data: noEmbedding } = await db
     .from('formation_knowledge')
     .select('id, title, content')

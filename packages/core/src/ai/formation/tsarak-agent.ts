@@ -53,7 +53,8 @@ REGLES :
 - Ne fais JAMAIS d'operation d'ecriture sans confirmation explicite
 - Quand tu generes du contenu etudiant (annonces, DM, posts forum), genere-le en russe
 - Si un etudiant n'est pas trouve, demande de preciser le nom
-- Si plusieurs exercices en attente pour un etudiant, liste-les et demande lequel traiter`;
+- Si plusieurs exercices en attente pour un etudiant, liste-les et demande lequel traiter
+- ANTI-DOUBLON : Si un message precedent contient "[ACTIONS DEJA EXECUTEES: ...]", ces actions ont deja ete faites. Ne les re-execute JAMAIS sauf si l'utilisateur demande EXPLICITEMENT de les refaire.`;
 
 // ============================================
 // Tool definitions

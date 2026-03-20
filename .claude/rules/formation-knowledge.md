@@ -5,6 +5,7 @@ Le contenu pedagogique (recherche/, specs/06-formation/) est synchronise vers la
 
 ## Apres modification de fichiers formation
 Si tu modifies un fichier dans :
+- `recherche/GUIDE-FORMATEUR.md` (guide formateur)
 - `recherche/module-*/` (plans de session, exercices, syntheses)
 - `specs/06-formation/` (spec, recherches)
 

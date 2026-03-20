@@ -124,8 +124,11 @@ async function processAdminMessage(message: Message): Promise<void> {
       discordActions: createDiscordCallbacks(message),
     });
 
-    // Add assistant response to conversation
-    conv.messages.push({ role: 'assistant', content: result.text });
+    // Add assistant response to conversation (with action log to prevent re-execution)
+    const assistantContent = result.actionsPerformed.length > 0
+      ? `${result.text}\n\n[ACTIONS DEJA EXECUTEES: ${result.actionsPerformed.join(', ')}]`
+      : result.text;
+    conv.messages.push({ role: 'assistant', content: assistantContent });
 
     // Send response (split if > 2000 chars)
     await sendLongMessage(textChannel, result.text);

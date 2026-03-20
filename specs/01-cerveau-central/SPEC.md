@@ -383,6 +383,13 @@ Tous les bots importent depuis `@assistme/core`.
 
 ---
 
+## Documents associes
+
+- [AGENTS_SYSTEM.md](AGENTS_SYSTEM.md) — Architecture detaillee des agents IA (orchestrateur, memory manager, research, discovery, formation)
+- [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md) — Systeme memoire 3 tiers (core, working, archival), consolidation, embeddings
+
+---
+
 ## 6. Dependances
 
 ```json

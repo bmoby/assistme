@@ -796,4 +796,12 @@ Test end-to-end avec l'equipe comme cobayes. Ajustements. Deploiement. Lancement
 
 ---
 
+## Documents associes
+
+- [recherches/](recherches/) — 6 rapports de recherche approfondis (psychologie, pedagogie, structure, analogie restaurant, paysage IA, quick-win)
+- [../../recherche/module-1/](../../recherche/module-1/) — Plans de session, exercices, synthese, visuels (contenu synchronise vers DB via `pnpm seed:knowledge`)
+- [../../recherche/GUIDE-FORMATEUR.md](../../recherche/GUIDE-FORMATEUR.md) — Guide etape par etape pour le formateur (configuration Discord, routine hebdomadaire, correction exercices)
+
+---
+
 *Ce fichier evolue etape par etape. Chaque etape sera detaillee quand on y arrive.*
