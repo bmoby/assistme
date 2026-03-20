@@ -54,7 +54,7 @@ REGLES :
 - Quand tu generes du contenu etudiant (annonces, DM, posts forum), genere-le en russe
 - Si un etudiant n'est pas trouve, demande de preciser le nom
 - Si plusieurs exercices en attente pour un etudiant, liste-les et demande lequel traiter
-- ANTI-DOUBLON : Si un message precedent contient "[ACTIONS DEJA EXECUTEES: ...]", ces actions ont deja ete faites. Ne les re-execute JAMAIS sauf si l'utilisateur demande EXPLICITEMENT de les refaire.`;
+- Ne re-appelle PAS un outil d'ecriture deja execute dans cette conversation. Si le tool retourne "already_executed", ne retente PAS.`;
 
 // ============================================
 // Tool definitions
@@ -679,9 +679,37 @@ function getAnthropicClient(): Anthropic {
   return anthropicClient;
 }
 
+// Write tools that modify state — these are guarded against re-execution
+const WRITE_TOOLS = new Set([
+  'create_session', 'update_session', 'approve_exercise',
+  'request_revision', 'send_announcement', 'dm_student',
+]);
+
+/** Build a deterministic key for a write action based on tool name + critical params */
+function buildActionKey(toolName: string, input: Record<string, unknown>): string {
+  switch (toolName) {
+    case 'send_announcement':
+      return `send_announcement:${(input.text as string).slice(0, 80)}`;
+    case 'create_session':
+      return `create_session:${input.session_number}`;
+    case 'update_session':
+      return `update_session:${input.session_number}:${Object.keys(input).sort().join(',')}`;
+    case 'approve_exercise':
+      return `approve_exercise:${input.student_name}:${input.exercise_id ?? 'first'}`;
+    case 'request_revision':
+      return `request_revision:${input.student_name}:${input.exercise_id ?? 'first'}`;
+    case 'dm_student':
+      return `dm_student:${input.student_name}:${(input.message as string).slice(0, 80)}`;
+    default:
+      return `${toolName}:${JSON.stringify(input).slice(0, 100)}`;
+  }
+}
+
 export async function runTsaragAgent(context: TsaragAgentContext): Promise<TsaragAgentResponse> {
   const client = getAnthropicClient();
   const actionsPerformed: string[] = [];
+  const actionKeys: string[] = [];
+  const blockedKeys = new Set(context.completedActionKeys);
 
   // Build messages array for Claude
   const messages: Anthropic.Messages.MessageParam[] = context.messages.map((m) => ({
@@ -734,6 +762,20 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
       const input = toolUse.input as Record<string, unknown>;
       let result: string;
 
+      // Code-level guard: block re-execution of write tools
+      if (WRITE_TOOLS.has(toolUse.name)) {
+        const key = buildActionKey(toolUse.name, input);
+        if (blockedKeys.has(key)) {
+          logger.warn({ tool: toolUse.name, key }, 'Blocked duplicate write action');
+          result = JSON.stringify({
+            already_executed: true,
+            message: `Cette action a deja ete executee dans cette conversation. Pas de re-execution.`,
+          });
+          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: result });
+          continue;
+        }
+      }
+
       try {
         switch (toolUse.name) {
           case 'list_students':
@@ -761,30 +803,54 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
           case 'get_formation_stats':
             result = await handleGetFormationStats();
             break;
-          case 'create_session':
+          case 'create_session': {
             result = await handleCreateSession(input, context);
+            const csKey = buildActionKey('create_session', input);
+            blockedKeys.add(csKey);
+            actionKeys.push(csKey);
             actionsPerformed.push(`Session ${input.session_number} creee`);
             break;
-          case 'update_session':
+          }
+          case 'update_session': {
             result = await handleUpdateSession(input);
+            const usKey = buildActionKey('update_session', input);
+            blockedKeys.add(usKey);
+            actionKeys.push(usKey);
             actionsPerformed.push(`Session ${input.session_number} mise a jour`);
             break;
-          case 'approve_exercise':
+          }
+          case 'approve_exercise': {
             result = await handleApproveExercise(input, context);
+            const aeKey = buildActionKey('approve_exercise', input);
+            blockedKeys.add(aeKey);
+            actionKeys.push(aeKey);
             actionsPerformed.push(`Exercice de ${input.student_name} approuve`);
             break;
-          case 'request_revision':
+          }
+          case 'request_revision': {
             result = await handleRequestRevision(input, context);
+            const rrKey = buildActionKey('request_revision', input);
+            blockedKeys.add(rrKey);
+            actionKeys.push(rrKey);
             actionsPerformed.push(`Revision demandee a ${input.student_name}`);
             break;
-          case 'send_announcement':
+          }
+          case 'send_announcement': {
             result = await handleSendAnnouncement(input, context);
+            const saKey = buildActionKey('send_announcement', input);
+            blockedKeys.add(saKey);
+            actionKeys.push(saKey);
             actionsPerformed.push('Annonce envoyee');
             break;
-          case 'dm_student':
+          }
+          case 'dm_student': {
             result = await handleDmStudent(input, context);
+            const dsKey = buildActionKey('dm_student', input);
+            blockedKeys.add(dsKey);
+            actionKeys.push(dsKey);
             actionsPerformed.push(`DM envoye a ${input.student_name}`);
             break;
+          }
           default:
             result = JSON.stringify({ error: `Unknown tool: ${toolUse.name}` });
         }
@@ -814,5 +880,5 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
     'Tsarag agent response ready'
   );
 
-  return { text, actionsPerformed };
+  return { text, actionsPerformed, actionKeys };
 }

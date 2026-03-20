@@ -10,6 +10,7 @@ import { CHANNELS, ROLES } from '../config.js';
 
 interface AdminConversationState {
   messages: AdminConversationMessage[];
+  completedActionKeys: string[];
   lastActivityAt: Date;
 }
 
@@ -92,7 +93,7 @@ async function processAdminMessage(message: Message): Promise<void> {
   // Get or create conversation
   let conv = conversations.get(channelId);
   if (!conv) {
-    conv = { messages: [], lastActivityAt: new Date() };
+    conv = { messages: [], completedActionKeys: [], lastActivityAt: new Date() };
     conversations.set(channelId, conv);
   }
   conv.lastActivityAt = new Date();
@@ -122,13 +123,14 @@ async function processAdminMessage(message: Message): Promise<void> {
       messages: conv.messages,
       attachmentsInfo: attachmentParts.length > 0 ? attachmentParts.join('\n') : undefined,
       discordActions: createDiscordCallbacks(message),
+      completedActionKeys: conv.completedActionKeys,
     });
 
-    // Add assistant response to conversation (with action log to prevent re-execution)
-    const assistantContent = result.actionsPerformed.length > 0
-      ? `${result.text}\n\n[ACTIONS DEJA EXECUTEES: ${result.actionsPerformed.join(', ')}]`
-      : result.text;
-    conv.messages.push({ role: 'assistant', content: assistantContent });
+    // Track completed write actions for future calls
+    conv.completedActionKeys.push(...result.actionKeys);
+
+    // Add assistant response to conversation
+    conv.messages.push({ role: 'assistant', content: result.text });
 
     // Send response (split if > 2000 chars)
     await sendLongMessage(textChannel, result.text);

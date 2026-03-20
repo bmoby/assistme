@@ -377,9 +377,13 @@ export interface TsaragAgentContext {
   messages: AdminConversationMessage[];
   attachmentsInfo?: string;
   discordActions: DiscordActionCallbacks;
+  /** Action keys already executed in this conversation — agent will block re-execution */
+  completedActionKeys: string[];
 }
 
 export interface TsaragAgentResponse {
   text: string;
   actionsPerformed: string[];
+  /** Deterministic keys for each write action executed — used to prevent duplicates */
+  actionKeys: string[];
 }
