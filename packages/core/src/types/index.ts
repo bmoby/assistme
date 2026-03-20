@@ -1,3 +1,5 @@
+import type Anthropic from '@anthropic-ai/sdk';
+
 // ============================================
 // Task Types
 // ============================================
@@ -364,7 +366,7 @@ export interface FormationKnowledge {
 
 export interface AdminConversationMessage {
   role: 'user' | 'assistant';
-  content: string;
+  content: string | Anthropic.Messages.ContentBlockParam[];
 }
 
 export interface DiscordActionCallbacks {
@@ -377,6 +379,7 @@ export interface PendingAction {
   type: string;
   params: Record<string, unknown>;
   summary: string;
+  id: string;
 }
 
 export interface TsaragAgentContext {
@@ -384,6 +387,7 @@ export interface TsaragAgentContext {
   attachmentsInfo?: string;
   discordActions: DiscordActionCallbacks;
   pendingAction: PendingAction | null;
+  executedActionIds: Set<string>;
 }
 
 export interface TsaragAgentResponse {
@@ -393,4 +397,8 @@ export interface TsaragAgentResponse {
   proposedAction: PendingAction | null;
   /** Whether the existing pending action was consumed (executed) */
   pendingConsumed: boolean;
+  /** Full conversation messages from this turn (tool_use + tool_result + final text) */
+  turnMessages: AdminConversationMessage[];
+  /** ID of the action executed this turn (for idempotency tracking) */
+  executedActionId: string | null;
 }
