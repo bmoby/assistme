@@ -16,8 +16,8 @@ import {
 } from '../../db/formation/index.js';
 import { getEmbedding } from '../embeddings.js';
 import type {
-  TsarakAgentContext,
-  TsarakAgentResponse,
+  TsaragAgentContext,
+  TsaragAgentResponse,
   Student,
 } from '../../types/index.js';
 
@@ -25,7 +25,7 @@ import type {
 // System prompt
 // ============================================
 
-const SYSTEM_PROMPT = `Tu es Tsarak, l'assistant admin de la formation "Pilote Neuro".
+const SYSTEM_PROMPT = `Tu es Tsarag, l'assistant admin de la formation "Pilote Neuro".
 Tu parles en francais avec Magomed (le formateur/admin). Le contenu destine aux etudiants est TOUJOURS en russe.
 
 TON :
@@ -53,7 +53,8 @@ REGLES :
 - Ne fais JAMAIS d'operation d'ecriture sans confirmation explicite
 - Quand tu generes du contenu etudiant (annonces, DM, posts forum), genere-le en russe
 - Si un etudiant n'est pas trouve, demande de preciser le nom
-- Si plusieurs exercices en attente pour un etudiant, liste-les et demande lequel traiter`;
+- Si plusieurs exercices en attente pour un etudiant, liste-les et demande lequel traiter
+- ANTI-DOUBLON : Si un message precedent contient "[ACTIONS DEJA EXECUTEES: ...]", ces actions ont deja ete faites. Ne les re-execute JAMAIS sauf si l'utilisateur demande EXPLICITEMENT de les refaire.`;
 
 // ============================================
 // Tool definitions
@@ -401,7 +402,7 @@ async function handleGetFormationStats(): Promise<string> {
 
 async function handleCreateSession(
   input: Record<string, unknown>,
-  context: TsarakAgentContext
+  context: TsaragAgentContext
 ): Promise<string> {
   const sessionNumber = input.session_number as number;
   const module = input.module as number;
@@ -488,7 +489,7 @@ async function handleUpdateSession(input: Record<string, unknown>): Promise<stri
 
 async function handleApproveExercise(
   input: Record<string, unknown>,
-  context: TsarakAgentContext
+  context: TsaragAgentContext
 ): Promise<string> {
   const studentName = input.student_name as string;
   const feedback = input.feedback as string | undefined;
@@ -559,7 +560,7 @@ async function handleApproveExercise(
 
 async function handleRequestRevision(
   input: Record<string, unknown>,
-  context: TsarakAgentContext
+  context: TsaragAgentContext
 ): Promise<string> {
   const studentName = input.student_name as string;
   const feedback = input.feedback as string;
@@ -629,7 +630,7 @@ async function handleRequestRevision(
 
 async function handleSendAnnouncement(
   input: Record<string, unknown>,
-  context: TsarakAgentContext
+  context: TsaragAgentContext
 ): Promise<string> {
   const text = input.text as string;
   const mentionStudents = (input.mention_students as boolean) ?? false;
@@ -641,7 +642,7 @@ async function handleSendAnnouncement(
 
 async function handleDmStudent(
   input: Record<string, unknown>,
-  context: TsarakAgentContext
+  context: TsaragAgentContext
 ): Promise<string> {
   const studentName = input.student_name as string;
   const message = input.message as string;
@@ -678,7 +679,7 @@ function getAnthropicClient(): Anthropic {
   return anthropicClient;
 }
 
-export async function runTsarakAgent(context: TsarakAgentContext): Promise<TsarakAgentResponse> {
+export async function runTsaragAgent(context: TsaragAgentContext): Promise<TsaragAgentResponse> {
   const client = getAnthropicClient();
   const actionsPerformed: string[] = [];
 
@@ -706,7 +707,7 @@ export async function runTsarakAgent(context: TsarakAgentContext): Promise<Tsara
 
     logger.debug(
       { iteration: iterations, messageCount: messages.length },
-      'Tsarak agent calling Claude'
+      'Tsarag agent calling Claude'
     );
 
     response = await client.messages.create({
@@ -788,7 +789,7 @@ export async function runTsarakAgent(context: TsarakAgentContext): Promise<Tsara
             result = JSON.stringify({ error: `Unknown tool: ${toolUse.name}` });
         }
       } catch (err) {
-        logger.error({ err, tool: toolUse.name }, 'Tsarak agent tool error');
+        logger.error({ err, tool: toolUse.name }, 'Tsarag agent tool error');
         result = JSON.stringify({ error: 'internal_error', message: 'Erreur lors du traitement' });
       }
 
@@ -810,7 +811,7 @@ export async function runTsarakAgent(context: TsarakAgentContext): Promise<Tsara
 
   logger.info(
     { iterations, actionsCount: actionsPerformed.length },
-    'Tsarak agent response ready'
+    'Tsarag agent response ready'
   );
 
   return { text, actionsPerformed };

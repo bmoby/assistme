@@ -1,5 +1,5 @@
 import { Client, Message, TextChannel, ForumChannel, ChannelType } from 'discord.js';
-import { logger, runTsarakAgent } from '@assistme/core';
+import { logger, runTsaragAgent } from '@assistme/core';
 import type { AdminConversationMessage, DiscordActionCallbacks } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 import { CHANNELS, ROLES } from '../config.js';
@@ -118,23 +118,26 @@ async function processAdminMessage(message: Message): Promise<void> {
     const textChannel = message.channel as TextChannel;
     await textChannel.sendTyping();
 
-    const result = await runTsarakAgent({
+    const result = await runTsaragAgent({
       messages: conv.messages,
       attachmentsInfo: attachmentParts.length > 0 ? attachmentParts.join('\n') : undefined,
       discordActions: createDiscordCallbacks(message),
     });
 
-    // Add assistant response to conversation
-    conv.messages.push({ role: 'assistant', content: result.text });
+    // Add assistant response to conversation (with action log to prevent re-execution)
+    const assistantContent = result.actionsPerformed.length > 0
+      ? `${result.text}\n\n[ACTIONS DEJA EXECUTEES: ${result.actionsPerformed.join(', ')}]`
+      : result.text;
+    conv.messages.push({ role: 'assistant', content: assistantContent });
 
     // Send response (split if > 2000 chars)
     await sendLongMessage(textChannel, result.text);
 
     if (result.actionsPerformed.length > 0) {
-      logger.info({ actions: result.actionsPerformed }, 'Tsarak admin actions performed');
+      logger.info({ actions: result.actionsPerformed }, 'Tsarag admin actions performed');
     }
   } catch (err) {
-    logger.error({ err }, 'Tsarak agent error');
+    logger.error({ err }, 'Tsarag agent error');
     await message.reply('Erreur de traitement. Reessaie.');
   }
 }

@@ -29,9 +29,11 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 
 ## Key Files
 - `specs/` — Detailed specifications for each component (SOURCE OF TRUTH)
+- `specs/INDEX.md` — Index of all specs and supplementary documents
 - `specs/CONNEXIONS.md` — Data flow between components
 - `specs/ROADMAP.md` — Development roadmap
-- `docs/` — User profile, responses, architecture docs
+- `recherche/` — Formation content (session plans, exercises, guides) — synced to DB via seed script
+- `docs/` — Historical scoping documents (archived, see `docs/README.md`)
 
 ## Spec-First Development (MANDATORY)
 **Les specs sont la source de verite.** Tout developpement suit cette methodologie :
