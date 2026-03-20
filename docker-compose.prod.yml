@@ -1,4 +1,5 @@
 # Production deployment — Docker Compose
+# Embeddings: OpenAI text-embedding-3-small API (no self-hosted server needed)
 services:
   redis:
     image: redis:7-alpine
@@ -7,22 +8,6 @@ services:
     restart: unless-stopped
     volumes:
       - redis-data:/data
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-
-  embedding-server:
-    build:
-      context: ./embedding-server
-      dockerfile: Dockerfile
-    container_name: vibe-embedding-server
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 1G
     logging:
       driver: json-file
       options:
@@ -40,10 +25,8 @@ services:
       - NODE_ENV=production
       - TZ=Asia/Bangkok
       - REDIS_URL=redis://redis:6379
-      - EMBEDDING_SERVER_URL=http://embedding-server:8090/embed
     depends_on:
       - redis
-      - embedding-server
     restart: unless-stopped
     logging:
       driver: json-file
@@ -62,10 +45,8 @@ services:
       - NODE_ENV=production
       - TZ=Asia/Bangkok
       - REDIS_URL=redis://redis:6379
-      - EMBEDDING_SERVER_URL=http://embedding-server:8090/embed
     depends_on:
       - redis
-      - embedding-server
     restart: unless-stopped
     logging:
       driver: json-file
@@ -84,10 +65,8 @@ services:
       - NODE_ENV=production
       - TZ=Asia/Bangkok
       - REDIS_URL=redis://redis:6379
-      - EMBEDDING_SERVER_URL=http://embedding-server:8090/embed
     depends_on:
       - redis
-      - embedding-server
     restart: unless-stopped
     logging:
       driver: json-file
@@ -104,9 +83,6 @@ services:
     env_file: .env
     environment:
       - NODE_ENV=production
-      - EMBEDDING_SERVER_URL=http://embedding-server:8090/embed
-    depends_on:
-      - embedding-server
     profiles:
       - seed
 

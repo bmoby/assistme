@@ -11,7 +11,6 @@ import {
 } from '../../db/formation/index.js';
 import { submitExercise } from '../../db/formation/exercises.js';
 import { getEmbedding } from '../embeddings.js';
-import { buildFormationContext } from './formation-context.js';
 import type { Student, Session, StudentExercise, AttachmentType } from '../../types/index.js';
 
 // ============================================
@@ -76,7 +75,10 @@ const SYSTEM_PROMPT = `Ты — ассистент обучения «Pilote Neu
 - Всегда уточни для какой сессии задание, если студент не сказал
 - Перед отправкой покажи, что будет отправлено, и спроси подтверждение
 - Если формат файла не совпадает с ожидаемым (expected_deliverables), предупреди, но не блокируй
-- Если задание по этой сессии уже одобрено, сообщи об этом`;
+- Если задание по этой сессии уже одобрено, сообщи об этом
+
+ОБУЧЕНИЕ «PILOTE NEURO»:
+Программа: 12 недель, 6 модулей, 24 сессии. Для любых вопросов о программе, содержании уроков, концепциях или упражнениях — используй search_course_content. Там полная база знаний.`;
 
 // ============================================
 // Tool definitions
@@ -379,11 +381,7 @@ export async function runDmAgent(context: DmAgentContext): Promise<DmAgentRespon
     };
   }
 
-  // 2. Load formation context (Layer 1 — global knowledge)
-  const formationCtx = await buildFormationContext();
-  const fullSystemPrompt = `${SYSTEM_PROMPT}\n\n--- PROGRAMME DE LA FORMATION ---\n${formationCtx}`;
-
-  // 3. Build messages array for Claude
+  // 2. Build messages array for Claude
   const messages: Anthropic.Messages.MessageParam[] = context.messages.map((m) => ({
     role: m.role,
     content: m.content,
@@ -414,7 +412,7 @@ export async function runDmAgent(context: DmAgentContext): Promise<DmAgentRespon
     response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: fullSystemPrompt,
+      system: SYSTEM_PROMPT,
       tools: TOOLS,
       messages,
     });

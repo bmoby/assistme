@@ -32,7 +32,7 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 - `specs/INDEX.md` — Index of all specs and supplementary documents
 - `specs/CONNEXIONS.md` — Data flow between components
 - `specs/ROADMAP.md` — Development roadmap
-- `recherche/` — Formation content (session plans, exercises, guides) — synced to DB via seed script
+- `learning-knowledge/` — Formation content (session plans, exercises, guides) — synced to DB via seed script
 - `docs/` — Historical scoping documents (archived, see `docs/README.md`)
 
 ## Spec-First Development (MANDATORY)
@@ -62,10 +62,10 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 | `specs/05-systeme-contenu/` | integre dans core + bots (Phase 4) |
 
 ## Contenu pedagogique
-- `recherche/CURRICULUM.md` — Structure du programme (6 modules, 24 sessions)
-- `recherche/recherches/` — Rapports de recherche qui informent le curriculum
-- `recherche/module-*/` — Plans de session detailles, exercices, visuels
-- `recherche/GUIDE-FORMATEUR.md` — Guide operationnel du formateur
+- `learning-knowledge/CURRICULUM.md` — Structure du programme (6 modules, 24 sessions)
+- `learning-knowledge/recherches/` — Rapports de recherche qui informent le curriculum
+- `learning-knowledge/module-*/` — Plans de session detailles, exercices, visuels
+- `learning-knowledge/GUIDE-FORMATEUR.md` — Guide operationnel du formateur
 
 ## Commands
 - `pnpm install` — Install all dependencies

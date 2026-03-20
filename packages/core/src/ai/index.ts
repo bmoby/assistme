@@ -25,4 +25,3 @@ export type { FaqResponse } from './formation/faq-agent.js';
 export { runDmAgent } from './formation/dm-agent.js';
 export type { DmAgentContext, DmAgentResponse, ConversationMessage, PendingAttachment } from './formation/dm-agent.js';
 export { runTsaragAgent } from './formation/tsarag-agent.js';
-export { buildFormationContext, invalidateFormationContext } from './formation/formation-context.js';

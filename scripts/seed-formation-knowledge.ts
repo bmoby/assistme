@@ -1,6 +1,11 @@
 /**
- * Idempotent seed script: reads markdown files from recherche/,
- * chunks by ## headings, and upserts into formation_knowledge with embeddings.
+ * Auto-discovery seed script: scans learning-knowledge/ recursively,
+ * chunks markdown files by ## headings, and upserts into formation_knowledge
+ * with OpenAI embeddings.
+ *
+ * - Adds new/changed files automatically
+ * - Removes chunks from deleted files (orphan cleanup)
+ * - No hardcoded file mappings — just drop .md files and run
  *
  * Run with: pnpm seed:knowledge
  */
@@ -14,152 +19,91 @@ import { getEmbeddings } from '../packages/core/src/ai/embeddings.js';
 import { getSupabase } from '../packages/core/src/db/client.js';
 import type { FormationKnowledgeContentType } from '../packages/core/src/types/index.js';
 
+const PROJECT_ROOT = process.cwd();
+const KNOWLEDGE_DIR = path.join(PROJECT_ROOT, 'learning-knowledge');
+
 // ============================================
-// Source file mapping
+// Auto-discovery: scan directory for .md files
 // ============================================
 
-interface SourceMapping {
-  filePath: string;
+interface DiscoveredFile {
+  filePath: string;       // relative to PROJECT_ROOT (e.g. "learning-knowledge/module-1/session-1-onboarding.md")
   module: number;
   sessionNumber: number | null;
   contentType: FormationKnowledgeContentType;
   defaultTags: string[];
 }
 
-const PROJECT_ROOT = process.cwd();
+function discoverFiles(): DiscoveredFile[] {
+  const files: DiscoveredFile[] = [];
 
-const SOURCE_MAPPINGS: SourceMapping[] = [
-  // Module 1 session plans
-  {
-    filePath: 'recherche/module-1/session-1-onboarding.md',
-    module: 1,
-    sessionNumber: 1,
-    contentType: 'lesson_plan',
-    defaultTags: ['onboarding', 'kick-off', 'discord', 'pods'],
-  },
-  {
-    filePath: 'recherche/module-1/session-2-salle-cuisine.md',
-    module: 1,
-    sessionNumber: 2,
-    contentType: 'lesson_plan',
-    defaultTags: ['analogie', 'restaurant', 'front-end', 'back-end', 'quick-win'],
-  },
-  {
-    filePath: 'recherche/module-1/session-3-frigo-fournisseurs.md',
-    module: 1,
-    sessionNumber: 3,
-    contentType: 'lesson_plan',
-    defaultTags: ['database', 'api', 'auth', 'dns', 'restaurant'],
-  },
-  {
-    filePath: 'recherche/module-1/session-4-paysage-ia.md',
-    module: 1,
-    sessionNumber: 4,
-    contentType: 'lesson_plan',
-    defaultTags: ['ia', 'outils', 'cursor', 'claude', 'v0'],
-  },
+  function walk(dir: string): void {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile() && entry.name.endsWith('.md')) {
+        const relativePath = path.relative(PROJECT_ROOT, fullPath);
+        const parsed = parseFile(relativePath, entry.name);
+        if (parsed) files.push(parsed);
+      }
+    }
+  }
 
-  // Module 1 supporting files
-  {
-    filePath: 'recherche/module-1/SYNTHESE.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'pedagogical_note',
-    defaultTags: ['synthese', 'module-1', 'overview'],
-  },
-  {
-    filePath: 'recherche/module-1/exercices-et-visuels.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'exercise',
-    defaultTags: ['exercices', 'templates', 'feedback', 'rubric'],
-  },
-  {
-    filePath: 'recherche/module-1/setup-etudiants.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'setup_guide',
-    defaultTags: ['setup', 'outils', 'installation', 'budget'],
-  },
+  walk(KNOWLEDGE_DIR);
+  return files;
+}
 
-  // Formateur guide
-  {
-    filePath: 'recherche/GUIDE-FORMATEUR.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'setup_guide',
-    defaultTags: ['formateur', 'guide', 'discord', 'setup', 'correction', 'routine'],
-  },
+function parseFile(relativePath: string, filename: string): DiscoveredFile | null {
+  const lower = filename.toLowerCase();
+  const dirParts = relativePath.split(path.sep);
 
-  // Module 1 additional files
-  {
-    filePath: 'recherche/module-1/SESSION-1-LIVE.md',
-    module: 1,
-    sessionNumber: 1,
-    contentType: 'lesson_plan',
-    defaultTags: ['session-1', 'live', 'kick-off', 'notes'],
-  },
-  {
-    filePath: 'recherche/module-1/visuels-session-1.md',
-    module: 1,
-    sessionNumber: 1,
-    contentType: 'pedagogical_note',
-    defaultTags: ['visuels', 'session-1', 'slides', 'schemas'],
-  },
+  // Detect module from directory name: "module-1", "module-2", etc.
+  let module = 1; // default
+  for (const part of dirParts) {
+    const moduleMatch = part.match(/^module-(\d+)$/);
+    if (moduleMatch) {
+      module = parseInt(moduleMatch[1]!, 10);
+      break;
+    }
+  }
 
-  // Formation curriculum
-  {
-    filePath: 'recherche/CURRICULUM.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'pedagogical_note',
-    defaultTags: ['curriculum', 'spec', 'roadmap', 'vision'],
-  },
+  // Detect session number from filename: "session-3-xxx.md"
+  let sessionNumber: number | null = null;
+  const sessionMatch = lower.match(/session-(\d+)/);
+  if (sessionMatch) {
+    sessionNumber = parseInt(sessionMatch[1]!, 10);
+  }
 
-  // Research documents
-  {
-    filePath: 'recherche/recherches/recherche-A-psychologie-apprenants.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'research',
-    defaultTags: ['psychologie', 'apprenants', 'blocages', 'motivation'],
-  },
-  {
-    filePath: 'recherche/recherches/recherche-B-pedagogie-tech-non-techniques.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'research',
-    defaultTags: ['pedagogie', 'non-techniques', 'methodes'],
-  },
-  {
-    filePath: 'recherche/recherches/recherche-C-structure-programme-3-mois.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'research',
-    defaultTags: ['structure', 'programme', '3-mois', 'progression'],
-  },
-  {
-    filePath: 'recherche/recherches/recherche-D-analogie-restaurant-architecture-logicielle.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'research',
-    defaultTags: ['analogie', 'restaurant', 'architecture', 'front-end', 'back-end', 'api', 'database'],
-  },
-  {
-    filePath: 'recherche/recherches/recherche-D-paysage-outils-IA-coding.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'research',
-    defaultTags: ['ia', 'outils', 'cursor', 'claude', 'codex', 'v0', 'bolt'],
-  },
-  {
-    filePath: 'recherche/recherches/recherche-E-quick-win-premier-deploiement.md',
-    module: 1,
-    sessionNumber: null,
-    contentType: 'research',
-    defaultTags: ['quick-win', 'deploiement', 'motivation', 'v0', 'vercel'],
-  },
-];
+  // Detect content type from filename/directory
+  let contentType: FormationKnowledgeContentType = 'pedagogical_note';
+  if (lower.includes('session-') && (lower.includes('live') || !lower.includes('recherche'))) {
+    contentType = 'lesson_plan';
+  } else if (lower.includes('exercice') || lower.includes('exercise')) {
+    contentType = 'exercise';
+  } else if (lower.includes('setup') || lower.includes('guide')) {
+    contentType = 'setup_guide';
+  } else if (dirParts.includes('recherches') || lower.includes('recherche-')) {
+    contentType = 'research';
+  } else if (lower.includes('curriculum')) {
+    contentType = 'pedagogical_note';
+  }
+
+  // Build default tags from filename
+  const defaultTags = filename
+    .replace(/\.md$/i, '')
+    .split(/[-_]/)
+    .filter((t) => t.length >= 2 && !/^\d+$/.test(t))
+    .map((t) => t.toLowerCase());
+
+  return {
+    filePath: relativePath,
+    module,
+    sessionNumber,
+    contentType,
+    defaultTags,
+  };
+}
 
 // ============================================
 // Chunking logic
@@ -181,7 +125,6 @@ function chunkByHeadings(markdown: string, defaultTags: string[]): Chunk[] {
     if (currentTitle && currentLines.length > 0) {
       const content = currentLines.join('\n').trim();
       if (content.length > 50) {
-        // Extract inline tags from content (bold words, table headers)
         const inlineTags = extractTags(content);
         chunks.push({
           title: currentTitle.replace(/^#+\s*/, '').trim(),
@@ -193,7 +136,6 @@ function chunkByHeadings(markdown: string, defaultTags: string[]): Chunk[] {
   }
 
   for (const line of lines) {
-    // Split on ## headings (H2). H1 becomes the first chunk title.
     if (/^#{1,2}\s+/.test(line)) {
       flush();
       currentTitle = line;
@@ -204,12 +146,11 @@ function chunkByHeadings(markdown: string, defaultTags: string[]): Chunk[] {
   }
   flush();
 
-  // If a single chunk is too large (>3000 chars), split on ### (H3)
+  // Split large chunks on ### (H3)
   const finalChunks: Chunk[] = [];
   for (const chunk of chunks) {
     if (chunk.content.length > 3000) {
-      const subChunks = splitOnH3(chunk);
-      finalChunks.push(...subChunks);
+      finalChunks.push(...splitOnH3(chunk));
     } else {
       finalChunks.push(chunk);
     }
@@ -228,11 +169,7 @@ function splitOnH3(chunk: Chunk): Chunk[] {
     if (subLines.length > 0) {
       const content = subLines.join('\n').trim();
       if (content.length > 50) {
-        result.push({
-          title: subTitle,
-          content,
-          tags: chunk.tags,
-        });
+        result.push({ title: subTitle, content, tags: chunk.tags });
       }
     }
   }
@@ -248,13 +185,11 @@ function splitOnH3(chunk: Chunk): Chunk[] {
   }
   flush();
 
-  // If no H3 splits happened, return original
   return result.length > 0 ? result : [chunk];
 }
 
 function extractTags(content: string): string[] {
   const tags: string[] = [];
-  // Extract bold terms (**term**)
   const boldMatches = content.matchAll(/\*\*([^*]+)\*\*/g);
   for (const match of boldMatches) {
     const term = match[1]!.toLowerCase().trim();
@@ -262,7 +197,6 @@ function extractTags(content: string): string[] {
       tags.push(term);
     }
   }
-  // Limit to 10 most relevant
   return tags.slice(0, 10);
 }
 
@@ -271,76 +205,73 @@ function extractTags(content: string): string[] {
 // ============================================
 
 async function main(): Promise<void> {
-  console.log('=== Formation Knowledge Seed ===\n');
+  console.log('=== Formation Knowledge Seed (auto-discovery) ===\n');
 
-  let totalChunks = 0;
+  // 1. Discover all .md files
+  const discovered = discoverFiles();
+  console.log(`Found ${discovered.length} markdown files in learning-knowledge/\n`);
+
+  // 2. Chunk and collect
+  const allChunks: Array<{ chunk: Chunk; file: DiscoveredFile }> = [];
   let totalFiles = 0;
-  const allChunks: Array<{ chunk: Chunk; mapping: SourceMapping }> = [];
 
-  for (const mapping of SOURCE_MAPPINGS) {
-    const fullPath = path.join(PROJECT_ROOT, mapping.filePath);
-
-    if (!fs.existsSync(fullPath)) {
-      console.log(`  SKIP ${mapping.filePath} (file not found)`);
-      continue;
-    }
-
+  for (const file of discovered) {
+    const fullPath = path.join(PROJECT_ROOT, file.filePath);
     const markdown = fs.readFileSync(fullPath, 'utf-8');
-    const chunks = chunkByHeadings(markdown, mapping.defaultTags);
+    const chunks = chunkByHeadings(markdown, file.defaultTags);
 
-    console.log(`  ${mapping.filePath} → ${chunks.length} chunks`);
+    console.log(`  ${file.filePath} → ${chunks.length} chunks [${file.contentType}, M${file.module}${file.sessionNumber ? ` S${file.sessionNumber}` : ''}]`);
     totalFiles++;
 
     for (const chunk of chunks) {
-      allChunks.push({ chunk, mapping });
+      allChunks.push({ chunk, file });
     }
   }
 
   console.log(`\nTotal: ${allChunks.length} chunks from ${totalFiles} files\n`);
 
-  // Upsert all chunks
+  // 3. Upsert all chunks
   console.log('Upserting chunks...');
-  const upsertedIds: string[] = [];
+  const seenSourceFiles = new Set<string>();
 
-  for (const { chunk, mapping } of allChunks) {
+  for (const { chunk, file } of allChunks) {
+    seenSourceFiles.add(file.filePath);
     try {
-      const entry = await upsertFormationKnowledge({
-        session_number: mapping.sessionNumber,
-        module: mapping.module,
-        content_type: mapping.contentType,
+      await upsertFormationKnowledge({
+        session_number: file.sessionNumber,
+        module: file.module,
+        content_type: file.contentType,
         title: chunk.title,
         content: chunk.content,
         tags: chunk.tags,
-        source_file: mapping.filePath,
+        source_file: file.filePath,
       });
-      upsertedIds.push(entry.id);
-      totalChunks++;
       process.stdout.write('.');
     } catch (err) {
       console.error(`\n  FAIL: ${chunk.title} — ${(err as Error).message}`);
     }
   }
-  console.log(`\n\nUpserted ${totalChunks} chunks.\n`);
+  console.log(`\n\nUpserted ${allChunks.length} chunks.\n`);
 
-  // Clean up orphaned entries (source_file no longer in SOURCE_MAPPINGS)
-  const validSourceFiles = SOURCE_MAPPINGS.map((m) => m.filePath);
+  // 4. Clean up orphans (files removed from learning-knowledge/)
   const db = getSupabase();
+  const { data: allEntries } = await db
+    .from('formation_knowledge')
+    .select('id, source_file');
 
-  if (upsertedIds.length > 0) {
-    const { data: orphans } = await db
-      .from('formation_knowledge')
-      .select('id, source_file')
-      .not('source_file', 'in', `(${validSourceFiles.join(',')})`);
+  if (allEntries) {
+    const orphanIds = allEntries
+      .filter((row) => !seenSourceFiles.has((row as Record<string, string>)['source_file']!))
+      .map((row) => (row as Record<string, string>)['id']!);
 
-    if (orphans && orphans.length > 0) {
-      const orphanIds = orphans.map((row) => (row as Record<string, string>)['id']!);
+    if (orphanIds.length > 0) {
       const { error } = await db
         .from('formation_knowledge')
         .delete()
         .in('id', orphanIds);
 
       if (!error) {
-        console.log(`Cleaned up ${orphans.length} orphaned entries.`);
+        console.log(`Cleaned up ${orphanIds.length} orphaned entries.`);
       } else {
         console.error(`Failed to clean orphans: ${error.message}`);
       }
@@ -349,8 +280,8 @@ async function main(): Promise<void> {
     }
   }
 
-  // Batch embed all entries that don't have embeddings yet
-  console.log('Generating embeddings...');
+  // 5. Embed chunks without embeddings
+  console.log('\nGenerating embeddings...');
   const { data: noEmbedding } = await db
     .from('formation_knowledge')
     .select('id, title, content')
@@ -366,8 +297,8 @@ async function main(): Promise<void> {
       const embeddings = await getEmbeddings(texts);
 
       if (!embeddings) {
-        console.error('\nEmbedding server unavailable. Run: docker compose -f docker-compose.prod.yml up embedding-server');
-        console.log(`Chunks are saved without embeddings. Re-run this script when the server is up.`);
+        console.error('\nOpenAI API unavailable. Check OPENAI_API_KEY.');
+        console.log('Chunks saved without embeddings. Re-run when API is available.');
         break;
       }
 
@@ -390,7 +321,7 @@ async function main(): Promise<void> {
     console.log('All chunks already have embeddings.');
   }
 
-  // Summary
+  // 6. Summary
   const { data: summary } = await db
     .from('formation_knowledge')
     .select('content_type')

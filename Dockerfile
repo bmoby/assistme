@@ -47,7 +47,7 @@ ENV NODE_ENV=production
 FROM builder AS seed
 
 # Copy content files needed by the seed script
-COPY recherche/ recherche/
+COPY learning-knowledge/ learning-knowledge/
 COPY scripts/ scripts/
 
 CMD ["npx", "tsx", "scripts/seed-formation-knowledge.ts"]

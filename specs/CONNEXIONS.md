@@ -319,7 +319,7 @@ Recherche semantique :
 
 ```
 Seed (pnpm seed:knowledge) :
-  → Lit 14 fichiers markdown (recherche/*)
+  → Lit 14 fichiers markdown (learning-knowledge/*)
   → Chunking par headings H2, split H3 si chunk > 3000 chars
   → extractTags() : termes en gras + defaultTags
   → upsertFormationKnowledge() par chunk (idempotent, upsert sur source_file+title)

@@ -11,7 +11,6 @@ jobs:
       bot-telegram: ${{ steps.changes.outputs.bot-telegram }}
       bot-telegram-public: ${{ steps.changes.outputs.bot-telegram-public }}
       bot-discord: ${{ steps.changes.outputs.bot-discord }}
-      embedding-server: ${{ steps.changes.outputs.embedding-server }}
       knowledge: ${{ steps.changes.outputs.knowledge }}
       migrations: ${{ steps.changes.outputs.migrations }}
       infra: ${{ steps.changes.outputs.infra }}
@@ -31,10 +30,8 @@ jobs:
             bot-discord:
               - 'packages/bot-discord/**'
               - 'packages/core/**'
-            embedding-server:
-              - 'embedding-server/**'
             knowledge:
-              - 'recherche/**'
+              - 'learning-knowledge/**'
               - 'scripts/seed-formation-knowledge.ts'
             migrations:
               - 'supabase/migrations/**'
@@ -50,7 +47,6 @@ jobs:
             "${{ steps.changes.outputs.bot-telegram }}" == "true" || \
             "${{ steps.changes.outputs.bot-telegram-public }}" == "true" || \
             "${{ steps.changes.outputs.bot-discord }}" == "true" || \
-            "${{ steps.changes.outputs.embedding-server }}" == "true" || \
             "${{ steps.changes.outputs.knowledge }}" == "true" || \
             "${{ steps.changes.outputs.migrations }}" == "true" || \
             "${{ steps.changes.outputs.infra }}" == "true" \
@@ -124,7 +120,7 @@ jobs:
             git pull origin main
 
             # Always ensure infra services are running
-            docker compose -f docker-compose.prod.yml up -d redis embedding-server
+            docker compose -f docker-compose.prod.yml up -d redis
 
             # Determine which bot services to rebuild
             SERVICES=""
@@ -143,13 +139,6 @@ jobs:
               if [ "${{ needs.detect-changes.outputs.bot-discord }}" == "true" ]; then
                 SERVICES="$SERVICES bot-discord"
               fi
-            fi
-
-            # Rebuild embedding server if changed
-            if [ "${{ needs.detect-changes.outputs.embedding-server }}" == "true" ]; then
-              echo "Rebuilding embedding server"
-              docker compose -f docker-compose.prod.yml build embedding-server
-              docker compose -f docker-compose.prod.yml up -d embedding-server
             fi
 
             if [ -n "$SERVICES" ]; then

@@ -3,7 +3,7 @@
 > Source de verite du projet. Voir [CLAUDE.md](/CLAUDE.md) pour la methodologie spec-first.
 >
 > **Regle** : `specs/` = 1 dossier = 1 composant logiciel deployable.
-> Le contenu pedagogique va dans `recherche/`. La documentation historique dans `docs/`.
+> Le contenu pedagogique va dans `learning-knowledge/`. La documentation historique dans `docs/`.
 
 ## Composants principaux
 
@@ -41,13 +41,11 @@
 
 ## Contenu pedagogique (hors specs)
 
-Le contenu pedagogique vit dans `recherche/` et est synchronise vers la DB via `pnpm seed:knowledge`.
+Le contenu pedagogique vit dans `learning-knowledge/` et est synchronise vers la DB via `pnpm seed:knowledge`.
 
 | Document | Description |
 |----------|-------------|
-| [recherche/CURRICULUM.md](/recherche/CURRICULUM.md) | Structure du programme (6 modules, 24 sessions, principes pedagogiques) |
-| [recherche/GUIDE-FORMATEUR.md](/recherche/GUIDE-FORMATEUR.md) | Guide operationnel du formateur |
-| [recherche/recherches/](/recherche/recherches/) | 6 rapports de recherche (psychologie, pedagogie, structure, analogies, IA, quick-win) |
-| [recherche/module-1/](/recherche/module-1/) | Plans de session detailles, exercices, visuels |
-
-> **Note** : deux fichiers commencent par `recherche-D` (`recherche-D-analogie-restaurant-architecture-logicielle.md` et `recherche-D-paysage-outils-IA-coding.md`). Nommage historique, conserve pour ne pas casser les cles du seed script.
+| [learning-knowledge/CURRICULUM.md](/learning-knowledge/CURRICULUM.md) | Structure du programme (6 modules, 24 sessions, principes pedagogiques) |
+| [learning-knowledge/GUIDE-FORMATEUR.md](/learning-knowledge/GUIDE-FORMATEUR.md) | Guide operationnel du formateur |
+| [learning-knowledge/recherches/](/learning-knowledge/recherches/) | 6 rapports de recherche (psychologie, pedagogie, structure, analogies, IA, quick-win) |
+| [learning-knowledge/module-1/](/learning-knowledge/module-1/) | Plans de session detailles, exercices, visuels |
