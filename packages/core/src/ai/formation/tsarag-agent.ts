@@ -408,20 +408,36 @@ async function handleCreateSession(
       liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (ICT)${channelStr}`;
     }
 
-    const forumContent = [
-      `\ud83d\udccc **\u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber} \u2014 ${title}**`,
-      `\u041c\u043e\u0434\u0443\u043b\u044c ${module}`,
-      '',
-      liveInfo,
-      input.video_url ? `\ud83c\udfac **\u0412\u0418\u0414\u0415\u041e:** ${input.video_url as string}` : null,
-      '',
-      input.description ? `\ud83d\udcdd **\u0422\u0415\u041c\u0410:**\n${input.description as string}` : null,
-      '',
-      input.exercise_description ? `\ud83d\udccb **\u0417\u0410\u0414\u0410\u041d\u0418\u0415:**\n${input.exercise_description as string}` : null,
-      input.expected_deliverables ? `\ud83d\udce6 **\u0427\u0442\u043e \u0441\u0434\u0430\u0442\u044c:** ${input.expected_deliverables as string}` : null,
-      input.exercise_tips ? `\ud83d\udca1 **\u0421\u043e\u0432\u0435\u0442\u044b:** ${input.exercise_tips as string}` : null,
-      input.deadline ? `\u23f0 **\u0414\u0435\u0434\u043b\u0430\u0439\u043d:** ${input.deadline as string}` : null,
-    ].filter((line): line is string => line !== null && line !== '').join('\n');
+    // Build clean, readable forum post with proper spacing
+    const sections: string[] = [];
+
+    // Header
+    sections.push(`# \u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber} \u2014 ${title}\n\u041c\u043e\u0434\u0443\u043b\u044c ${module}`);
+
+    // Info block (live + video)
+    const infoLines: string[] = [];
+    if (liveInfo) infoLines.push(liveInfo);
+    if (input.video_url) infoLines.push(`\ud83c\udfac **\u0412\u0438\u0434\u0435\u043e:** ${input.video_url as string}`);
+    if (infoLines.length > 0) sections.push(infoLines.join('\n'));
+
+    // Description
+    if (input.description) {
+      sections.push(`## \u0422\u0435\u043c\u0430\n${input.description as string}`);
+    }
+
+    // Exercise block
+    const exerciseLines: string[] = [];
+    if (input.exercise_description) exerciseLines.push(input.exercise_description as string);
+    if (input.expected_deliverables) exerciseLines.push(`\n**\u0427\u0442\u043e \u0441\u0434\u0430\u0442\u044c:** ${input.expected_deliverables as string}`);
+    if (input.exercise_tips) exerciseLines.push(`\n**\u0421\u043e\u0432\u0435\u0442\u044b:** ${input.exercise_tips as string}`);
+    if (exerciseLines.length > 0) sections.push(`## \u0417\u0430\u0434\u0430\u043d\u0438\u0435\n${exerciseLines.join('\n')}`);
+
+    // Deadline
+    if (input.deadline) {
+      sections.push(`\u23f0 **\u0414\u0435\u0434\u043b\u0430\u0439\u043d:** ${input.deadline as string}`);
+    }
+
+    const forumContent = sections.join('\n\n');
 
     threadId = await context.discordActions.sendToSessionsForum(sessionNumber, title, forumContent, module);
 
