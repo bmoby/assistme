@@ -276,7 +276,7 @@ LANGUE : TOUS les champs contenant du texte visible aux etudiants (title, descri
 
 Types d'actions et parametres attendus dans "params" :
 - send_announcement: { text: string (RUSSE), mention_students?: boolean }
-- create_session: { session_number: int, module: int, title: string (RUSSE), description?: string (RUSSE), exercise_description?: string (RUSSE), expected_deliverables?: string (RUSSE), exercise_tips?: string (RUSSE), deadline?: string (ISO), video_url?: string, live_at?: string (ISO, date+heure du live), live_channel?: string (nom du canal Discord), status?: "draft"|"published" }
+- create_session: { session_number: int, module: int, title: string (RUSSE), description?: string (RUSSE), exercise_description?: string (RUSSE), expected_deliverables?: string (RUSSE), exercise_tips?: string (RUSSE), deadline?: string (ISO), video_url?: string, live_at?: string (ISO, date+heure du live), status?: "draft"|"published" }
 - update_session: { session_number: int, + champs a modifier (memes champs que create_session) }
 - approve_exercise: { student_name: string, feedback?: string (RUSSE), exercise_id?: string }
 - request_revision: { student_name: string, feedback: string (RUSSE), exercise_id?: string }
@@ -486,7 +486,7 @@ async function handleCreateSession(
     exercise_tips: input.exercise_tips as string | undefined,
     deadline: input.deadline ? parseAdminDate(input.deadline as string) ?? undefined : undefined,
     live_at: input.live_at ? parseAdminDate(input.live_at as string) ?? undefined : undefined,
-    live_channel: input.live_channel as string | undefined,
+    live_url: input.live_url as string | undefined,
     status: status as 'draft' | 'published',
   });
 
@@ -505,8 +505,7 @@ async function handleCreateSession(
       const liveUtc = parseAdminDate(input.live_at as string);
       if (liveUtc) {
         const { dateStr, timeStr } = formatDateParis(liveUtc);
-        const channelStr = input.live_channel ? ` в канале **${input.live_channel as string}**` : '';
-        liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (Paris)${channelStr}`;
+        liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (Paris)`;
       }
     }
 
@@ -587,7 +586,7 @@ async function handleUpdateSession(input: Record<string, unknown>, context: Tsar
   if (input.deadline) updates.deadline = parseAdminDate(input.deadline as string) ?? undefined;
   if (input.video_url) updates.pre_session_video_url = input.video_url;
   if (input.live_at) updates.live_at = parseAdminDate(input.live_at as string) ?? undefined;
-  if (input.live_channel) updates.live_channel = input.live_channel;
+  if (input.live_url) updates.live_url = input.live_url;
   if (input.status) updates.status = input.status;
 
   const updated = await updateSession(session.id, updates);

@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { logger, getSessionByNumber, updateSession } from '@assistme/core';
+import { logger, getSessionByNumber, updateSession, createMeetEvent } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 
 export const sessionUpdateCommand = new SlashCommandBuilder()
@@ -19,9 +19,6 @@ export const sessionUpdateCommand = new SlashCommandBuilder()
   )
   .addStringOption((opt) =>
     opt.setName('live').setDescription('Дата live (JJ/MM/AAAA HH:MM)').setRequired(false)
-  )
-  .addStringOption((opt) =>
-    opt.setName('live-канал').setDescription('Канал для live (например: эфир)').setRequired(false)
   )
   .addStringOption((opt) =>
     opt.setName('название').setDescription('Название сессии').setRequired(false)
@@ -50,7 +47,6 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
   const expectedDeliverables = interaction.options.getString('формат');
   const deadline = interaction.options.getString('дедлайн');
   const liveAt = interaction.options.getString('live');
-  const liveChannel = interaction.options.getString('live-канал');
   const title = interaction.options.getString('название');
   const description = interaction.options.getString('тема');
   const videoUrl = interaction.options.getString('видео');
@@ -58,7 +54,7 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
   const exerciseTips = interaction.options.getString('советы');
 
   // Check that at least one field is provided
-  if (!exerciseDescription && !expectedDeliverables && !deadline && !liveAt && !liveChannel && !title && !description && !videoUrl && !replayUrl && !exerciseTips) {
+  if (!exerciseDescription && !expectedDeliverables && !deadline && !liveAt && !title && !description && !videoUrl && !replayUrl && !exerciseTips) {
     await interaction.reply({
       content: 'Укажи хотя бы одно поле для обновления.',
       ephemeral: true,
@@ -66,12 +62,13 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
     return;
   }
 
+  await interaction.deferReply({ ephemeral: true });
+
   try {
     const session = await getSessionByNumber(sessionNumber);
     if (!session) {
-      await interaction.reply({
+      await interaction.editReply({
         content: `Сессия ${sessionNumber} не найдена.`,
-        ephemeral: true,
       });
       return;
     }
@@ -107,19 +104,30 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
     }
     if (liveAt) {
       const ddmmMatch = liveAt.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+      let liveIso: string;
       if (ddmmMatch) {
         const [, dd, mm, yyyy, hh, min] = ddmmMatch;
-        updates.live_at = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00+07:00`).toISOString();
+        liveIso = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00+07:00`).toISOString();
       } else {
         const withTz = /[Zz]$/.test(liveAt) || /[+-]\d{2}:\d{2}$/.test(liveAt)
           ? liveAt : (liveAt.includes('T') ? liveAt : `${liveAt}T20:00:00`) + '+07:00';
-        updates.live_at = new Date(withTz).toISOString();
+        liveIso = new Date(withTz).toISOString();
       }
+      updates.live_at = liveIso;
       changes.push('live');
-    }
-    if (liveChannel) {
-      updates.live_channel = liveChannel;
-      changes.push('live-канал');
+
+      // Auto-generate Google Meet link
+      try {
+        const sessionTitle = title ?? session.title;
+        const { meetUrl } = await createMeetEvent(
+          `Session ${sessionNumber} — ${sessionTitle}`,
+          liveIso
+        );
+        updates.live_url = meetUrl;
+        changes.push(`meet (${meetUrl})`);
+      } catch (meetError) {
+        logger.warn({ error: meetError }, 'Failed to create Google Meet link — skipping');
+      }
     }
     if (title) {
       updates.title = title;
@@ -144,14 +152,13 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
 
     await updateSession(session.id, updates);
 
-    await interaction.reply({
+    await interaction.editReply({
       content: `✅ Сессия ${sessionNumber} обновлена: ${changes.join(', ')}.`,
-      ephemeral: true,
     });
 
     logger.info({ sessionNumber, changes }, 'Session updated');
   } catch (error) {
     logger.error({ error, sessionNumber }, 'Failed to update session');
-    await interaction.reply({ content: '❌ Ошибка при обновлении сессии.', ephemeral: true });
+    await interaction.editReply({ content: '❌ Ошибка при обновлении сессии.' });
   }
 }

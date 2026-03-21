@@ -446,8 +446,11 @@ const conversations = new Map<string, ConversationState>();
 (добавить описание задания)
 ⏰ Дедлайн: (добавить)
 
-🔴 REPLAY:
-Будет добавлен после эфира
+🔴 LIVE:
+(ссылка будет добавлена)
+
+🎥 REPLAY:
+(будет добавлен после эфира)
 ```
 
 3. Enregistre le `discord_thread_id` dans la table `sessions`
@@ -597,13 +600,13 @@ Le bot envoie des DMs proactifs aux etudiants dans ces cas :
 
 | Declencheur | Message | Quand |
 |---|---|---|
-| Nouvelle session publiee | "Доступна Сессия 4! Посмотри видео и приходи на эфир." | Quand le formateur cree une session avec `/session` |
+| Nouvelle session publiee | "Доступна Сессия 4! Посмотри видео к сессии. Ссылка на live будет в посте сессии." | Quand le formateur cree une session avec `/session` |
 | Rappel deadline J-2 | "Через 2 дня дедлайн по Сессии 3. Ты ещё не сдал. Нужна помощь?" | 48h avant la deadline, si pas soumis |
 | Rappel deadline J-1 | "Завтра дедлайн по Сессии 3! Последний день." | 24h avant la deadline, si pas soumis |
 | Review IA terminee | "ИИ-проверка — Сессия 2 — Оценка: 7/10 ..." | Quelques secondes apres la soumission |
 | Exercice approuve | "✅ Задание по Сессии 2 одобрено! ..." | Quand le formateur `/approve` |
 | Revision demandee | "🔄 Нужна доработка — Сессия 2 ..." | Quand le formateur `/revision` |
-| Rappel live J-1 | "Завтра эфир в 20:00! Тема: ..." | Veille du live (cron) |
+| Rappel live J-1 | "Завтра live в 20:00! Тема: ... Ссылка: {live_url}" | Veille du live (cron) |
 
 ### Implementation des rappels
 

@@ -302,7 +302,7 @@ export interface Session {
   deadline: string | null;
   discord_thread_id: string | null;
   live_at: string | null;
-  live_channel: string | null;
+  live_url: string | null;
   status: SessionStatus;
   created_at: string;
   updated_at: string;

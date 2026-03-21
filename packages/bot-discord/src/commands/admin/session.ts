@@ -71,8 +71,11 @@ export async function handleSession(interaction: ChatInputCommandInteraction): P
             '_(добавить описание задания)_',
             '📅 Сдать задание до: _(добавить)_',
             '',
-            '🔴 **REPLAY:**',
-            'Будет добавлен после эфира',
+            '🔴 **LIVE:**',
+            '_(ссылка будет добавлена)_',
+            '',
+            '🎥 **REPLAY:**',
+            '_(будет добавлен после эфира)_',
           ].join('\n'),
         },
         appliedTags: moduleTag ? [moduleTag.id] : [],
@@ -93,7 +96,7 @@ export async function handleSession(interaction: ChatInputCommandInteraction): P
       const studentRole = interaction.guild?.roles.cache.find((r) => r.name === ROLES.student);
       const mention = studentRole ? `<@&${studentRole.id}> ` : '';
       await announcesChannel.send(
-        `${mention}🆕 **Доступна Сессия ${sessionNumber}!**\n${title}\n\nПосмотри видео и приходи на эфир.`
+        `${mention}🆕 **Доступна Сессия ${sessionNumber}!**\n${title}\n\nПосмотри видео к сессии. Ссылка на live будет в посте сессии.`
       );
     }
 
