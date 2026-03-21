@@ -81,6 +81,20 @@ function createDiscordCallbacks(message: Message): DiscordActionCallbacks {
         return false;
       }
     },
+
+    archiveForumThread: async (threadId: string) => {
+      const thread = await guild.channels.fetch(threadId);
+      if (thread?.isThread()) {
+        await thread.setArchived(true);
+      }
+    },
+
+    unarchiveForumThread: async (threadId: string) => {
+      const thread = await guild.channels.fetch(threadId);
+      if (thread?.isThread()) {
+        await thread.setArchived(false);
+      }
+    },
   };
 }
 

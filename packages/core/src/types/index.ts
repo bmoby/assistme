@@ -373,6 +373,8 @@ export interface DiscordActionCallbacks {
   sendAnnouncement: (text: string, mentionStudents: boolean) => Promise<void>;
   sendToSessionsForum: (sessionNumber: number, title: string, content: string, module: number) => Promise<string | null>;
   dmStudent: (discordId: string, message: string) => Promise<boolean>;
+  archiveForumThread: (threadId: string) => Promise<void>;
+  unarchiveForumThread: (threadId: string) => Promise<void>;
 }
 
 export interface PendingAction {

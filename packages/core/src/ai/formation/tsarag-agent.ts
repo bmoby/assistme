@@ -425,7 +425,7 @@ async function handleCreateSession(
   });
 }
 
-async function handleUpdateSession(input: Record<string, unknown>): Promise<string> {
+async function handleUpdateSession(input: Record<string, unknown>, context: TsaragAgentContext): Promise<string> {
   const sessionNumber = input.session_number as number;
   const session = await getSessionByNumber(sessionNumber);
   if (!session) {
@@ -443,6 +443,14 @@ async function handleUpdateSession(input: Record<string, unknown>): Promise<stri
   if (input.status) updates.status = input.status;
 
   const updated = await updateSession(session.id, updates);
+
+  if (input.status === 'draft' && session.discord_thread_id) {
+    await context.discordActions.archiveForumThread(session.discord_thread_id);
+  }
+  if (input.status === 'published' && session.discord_thread_id) {
+    await context.discordActions.unarchiveForumThread(session.discord_thread_id);
+  }
+
   return JSON.stringify({ success: true, session: updated });
 }
 
@@ -651,7 +659,7 @@ async function executePendingAction(
       };
     case 'update_session':
       return {
-        result: await handleUpdateSession(action.params),
+        result: await handleUpdateSession(action.params, context),
         label: `Session ${action.params.session_number} mise a jour`,
       };
     case 'approve_exercise':
