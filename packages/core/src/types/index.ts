@@ -301,6 +301,8 @@ export interface Session {
   exercise_tips: string | null;
   deadline: string | null;
   discord_thread_id: string | null;
+  live_at: string | null;
+  live_channel: string | null;
   status: SessionStatus;
   created_at: string;
   updated_at: string;

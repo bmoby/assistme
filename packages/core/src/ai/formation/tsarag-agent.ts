@@ -175,8 +175,8 @@ const PROPOSE_ACTION_TOOL: Anthropic.Messages.Tool = {
 
 Types d'actions et parametres attendus dans "params" :
 - send_announcement: { text: string (russe), mention_students?: boolean }
-- create_session: { session_number: int, module: int, title: string, description?: string, exercise_description?: string, expected_deliverables?: string, exercise_tips?: string, deadline?: string (ISO), video_url?: string, status?: "draft"|"published" }
-- update_session: { session_number: int, + champs a modifier }
+- create_session: { session_number: int, module: int, title: string, description?: string, exercise_description?: string, expected_deliverables?: string, exercise_tips?: string, deadline?: string (ISO), video_url?: string, live_at?: string (ISO, date+heure du live), live_channel?: string (nom du canal Discord), status?: "draft"|"published" }
+- update_session: { session_number: int, + champs a modifier (memes champs que create_session) }
 - approve_exercise: { student_name: string, feedback?: string (russe), exercise_id?: string }
 - request_revision: { student_name: string, feedback: string (russe), exercise_id?: string }
 - dm_student: { student_name: string, message: string (russe) }`,
@@ -384,6 +384,8 @@ async function handleCreateSession(
     expected_deliverables: input.expected_deliverables as string | undefined,
     exercise_tips: input.exercise_tips as string | undefined,
     deadline: input.deadline as string | undefined,
+    live_at: input.live_at as string | undefined,
+    live_channel: input.live_channel as string | undefined,
     status: status as 'draft' | 'published',
   });
 
@@ -396,19 +398,30 @@ async function handleCreateSession(
 
   // Post to forum
   if (status === 'published') {
+    // Format live date for display
+    let liveInfo: string | null = null;
+    if (input.live_at) {
+      const liveDate = new Date(input.live_at as string);
+      const dateStr = liveDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' });
+      const timeStr = liveDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+      const channelStr = input.live_channel ? ` в канале **${input.live_channel as string}**` : '';
+      liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (ICT)${channelStr}`;
+    }
+
     const forumContent = [
       `\ud83d\udccc **\u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber} \u2014 ${title}**`,
       `\u041c\u043e\u0434\u0443\u043b\u044c ${module}`,
       '',
-      input.video_url ? `\ud83c\udfac **\u0412\u0418\u0414\u0415\u041e:** ${input.video_url as string}` : '\ud83c\udfac **\u0412\u0418\u0414\u0415\u041e:** _(\u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c)_',
+      liveInfo,
+      input.video_url ? `\ud83c\udfac **\u0412\u0418\u0414\u0415\u041e:** ${input.video_url as string}` : null,
       '',
-      input.description ? `\ud83d\udcdd **\u0422\u0415\u041c\u0410:**\n${input.description as string}` : '',
+      input.description ? `\ud83d\udcdd **\u0422\u0415\u041c\u0410:**\n${input.description as string}` : null,
       '',
-      input.exercise_description ? `\ud83d\udccb **\u0417\u0410\u0414\u0410\u041d\u0418\u0415:**\n${input.exercise_description as string}` : '',
-      input.expected_deliverables ? `\ud83d\udce6 **\u0427\u0442\u043e \u0441\u0434\u0430\u0442\u044c:** ${input.expected_deliverables as string}` : '',
-      input.exercise_tips ? `\ud83d\udca1 **\u0421\u043e\u0432\u0435\u0442\u044b:** ${input.exercise_tips as string}` : '',
-      input.deadline ? `\u23f0 **\u0414\u0435\u0434\u043b\u0430\u0439\u043d:** ${input.deadline as string}` : '',
-    ].filter(Boolean).join('\n');
+      input.exercise_description ? `\ud83d\udccb **\u0417\u0410\u0414\u0410\u041d\u0418\u0415:**\n${input.exercise_description as string}` : null,
+      input.expected_deliverables ? `\ud83d\udce6 **\u0427\u0442\u043e \u0441\u0434\u0430\u0442\u044c:** ${input.expected_deliverables as string}` : null,
+      input.exercise_tips ? `\ud83d\udca1 **\u0421\u043e\u0432\u0435\u0442\u044b:** ${input.exercise_tips as string}` : null,
+      input.deadline ? `\u23f0 **\u0414\u0435\u0434\u043b\u0430\u0439\u043d:** ${input.deadline as string}` : null,
+    ].filter((line): line is string => line !== null && line !== '').join('\n');
 
     threadId = await context.discordActions.sendToSessionsForum(sessionNumber, title, forumContent, module);
 
@@ -417,8 +430,9 @@ async function handleCreateSession(
     }
 
     // Announce
+    const liveAnnounce = liveInfo ? `\n${liveInfo}` : '';
     await context.discordActions.sendAnnouncement(
-      `\ud83c\udd95 **\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber}!**\n${title}\n\n\u041f\u043e\u0441\u043c\u043e\u0442\u0440\u0438 \u0432\u0438\u0434\u0435\u043e \u0438 \u043f\u0440\u0438\u0445\u043e\u0434\u0438 \u043d\u0430 \u044d\u0444\u0438\u0440.`,
+      `\ud83c\udd95 **\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber}!**\n${title}${liveAnnounce}`,
       true
     );
   }
@@ -447,6 +461,8 @@ async function handleUpdateSession(input: Record<string, unknown>, context: Tsar
   if (input.exercise_tips) updates.exercise_tips = input.exercise_tips;
   if (input.deadline) updates.deadline = input.deadline;
   if (input.video_url) updates.pre_session_video_url = input.video_url;
+  if (input.live_at) updates.live_at = input.live_at;
+  if (input.live_channel) updates.live_channel = input.live_channel;
   if (input.status) updates.status = input.status;
 
   const updated = await updateSession(session.id, updates);
