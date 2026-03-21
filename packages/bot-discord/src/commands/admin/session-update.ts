@@ -15,7 +15,19 @@ export const sessionUpdateCommand = new SlashCommandBuilder()
     opt.setName('формат').setDescription('Ожидаемый формат (image, url, document, text)').setRequired(false)
   )
   .addStringOption((opt) =>
-    opt.setName('дедлайн').setDescription('Дедлайн (YYYY-MM-DD или YYYY-MM-DDTHH:MM)').setRequired(false)
+    opt.setName('дедлайн').setDescription('Сдать до (JJ/MM/AAAA HH:MM или YYYY-MM-DD)').setRequired(false)
+  )
+  .addStringOption((opt) =>
+    opt.setName('live').setDescription('Дата live (JJ/MM/AAAA HH:MM)').setRequired(false)
+  )
+  .addStringOption((opt) =>
+    opt.setName('live-канал').setDescription('Канал для live (например: эфир)').setRequired(false)
+  )
+  .addStringOption((opt) =>
+    opt.setName('название').setDescription('Название сессии').setRequired(false)
+  )
+  .addStringOption((opt) =>
+    opt.setName('тема').setDescription('Описание темы сессии').setRequired(false)
   )
   .addStringOption((opt) =>
     opt.setName('видео').setDescription('Ссылка на видео к сессии').setRequired(false)
@@ -37,12 +49,16 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
   const exerciseDescription = interaction.options.getString('задание');
   const expectedDeliverables = interaction.options.getString('формат');
   const deadline = interaction.options.getString('дедлайн');
+  const liveAt = interaction.options.getString('live');
+  const liveChannel = interaction.options.getString('live-канал');
+  const title = interaction.options.getString('название');
+  const description = interaction.options.getString('тема');
   const videoUrl = interaction.options.getString('видео');
   const replayUrl = interaction.options.getString('replay');
   const exerciseTips = interaction.options.getString('советы');
 
   // Check that at least one field is provided
-  if (!exerciseDescription && !expectedDeliverables && !deadline && !videoUrl && !replayUrl && !exerciseTips) {
+  if (!exerciseDescription && !expectedDeliverables && !deadline && !liveAt && !liveChannel && !title && !description && !videoUrl && !replayUrl && !exerciseTips) {
     await interaction.reply({
       content: 'Укажи хотя бы одно поле для обновления.',
       ephemeral: true,
@@ -88,6 +104,30 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
       }
       updates.deadline = isoUtc;
       changes.push('дедлайн');
+    }
+    if (liveAt) {
+      const ddmmMatch = liveAt.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+      if (ddmmMatch) {
+        const [, dd, mm, yyyy, hh, min] = ddmmMatch;
+        updates.live_at = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00+07:00`).toISOString();
+      } else {
+        const withTz = /[Zz]$/.test(liveAt) || /[+-]\d{2}:\d{2}$/.test(liveAt)
+          ? liveAt : (liveAt.includes('T') ? liveAt : `${liveAt}T20:00:00`) + '+07:00';
+        updates.live_at = new Date(withTz).toISOString();
+      }
+      changes.push('live');
+    }
+    if (liveChannel) {
+      updates.live_channel = liveChannel;
+      changes.push('live-канал');
+    }
+    if (title) {
+      updates.title = title;
+      changes.push('название');
+    }
+    if (description) {
+      updates.description = description;
+      changes.push('тема');
     }
     if (videoUrl) {
       updates.pre_session_video_url = videoUrl;
