@@ -84,7 +84,7 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 
 *Quasi-complet — reste : notifications groupees, CRUD team members*
 
-### Organisation Formation (`learning-knowledge/CURRICULUM.md`)
+### Organisation Formation (`learning-knowledge/programme.md`)
 - [x] Recherches approfondies (psychologie, pedagogie, structure programme)
 - [x] Structurer le curriculum (modules, sujets, progression)
 - [x] Designer les exercices et livrables

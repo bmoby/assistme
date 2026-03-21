@@ -5,10 +5,10 @@ Le contenu pedagogique (`learning-knowledge/`) est synchronise vers la table `fo
 
 ## Apres modification de fichiers formation
 Si tu modifies un fichier dans :
-- `learning-knowledge/GUIDE-FORMATEUR.md` (guide formateur)
-- `learning-knowledge/CURRICULUM.md` (curriculum complet)
+- `learning-knowledge/programme.md` (programme complet)
+- `learning-knowledge/setup-etudiant.md` (guide d'installation)
+- `learning-knowledge/regles-discord.md` (regles Discord)
 - `learning-knowledge/module-*/` (plans de session, exercices, syntheses)
-- `learning-knowledge/recherches/` (rapports de recherche)
 
 **Rappelle a l'utilisateur** de re-synchroniser la base de connaissances :
 ```

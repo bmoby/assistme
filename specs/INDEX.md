@@ -45,7 +45,8 @@ Le contenu pedagogique vit dans `learning-knowledge/` et est synchronise vers la
 
 | Document | Description |
 |----------|-------------|
-| [learning-knowledge/CURRICULUM.md](/learning-knowledge/CURRICULUM.md) | Structure du programme (6 modules, 24 sessions, principes pedagogiques) |
-| [learning-knowledge/GUIDE-FORMATEUR.md](/learning-knowledge/GUIDE-FORMATEUR.md) | Guide operationnel du formateur |
-| [learning-knowledge/recherches/](/learning-knowledge/recherches/) | 6 rapports de recherche (psychologie, pedagogie, structure, analogies, IA, quick-win) |
+| [learning-knowledge/programme.md](/learning-knowledge/programme.md) | Structure du programme (6 modules, 24 sessions, principes pedagogiques) |
+| [learning-knowledge/setup-etudiant.md](/learning-knowledge/setup-etudiant.md) | Guide d'installation pour les etudiants |
+| [learning-knowledge/regles-discord.md](/learning-knowledge/regles-discord.md) | Regles du serveur Discord |
 | [learning-knowledge/module-1/](/learning-knowledge/module-1/) | Plans de session detailles, exercices, visuels |
+| [docs/recherches/](/docs/recherches/) | Rapports de recherche (archives, hors indexation IA) |

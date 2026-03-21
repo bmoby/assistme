@@ -62,10 +62,11 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 | `specs/05-systeme-contenu/` | integre dans core + bots (Phase 4) |
 
 ## Contenu pedagogique
-- `learning-knowledge/CURRICULUM.md` — Structure du programme (6 modules, 24 sessions)
-- `learning-knowledge/recherches/` — Rapports de recherche qui informent le curriculum
+- `learning-knowledge/programme.md` — Structure du programme (6 modules, 24 sessions)
+- `learning-knowledge/setup-etudiant.md` — Guide d'installation pour les etudiants
+- `learning-knowledge/regles-discord.md` — Regles du serveur Discord
 - `learning-knowledge/module-*/` — Plans de session detailles, exercices, visuels
-- `learning-knowledge/GUIDE-FORMATEUR.md` — Guide operationnel du formateur
+- `docs/recherches/` — Rapports de recherche (archives, hors indexation IA)
 
 ## Commands
 - `pnpm install` — Install all dependencies
