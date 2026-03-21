@@ -16,6 +16,7 @@ import {
   searchFormationKnowledge,
 } from '../../db/formation/index.js';
 import { getEmbedding } from '../embeddings.js';
+import { createMeetEvent } from '../../google/meet.js';
 import type {
   TsaragAgentContext,
   TsaragAgentResponse,
@@ -476,7 +477,7 @@ async function handleCreateSession(
   const title = input.title as string;
   const status = (input.status as string) ?? 'published';
 
-  const session = await createSession({
+  let session = await createSession({
     session_number: sessionNumber,
     module,
     title,
@@ -489,6 +490,20 @@ async function handleCreateSession(
     live_url: input.live_url as string | undefined,
     status: status as 'draft' | 'published',
   });
+
+  // Auto-generate Google Meet link if live_at is provided
+  if (input.live_at && session.live_at) {
+    try {
+      const { meetUrl } = await createMeetEvent(
+        `Session ${sessionNumber} — ${title}`,
+        session.live_at
+      );
+      await updateSession(session.id, { live_url: meetUrl });
+      session = { ...session, live_url: meetUrl };
+    } catch (meetError) {
+      logger.warn({ error: meetError }, 'Failed to create Google Meet link for new session');
+    }
+  }
 
   // Update video URL if provided
   if (input.video_url) {
@@ -505,7 +520,8 @@ async function handleCreateSession(
       const liveUtc = parseAdminDate(input.live_at as string);
       if (liveUtc) {
         const { dateStr, timeStr } = formatDateParis(liveUtc);
-        liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (Paris)`;
+        const meetLink = session.live_url ? `\n[Присоединиться к live](${session.live_url})` : '';
+        liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (Paris)${meetLink}`;
       }
     }
 
@@ -585,7 +601,23 @@ async function handleUpdateSession(input: Record<string, unknown>, context: Tsar
   if (input.exercise_tips) updates.exercise_tips = input.exercise_tips;
   if (input.deadline) updates.deadline = parseAdminDate(input.deadline as string) ?? undefined;
   if (input.video_url) updates.pre_session_video_url = input.video_url;
-  if (input.live_at) updates.live_at = parseAdminDate(input.live_at as string) ?? undefined;
+  if (input.live_at) {
+    const liveIso = parseAdminDate(input.live_at as string);
+    if (liveIso) {
+      updates.live_at = liveIso;
+      // Auto-generate Google Meet link
+      try {
+        const sessionTitle = (input.title as string) ?? session.title;
+        const { meetUrl } = await createMeetEvent(
+          `Session ${sessionNumber} — ${sessionTitle}`,
+          liveIso
+        );
+        updates.live_url = meetUrl;
+      } catch (meetError) {
+        logger.warn({ error: meetError }, 'Failed to create Google Meet link for session update');
+      }
+    }
+  }
   if (input.live_url) updates.live_url = input.live_url;
   if (input.status) updates.status = input.status;
 
