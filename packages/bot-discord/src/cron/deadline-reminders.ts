@@ -32,8 +32,8 @@ export async function sendDeadlineReminders(client: Client, hoursBeforeDeadline:
           const isUrgent = hoursBeforeDeadline <= 24;
 
           const message = isUrgent
-            ? `⚠️ **Завтра дедлайн** по Сессии ${session.session_number} «${session.title}»!\nПоследний день. Отправь задание мне в ЛС.`
-            : `⏰ Через 2 дня дедлайн по Сессии ${session.session_number} «${session.title}».\nТы ещё не сдал(а). Нужна помощь? Напиши мне.`;
+            ? `⚠️ **Завтра последний день** сдать задание по Сессии ${session.session_number} «${session.title}»!\nОтправь задание мне в ЛС.`
+            : `📅 Через 2 дня нужно сдать задание по Сессии ${session.session_number} «${session.title}».\nТы ещё не сдал(а). Нужна помощь? Напиши мне.`;
 
           await user.send(message);
 
