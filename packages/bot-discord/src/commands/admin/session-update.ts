@@ -74,8 +74,11 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
     }
     if (deadline) {
       // Parse deadline — accept YYYY-MM-DD or YYYY-MM-DDTHH:MM
+      // Admin is in Bangkok (UTC+7), interpret as Bangkok local time
       const deadlineDate = deadline.includes('T') ? deadline : `${deadline}T20:00:00`;
-      updates.deadline = new Date(deadlineDate).toISOString();
+      const withTz = /[Zz]$/.test(deadlineDate) || /[+-]\d{2}:\d{2}$/.test(deadlineDate)
+        ? deadlineDate : `${deadlineDate}+07:00`;
+      updates.deadline = new Date(withTz).toISOString();
       changes.push('дедлайн');
     }
     if (videoUrl) {

@@ -36,7 +36,7 @@ export function formatExerciseEmbed(
     .setTitle(`${STATUS_EMOJI[exercise.status] ?? '📩'} Задание M${exercise.module}-З${exercise.exercise_number}`)
     .addFields(
       { name: 'Статус', value: exercise.status, inline: true },
-      { name: 'Отправлено', value: new Date(exercise.submitted_at).toLocaleDateString('ru-RU'), inline: true },
+      { name: 'Отправлено', value: new Date(exercise.submitted_at).toLocaleDateString('ru-RU', { timeZone: 'Europe/Paris' }), inline: true },
     )
     .setColor(exercise.status === 'approved' ? 0x00ff00 : exercise.status === 'revision_needed' ? 0xff0000 : 0xffaa00)
     .setTimestamp();
