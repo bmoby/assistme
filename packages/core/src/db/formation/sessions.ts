@@ -16,7 +16,7 @@ export async function createSession(session: {
   deadline?: string;
   discord_thread_id?: string;
   live_at?: string;
-  live_channel?: string;
+  live_url?: string;
   status?: 'draft' | 'published' | 'completed';
 }): Promise<Session> {
   const db = getSupabase();
@@ -34,7 +34,7 @@ export async function createSession(session: {
       deadline: session.deadline ?? null,
       discord_thread_id: session.discord_thread_id ?? null,
       live_at: session.live_at ?? null,
-      live_channel: session.live_channel ?? null,
+      live_url: session.live_url ?? null,
       status: session.status ?? 'draft',
     })
     .select()
