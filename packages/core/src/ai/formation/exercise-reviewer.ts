@@ -46,14 +46,16 @@ CONTENU PEDAGOGIQUE DE LA SESSION (ce qui a ete enseigne) :
 IMPORTANT : Tu evalues un PILOTE, pas un developpeur. La qualite du code n'est PAS un critere.
 Utilise le contenu pedagogique ci-dessus pour comprendre ce qui a ete enseigne et evaluer si l'etudiant a bien compris.
 
-Reponds en JSON strict :
+Reponds en JSON strict.
+Les champs "summary", "strengths" et "improvements" DOIVENT etre en RUSSE (destines a l'etudiant).
+Le champ "detailedReview" est en FRANCAIS (destine au formateur).
 {
   "score": <1-10>,
-  "strengths": ["point fort 1", "point fort 2"],
-  "improvements": ["amelioration 1", "amelioration 2"],
+  "strengths": ["сильная сторона 1", "сильная сторона 2"],
+  "improvements": ["улучшение 1", "улучшение 2"],
   "recommendation": "approve" ou "revision_needed",
-  "summary": "Resume court pour l'etudiant (2-3 phrases, bienveillant)",
-  "detailedReview": "Analyse detaillee pour le formateur (5-10 phrases)"
+  "summary": "Краткое резюме для студента (2-3 предложения, доброжелательно, НА РУССКОМ)",
+  "detailedReview": "Analyse detaillee pour le formateur (5-10 phrases, EN FRANCAIS)"
 }`;
 
 let anthropicClient: Anthropic | null = null;
@@ -94,10 +96,12 @@ export async function reviewExercise(params: {
     try {
       const knowledge = await getKnowledgeBySession(params.sessionNumber);
       if (knowledge.length > 0) {
+        const priority: Record<string, number> = { exercise: 0, lesson_plan: 1, concept: 2, pedagogical_note: 3, research: 4, setup_guide: 5 };
         sessionKnowledge = knowledge
+          .sort((a, b) => (priority[a.content_type] ?? 99) - (priority[b.content_type] ?? 99))
           .map((k) => `[${k.content_type}] ${k.title}\n${k.content}`)
           .join('\n\n---\n\n')
-          .slice(0, 4000);
+          .slice(0, 8000);
       }
     } catch (err) {
       logger.debug({ err }, 'Failed to load session knowledge for exercise review (non-critical)');
@@ -185,10 +189,10 @@ export async function reviewExercise(params: {
 
     return {
       score: 5,
-      strengths: ['Exercice soumis dans les temps'],
-      improvements: ['Review automatique indisponible — review manuelle necessaire'],
+      strengths: ['\u0417\u0430\u0434\u0430\u043d\u0438\u0435 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e \u0432\u043e\u0432\u0440\u0435\u043c\u044f'],
+      improvements: ['\u0410\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u2014 \u0442\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044f \u0440\u0443\u0447\u043d\u0430\u044f \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430'],
       recommendation: 'revision_needed',
-      summary: 'La review automatique n\'a pas pu analyser ta soumission. Le formateur va regarder manuellement.',
+      summary: '\u0410\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0430 \u043d\u0435 \u0441\u043c\u043e\u0433\u043b\u0430 \u043f\u0440\u043e\u0430\u043d\u0430\u043b\u0438\u0437\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0442\u0432\u043e\u044e \u0440\u0430\u0431\u043e\u0442\u0443. \u041f\u0440\u0435\u043f\u043e\u0434\u0430\u0432\u0430\u0442\u0435\u043b\u044c \u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442 \u0432\u0440\u0443\u0447\u043d\u0443\u044e.',
       detailedReview: `Review automatique echouee. Reponse brute de l'IA :\n${response.slice(0, 500)}`,
     };
   }

@@ -54,7 +54,7 @@ export async function getAttachmentsByExercise(exerciseId: string): Promise<Subm
   return (data ?? []) as SubmissionAttachment[];
 }
 
-export async function getSignedUrl(storagePath: string, expiresIn = 3600): Promise<string> {
+export async function getSignedUrl(storagePath: string, expiresIn = 604800): Promise<string> {
   const db = getSupabase();
   const { data, error } = await db.storage
     .from('exercise-submissions')

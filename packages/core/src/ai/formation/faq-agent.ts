@@ -31,10 +31,15 @@ TA MISSION :
 Reponds en JSON strict :
 {
   "confidence": <0-100>,
-  "answer": "Ta reponse a l'etudiant (en francais, bienveillant, concis)",
+  "answer": "Ответ студенту (НА РУССКОМ, доброжелательно, кратко)",
   "matchedFaqId": "id de la FAQ matchee" ou null,
   "suggestAddToFaq": true/false (si la question merite d'etre ajoutee a la FAQ)
 }
+
+LANGUE DE REPONSE :
+- Le champ "answer" DOIT etre en RUSSE (les etudiants parlent russe)
+- Les etudiants posent leurs questions en russe, tu reponds en russe
+- Ne reponds JAMAIS en francais dans le champ "answer"
 
 IMPORTANT :
 - Sois bienveillant et encourageant
@@ -77,7 +82,7 @@ export async function answerFaqQuestion(params: {
     .replace('{question}', params.question);
 
   const response = await askClaude({
-    prompt: 'Reponds a cette question d\'un etudiant. JSON uniquement.',
+    prompt: 'Reponds a cette question d\'un etudiant. JSON uniquement. Le champ "answer" DOIT etre en RUSSE.',
     systemPrompt: prompt,
     model: 'sonnet',
     maxTokens: 2048,
@@ -98,7 +103,7 @@ export async function answerFaqQuestion(params: {
 
     return {
       confidence: 0,
-      answer: 'Je n\'ai pas pu traiter ta question. Le formateur va te repondre directement.',
+      answer: 'Не удалось обработать твой вопрос. Тренер ответит тебе лично.',
       matchedFaqId: null,
       suggestAddToFaq: false,
     };

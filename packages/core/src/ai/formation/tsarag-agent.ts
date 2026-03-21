@@ -63,12 +63,59 @@ ZERO amelioration. Si c'est en russe, tu le passes en russe. Si c'est en francai
 Tu ne traduis PAS, tu ne reorganises PAS, tu ne "completes" PAS.
 Tu es un relai fidele, pas un redacteur. Si une info manque, DEMANDE-LA au lieu d'inventer.
 
+INTERDIT :
+- Ne remplis JAMAIS un champ avec du contenu invente
+- Ne propose JAMAIS un texte "ameliore" sans qu'on te le demande
+- Si l'utilisateur n'a pas fourni une info, le champ reste vide (ne mets rien)
+- Ne melange JAMAIS les infos de sessions differentes
+
+FLOW CREATION DE SESSION :
+Quand l'utilisateur veut creer une session, suis ce flow :
+
+1. Demande les infos MANQUANTES une par une (ou accepte plusieurs d'un coup)
+2. Apres CHAQUE reponse de l'utilisateur, affiche le template mis a jour :
+
+📋 Session {N} — Модуль {M}
+━━━━━━━━━━━━━━━━━━━━━
+Название: {titre ou ❌}
+Тема: {description ou ❌}
+🎬 Видео: {url ou —}
+🟢 Live: {date + канал ou —}
+📝 Задание: {description ou ❌}
+📦 Что сдать: {deliverables ou ❌}
+💡 Советы: {tips ou —}
+⏰ Дедлайн: {date ou —}
+━━━━━━━━━━━━━━━━━━━━━
+
+3. Quand tous les champs obligatoires (❌) sont remplis, propose la confirmation
+4. N'appelle propose_action QUE quand le template est complet et confirme
+5. Les champs avec — sont optionnels, ne les invente JAMAIS
+6. Si l'utilisateur dit "aide-moi" pour un champ, propose des suggestions MAIS laisse-le choisir
+
 REGLES :
 - N'appelle JAMAIS execute_pending sans confirmation explicite de l'utilisateur dans le DERNIER message
 - Quand tu generes du contenu etudiant (annonces, DM, posts forum), genere-le en russe
 - Si un etudiant n'est pas trouve, demande de preciser le nom
 - Si plusieurs exercices en attente pour un etudiant, liste-les et demande lequel traiter
 - Si execute_pending retourne already_executed, ne retente PAS`;
+
+// ============================================
+// Helpers
+// ============================================
+
+/** Heuristic: check if text is mostly Cyrillic (Russian) */
+function looksRussian(text: string): boolean {
+  const cyrillicCount = (text.match(/[\u0400-\u04FF]/g) ?? []).length;
+  const latinCount = (text.match(/[a-zA-Z]/g) ?? []).length;
+  const totalAlpha = cyrillicCount + latinCount;
+  if (totalAlpha < 5) return true; // Too short to tell, allow it
+  return cyrillicCount >= latinCount;
+}
+
+const STUDENT_FACING_FIELDS = [
+  'title', 'description', 'exercise_description',
+  'expected_deliverables', 'exercise_tips', 'text', 'message', 'feedback',
+];
 
 // ============================================
 // Tool definitions
@@ -173,13 +220,15 @@ const PROPOSE_ACTION_TOOL: Anthropic.Messages.Tool = {
   name: 'propose_action',
   description: `Proposer une operation d'ecriture. Le systeme la stocke et attend la confirmation de l'utilisateur.
 
+LANGUE : TOUS les champs contenant du texte visible aux etudiants (title, description, exercise_description, expected_deliverables, exercise_tips, text, message, feedback) DOIVENT etre en RUSSE. Le champ "summary" est en francais (destine a l'admin).
+
 Types d'actions et parametres attendus dans "params" :
-- send_announcement: { text: string (russe), mention_students?: boolean }
-- create_session: { session_number: int, module: int, title: string, description?: string, exercise_description?: string, expected_deliverables?: string, exercise_tips?: string, deadline?: string (ISO), video_url?: string, live_at?: string (ISO, date+heure du live), live_channel?: string (nom du canal Discord), status?: "draft"|"published" }
+- send_announcement: { text: string (RUSSE), mention_students?: boolean }
+- create_session: { session_number: int, module: int, title: string (RUSSE), description?: string (RUSSE), exercise_description?: string (RUSSE), expected_deliverables?: string (RUSSE), exercise_tips?: string (RUSSE), deadline?: string (ISO), video_url?: string, live_at?: string (ISO, date+heure du live), live_channel?: string (nom du canal Discord), status?: "draft"|"published" }
 - update_session: { session_number: int, + champs a modifier (memes champs que create_session) }
-- approve_exercise: { student_name: string, feedback?: string (russe), exercise_id?: string }
-- request_revision: { student_name: string, feedback: string (russe), exercise_id?: string }
-- dm_student: { student_name: string, message: string (russe) }`,
+- approve_exercise: { student_name: string, feedback?: string (RUSSE), exercise_id?: string }
+- request_revision: { student_name: string, feedback: string (RUSSE), exercise_id?: string }
+- dm_student: { student_name: string, message: string (RUSSE) }`,
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -552,11 +601,12 @@ async function handleApproveExercise(
     },
   });
 
-  // DM the student
+  // DM the student — report delivery status
+  let dmSent = false;
   if (student.discord_id) {
     const dmText = `\u2705 **\u0417\u0430\u0434\u0430\u043d\u0438\u0435 \u043e\u0434\u043e\u0431\u0440\u0435\u043d\u043e!** M${exercise.module}-\u0417${exercise.exercise_number}\n` +
       (feedback ? `\n\ud83d\udcac \u041e\u0442\u0437\u044b\u0432: ${feedback}` : '\n\u0425\u043e\u0440\u043e\u0448\u0430\u044f \u0440\u0430\u0431\u043e\u0442\u0430!');
-    await context.discordActions.dmStudent(student.discord_id, dmText);
+    dmSent = await context.discordActions.dmStudent(student.discord_id, dmText);
   }
 
   return JSON.stringify({
@@ -564,6 +614,9 @@ async function handleApproveExercise(
     student_name: student.name,
     module: exercise.module,
     exercise_number: exercise.exercise_number,
+    dm_sent: dmSent,
+    ...((!student.discord_id) && { warning: 'Etudiant sans Discord ID — DM non envoye' }),
+    ...(student.discord_id && !dmSent && { warning: 'DM non delivre — l\'etudiant a peut-etre bloque les DMs' }),
   });
 }
 
@@ -623,10 +676,11 @@ async function handleRequestRevision(
     },
   });
 
-  // DM the student
+  // DM the student — report delivery status
+  let dmSent = false;
   if (student.discord_id) {
     const dmText = `\ud83d\udd04 **\u0417\u0430\u0434\u0430\u043d\u0438\u0435 \u043d\u0430 \u0434\u043e\u0440\u0430\u0431\u043e\u0442\u043a\u0443** M${exercise.module}-\u0417${exercise.exercise_number}\n\n\ud83d\udcac ${feedback}`;
-    await context.discordActions.dmStudent(student.discord_id, dmText);
+    dmSent = await context.discordActions.dmStudent(student.discord_id, dmText);
   }
 
   return JSON.stringify({
@@ -634,6 +688,9 @@ async function handleRequestRevision(
     student_name: student.name,
     module: exercise.module,
     exercise_number: exercise.exercise_number,
+    dm_sent: dmSent,
+    ...((!student.discord_id) && { warning: 'Etudiant sans Discord ID — DM non envoye' }),
+    ...(student.discord_id && !dmSent && { warning: 'DM non delivre — l\'etudiant a peut-etre bloque les DMs' }),
   });
 }
 
@@ -841,7 +898,20 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
             const params = input.params as Record<string, unknown>;
             const summary = input.summary as string;
             proposedAction = { type: actionType, params, summary, id: randomUUID() };
-            result = JSON.stringify({ proposed: true, summary });
+
+            // Warn if student-facing fields don't look Russian
+            const langWarnings: string[] = [];
+            for (const field of STUDENT_FACING_FIELDS) {
+              const value = params[field];
+              if (typeof value === 'string' && value.length > 0 && !looksRussian(value)) {
+                langWarnings.push(`"${field}" ne semble pas en russe`);
+              }
+            }
+            const warningNote = langWarnings.length > 0
+              ? `\n\n⚠️ ATTENTION LANGUE : ${langWarnings.join('; ')}. Les etudiants parlent russe.`
+              : '';
+
+            result = JSON.stringify({ proposed: true, summary: summary + warningNote });
             break;
           }
 
