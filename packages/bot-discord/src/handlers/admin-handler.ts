@@ -18,7 +18,7 @@ interface AdminConversationState {
 const conversations = new Map<string, AdminConversationState>();
 const processingLocks = new Map<string, Promise<void>>();
 
-const MAX_MESSAGES = 50;
+const MAX_MESSAGES = 30;
 const CONVERSATION_TTL = 60 * 60 * 1000; // 60 min
 
 // ============================================
@@ -161,6 +161,8 @@ async function processAdminMessage(message: Message): Promise<void> {
     // Track executed action ID (layer 2 — idempotency)
     if (result.executedActionId) {
       conv.executedActionIds.add(result.executedActionId);
+      // Reset conversation to avoid context pollution from previous session
+      conv.messages = conv.messages.slice(-4);
     }
 
     // Store full turn history (layer 1 — tool_use + tool_result + final text)

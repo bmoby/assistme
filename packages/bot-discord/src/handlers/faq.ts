@@ -22,13 +22,26 @@ export function setupFaqHandler(client: Client): void {
       try {
         const repliedTo = await message.channel.messages.fetch(message.reference.messageId!);
         if (repliedTo && !repliedTo.author.bot) {
-          await createFaqEntry({
-            question: repliedTo.content,
-            answer: message.content,
-            category: 'general',
-            created_by: isAdmin(message) ? 'formateur' : 'mentor',
+          // Deduplicate: check if a similar FAQ already exists
+          const existingFaq = await getAllFaqEntries();
+          const questionLower = repliedTo.content.toLowerCase();
+          const isDuplicate = existingFaq.some((f) => {
+            const existingLower = f.question.toLowerCase();
+            return existingLower.includes(questionLower.slice(0, 50))
+              || questionLower.includes(existingLower.slice(0, 50));
           });
-          await message.react('📝');
+
+          if (!isDuplicate) {
+            await createFaqEntry({
+              question: repliedTo.content,
+              answer: message.content,
+              category: 'general',
+              created_by: isAdmin(message) ? 'formateur' : 'mentor',
+            });
+            await message.react('\ud83d\udcdd');
+          } else {
+            await message.react('\u2705');
+          }
         }
       } catch (err) {
         logger.warn({ err }, 'Could not auto-add FAQ from admin reply');

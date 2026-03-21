@@ -72,7 +72,7 @@ admin-handler met a jour la conversation + envoie la reponse
 
 | Champ | Type | Detail |
 |-------|------|--------|
-| `messages` | `AdminConversationMessage[]` | Historique complet (user + assistant + tool_use + tool_result). Max 50 messages. |
+| `messages` | `AdminConversationMessage[]` | Historique complet (user + assistant + tool_use + tool_result). Max 30 messages. |
 | `pendingAction` | `PendingAction \| null` | Action proposee en attente de confirmation. |
 | `executedActionIds` | `Set<string>` | UUIDs des actions deja executees (protection idempotency). |
 | `lastActivityAt` | `Date` | Timestamp derniere activite. TTL 60 min. |
@@ -105,14 +105,16 @@ Le pattern propose/confirm/execute garantit que l'admin valide avant toute opera
 
 Propose une operation d'ecriture. Stocke l'action en attente avec un UUID unique.
 
+**Validation de langue :** les champs destines aux etudiants (title, description, exercise_description, expected_deliverables, exercise_tips, text, message, feedback) sont verifies par une heuristique cyrillique. Si un champ semble ne pas etre en russe, un warning est ajoute au resume pour alerter l'admin.
+
 **Types d'actions :**
 
 | Type | Parametres | Effet |
 |------|------------|-------|
 | `create_session` | session_number, module, title, description?, exercise_description?, expected_deliverables?, exercise_tips?, deadline?, video_url?, status? | Cree session en DB + post Forum + annonce Discord |
 | `update_session` | session_number, + champs a modifier | Met a jour session en DB |
-| `approve_exercise` | student_name, feedback? (russe), exercise_id? | Approuve exercice + DM etudiant + event Telegram |
-| `request_revision` | student_name, feedback (russe), exercise_id? | Demande revision + DM etudiant + event Telegram |
+| `approve_exercise` | student_name, feedback? (russe), exercise_id? | Approuve exercice + DM etudiant + event Telegram. Retourne `dm_sent` + warning si echec DM. |
+| `request_revision` | student_name, feedback (russe), exercise_id? | Demande revision + DM etudiant + event Telegram. Retourne `dm_sent` + warning si echec DM. |
 | `send_announcement` | text (russe), mention_students? | Poste dans #annonces |
 | `dm_student` | student_name, message (russe) | Envoie un DM a l'etudiant |
 

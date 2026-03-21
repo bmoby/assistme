@@ -112,11 +112,11 @@ Reference detaillee : `learning-knowledge/programme.md`
 
 ### 6.1 FAQ Automatique (#faq)
 
-1. Etudiant pose une question dans #faq
-2. Bot analyse avec Claude API (`core/src/ai/formation/faq-agent.ts`)
-3. Si reponse connue (confidence > 70%) → repond automatiquement
-4. Si pas sur → "Je transfere au formateur"
-5. Reponse du formateur ajoutee a la base automatiquement
+1. Etudiant pose une question en russe dans #faq
+2. Bot analyse avec Claude API (`core/src/ai/formation/faq-agent.ts`) — recherche hybride dans la base FAQ + formation_knowledge
+3. Si reponse connue (confidence > 70%) → repond automatiquement **en russe**
+4. Si pas sur → "Я не уверен в ответе. Тренер ответит тебе лично." + event `student_alert` pour l'admin
+5. Reponse du formateur/mentor ajoutee a la base automatiquement (avec deduplication — les questions similaires ne creent pas de doublons)
 
 ### 6.2 Soumission d'exercices (#exercices)
 
@@ -285,7 +285,7 @@ Les bots communiquent via une table `events` dans Supabase (pas d'appels directs
 - Agent de pre-review d'exercices (`core/src/ai/formation/exercise-reviewer.ts`) ✅
 - Agent FAQ (`core/src/ai/formation/faq-agent.ts`) ✅
 - **Agent DM conversationnel** (`core/src/ai/formation/dm-agent.ts`) ✅ — voir `SPEC-DM-AGENT.md`
-  - Claude tool_use avec 4 outils (get_student_progress, get_session_exercise, create_submission, get_pending_feedback)
+  - Claude tool_use avec 5 outils (get_student_progress, get_session_exercise, create_submission, get_pending_feedback, search_course_content)
   - System prompt en russe, boucle d'execution des outils
   - Remplace les commandes `/submit` et `/progress` pour les etudiants
 
