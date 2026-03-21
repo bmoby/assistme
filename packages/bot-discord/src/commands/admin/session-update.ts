@@ -73,12 +73,20 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
       changes.push('формат');
     }
     if (deadline) {
-      // Parse deadline — accept YYYY-MM-DD or YYYY-MM-DDTHH:MM
+      // Parse deadline — accept JJ/MM/AAAA HH:MM or YYYY-MM-DD(THH:MM)
       // Admin is in Bangkok (UTC+7), interpret as Bangkok local time
-      const deadlineDate = deadline.includes('T') ? deadline : `${deadline}T20:00:00`;
-      const withTz = /[Zz]$/.test(deadlineDate) || /[+-]\d{2}:\d{2}$/.test(deadlineDate)
-        ? deadlineDate : `${deadlineDate}+07:00`;
-      updates.deadline = new Date(withTz).toISOString();
+      const ddmmMatch = deadline.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
+      let isoUtc: string;
+      if (ddmmMatch) {
+        const [, dd, mm, yyyy, hh, min] = ddmmMatch;
+        isoUtc = new Date(`${yyyy}-${mm}-${dd}T${hh}:${min}:00+07:00`).toISOString();
+      } else {
+        const deadlineDate = deadline.includes('T') ? deadline : `${deadline}T20:00:00`;
+        const withTz = /[Zz]$/.test(deadlineDate) || /[+-]\d{2}:\d{2}$/.test(deadlineDate)
+          ? deadlineDate : `${deadlineDate}+07:00`;
+        isoUtc = new Date(withTz).toISOString();
+      }
+      updates.deadline = isoUtc;
       changes.push('дедлайн');
     }
     if (videoUrl) {

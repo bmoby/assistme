@@ -69,7 +69,7 @@ export async function handleSession(interaction: ChatInputCommandInteraction): P
             '',
             '📋 **ЗАДАНИЕ:**',
             '_(добавить описание задания)_',
-            '⏰ Дедлайн: _(добавить)_',
+            '📅 Сдать задание до: _(добавить)_',
             '',
             '🔴 **REPLAY:**',
             'Будет добавлен после эфира',

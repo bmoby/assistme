@@ -69,6 +69,14 @@ INTERDIT :
 - Si l'utilisateur n'a pas fourni une info, le champ reste vide (ne mets rien)
 - Ne melange JAMAIS les infos de sessions differentes
 
+REGLE CRITIQUE — DATES :
+Les champs de date (deadline, live_at) ne sont JAMAIS generes par toi.
+- Tu ne convertis PAS "demain", "lundi prochain", "dans 3 jours" en date. DEMANDE le format exact.
+- L'admin DOIT taper la date au format : JJ/MM/AAAA HH:MM (ex: 23/03/2026 20:00)
+- Si l'admin donne une date floue ("demain a 20h", "mardi"), reponds : "Donne-moi la date exacte au format JJ/MM/AAAA HH:MM"
+- Tu recopies la date TELLE QUELLE dans les params. Le systeme gere la conversion.
+- L'heure fournie est en heure de Bangkok (ou l'admin se trouve). L'affichage aux etudiants sera en heure de Paris.
+
 FLOW CREATION DE SESSION :
 Quand l'utilisateur veut creer une session, suis ce flow :
 
@@ -84,7 +92,7 @@ Quand l'utilisateur veut creer une session, suis ce flow :
 📝 Задание: {description ou ❌}
 📦 Что сдать: {deliverables ou ❌}
 💡 Советы: {tips ou —}
-⏰ Дедлайн: {date ou —}
+📅 Сдать до: {date ou —}
 ━━━━━━━━━━━━━━━━━━━━━
 
 3. Quand tous les champs obligatoires (❌) sont remplis, propose la confirmation
@@ -118,21 +126,38 @@ const STUDENT_FACING_FIELDS = [
 ];
 
 /** Timezone constants for formation */
-const ADMIN_TZ = 'Asia/Bangkok';     // Admin input timezone
 const DISPLAY_TZ = 'Europe/Paris';   // Student-facing display timezone
+const BANGKOK_OFFSET = '+07:00';
+
+/** Expected admin date format: JJ/MM/AAAA HH:MM */
+const ADMIN_DATE_REGEX = /^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/;
 
 /**
- * Interpret a datetime string as Bangkok local time, return UTC ISO string.
- * The AI may output "2026-03-23T20:00:00", "2026-03-23T20:00" or with an offset.
- * If no offset is present, we assume Bangkok (UTC+7).
+ * Parse admin date (JJ/MM/AAAA HH:MM, Bangkok time) → UTC ISO string.
+ * Also accepts ISO formats as fallback for programmatic use.
+ * Returns null if the format is invalid.
  */
-function toUTCFromAdmin(dateStr: string): string {
-  // If the string already has a timezone offset (Z, +XX:XX, -XX:XX), use as-is
-  if (/[Zz]$/.test(dateStr) || /[+-]\d{2}:\d{2}$/.test(dateStr)) {
-    return new Date(dateStr).toISOString();
+function parseAdminDate(dateStr: string): string | null {
+  // Format attendu: JJ/MM/AAAA HH:MM (Bangkok)
+  const match = dateStr.match(ADMIN_DATE_REGEX);
+  if (match) {
+    const [, day, month, year, hour, minute] = match;
+    const iso = `${year}-${month}-${day}T${hour}:${minute}:00${BANGKOK_OFFSET}`;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString();
   }
-  // No offset — interpret as Bangkok time (UTC+7)
-  return new Date(dateStr + '+07:00').toISOString();
+
+  // Fallback: ISO format (from slash commands or programmatic use)
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    const withTz = /[Zz]$/.test(dateStr) || /[+-]\d{2}:\d{2}$/.test(dateStr)
+      ? dateStr : dateStr + BANGKOK_OFFSET;
+    const d = new Date(withTz);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
+  return null; // Invalid format
 }
 
 /** Format a UTC date for student-facing display (Paris timezone, Russian locale) */
@@ -459,8 +484,8 @@ async function handleCreateSession(
     exercise_description: input.exercise_description as string | undefined,
     expected_deliverables: input.expected_deliverables as string | undefined,
     exercise_tips: input.exercise_tips as string | undefined,
-    deadline: input.deadline ? toUTCFromAdmin(input.deadline as string) : undefined,
-    live_at: input.live_at ? toUTCFromAdmin(input.live_at as string) : undefined,
+    deadline: input.deadline ? parseAdminDate(input.deadline as string) ?? undefined : undefined,
+    live_at: input.live_at ? parseAdminDate(input.live_at as string) ?? undefined : undefined,
     live_channel: input.live_channel as string | undefined,
     status: status as 'draft' | 'published',
   });
@@ -477,10 +502,12 @@ async function handleCreateSession(
     // Format live date for display
     let liveInfo: string | null = null;
     if (input.live_at) {
-      const liveUtc = toUTCFromAdmin(input.live_at as string);
-      const { dateStr, timeStr } = formatDateParis(liveUtc);
-      const channelStr = input.live_channel ? ` в канале **${input.live_channel as string}**` : '';
-      liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (Paris)${channelStr}`;
+      const liveUtc = parseAdminDate(input.live_at as string);
+      if (liveUtc) {
+        const { dateStr, timeStr } = formatDateParis(liveUtc);
+        const channelStr = input.live_channel ? ` в канале **${input.live_channel as string}**` : '';
+        liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (Paris)${channelStr}`;
+      }
     }
 
     // Build clean, readable forum post with proper spacing
@@ -509,9 +536,11 @@ async function handleCreateSession(
 
     // Deadline — display in Paris time
     if (input.deadline) {
-      const deadlineUtc = toUTCFromAdmin(input.deadline as string);
-      const { dateStr: dlDate, timeStr: dlTime } = formatDateParis(deadlineUtc);
-      sections.push(`\u23f0 **\u0414\u0435\u0434\u043b\u0430\u0439\u043d:** ${dlDate}, ${dlTime} (Paris)`);
+      const deadlineUtc = parseAdminDate(input.deadline as string);
+      if (deadlineUtc) {
+        const { dateStr: dlDate, timeStr: dlTime } = formatDateParis(deadlineUtc);
+        sections.push(`\ud83d\udcc5 **\u0421\u0434\u0430\u0442\u044c \u0437\u0430\u0434\u0430\u043d\u0438\u0435 \u0434\u043e:** ${dlDate}, ${dlTime} (Paris)`);
+      }
     }
 
     const forumContent = sections.join('\n\n');
@@ -555,9 +584,9 @@ async function handleUpdateSession(input: Record<string, unknown>, context: Tsar
   if (input.exercise_description) updates.exercise_description = input.exercise_description;
   if (input.expected_deliverables) updates.expected_deliverables = input.expected_deliverables;
   if (input.exercise_tips) updates.exercise_tips = input.exercise_tips;
-  if (input.deadline) updates.deadline = toUTCFromAdmin(input.deadline as string);
+  if (input.deadline) updates.deadline = parseAdminDate(input.deadline as string) ?? undefined;
   if (input.video_url) updates.pre_session_video_url = input.video_url;
-  if (input.live_at) updates.live_at = toUTCFromAdmin(input.live_at as string);
+  if (input.live_at) updates.live_at = parseAdminDate(input.live_at as string) ?? undefined;
   if (input.live_channel) updates.live_channel = input.live_channel;
   if (input.status) updates.status = input.status;
 
@@ -926,6 +955,25 @@ export async function runTsaragAgent(context: TsaragAgentContext): Promise<Tsara
             const params = input.params as Record<string, unknown>;
             const summary = input.summary as string;
             proposedAction = { type: actionType, params, summary, id: randomUUID() };
+
+            // Validate date fields — must be in format JJ/MM/AAAA HH:MM or valid ISO
+            const DATE_FIELDS = ['deadline', 'live_at'];
+            const dateErrors: string[] = [];
+            for (const field of DATE_FIELDS) {
+              const value = params[field];
+              if (typeof value === 'string' && value.length > 0) {
+                if (!parseAdminDate(value)) {
+                  dateErrors.push(`"${field}": "${value}" — format invalide. Attendu: JJ/MM/AAAA HH:MM`);
+                }
+              }
+            }
+            if (dateErrors.length > 0) {
+              result = JSON.stringify({
+                error: 'invalid_date_format',
+                message: `Format de date invalide :\n${dateErrors.join('\n')}\nDemande a l'admin le format exact : JJ/MM/AAAA HH:MM`,
+              });
+              break;
+            }
 
             // Warn if student-facing fields don't look Russian
             const langWarnings: string[] = [];
