@@ -54,6 +54,20 @@ export async function getAttachmentsByExercise(exerciseId: string): Promise<Subm
   return (data ?? []) as SubmissionAttachment[];
 }
 
+export async function getSignedUrl(storagePath: string, expiresIn = 3600): Promise<string> {
+  const db = getSupabase();
+  const { data, error } = await db.storage
+    .from('exercise-submissions')
+    .createSignedUrl(storagePath, expiresIn);
+
+  if (error) {
+    logger.error({ error, storagePath }, 'Failed to create signed URL');
+    throw error;
+  }
+
+  return data.signedUrl;
+}
+
 export async function deleteAttachment(id: string): Promise<void> {
   const db = getSupabase();
   const { error } = await db

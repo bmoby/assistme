@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { searchStudentByName, getExercisesByStudent } from '@assistme/core';
+import { searchStudentByName, getExercisesByStudent, getAttachmentsByExercise } from '@assistme/core';
 import { logger } from '@assistme/core';
 import { isAdmin, isMentor } from '../../utils/auth.js';
 import { formatExerciseEmbed } from '../../utils/format.js';
@@ -43,7 +43,17 @@ export async function handleReview(interaction: ChatInputCommandInteraction): Pr
     }
 
     const roleLabel = mentor && !admin ? ' (только просмотр)' : '';
-    const embeds = pending.slice(0, 5).map((e) => formatExerciseEmbed(e, student.name));
+    const displayed = pending.slice(0, 5);
+    const attachmentsMap = await Promise.all(
+      displayed.map(async (e) => {
+        try {
+          return await getAttachmentsByExercise(e.id);
+        } catch {
+          return [];
+        }
+      })
+    );
+    const embeds = displayed.map((e, i) => formatExerciseEmbed(e, student.name, attachmentsMap[i]));
     await interaction.reply({
       content: `**${pending.length} задание(й) на проверку у ${student.name}**${roleLabel}:`,
       embeds,

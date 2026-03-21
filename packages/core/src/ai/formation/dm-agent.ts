@@ -6,10 +6,12 @@ import {
   getPublishedSessions,
   getSessionByNumber,
   addAttachment,
+  getSignedUrl,
   createFormationEvent,
   searchFormationKnowledge,
 } from '../../db/formation/index.js';
-import { submitExercise } from '../../db/formation/exercises.js';
+import { submitExercise, setAiReview } from '../../db/formation/exercises.js';
+import { reviewExercise } from './exercise-reviewer.js';
 import { getEmbedding } from '../embeddings.js';
 import type { Student, Session, StudentExercise, AttachmentType } from '../../types/index.js';
 
@@ -23,10 +25,12 @@ export interface ConversationMessage {
 }
 
 export interface PendingAttachment {
-  storagePath: string;
+  buffer: Buffer | null;
+  url: string | null;
   originalFilename: string;
   mimeType: string;
   type: AttachmentType;
+  fileSize: number;
 }
 
 export interface DmAgentContext {
@@ -228,6 +232,69 @@ async function handleGetSessionExercise(
   });
 }
 
+async function uploadFileToStorage(
+  buffer: Buffer,
+  studentId: string,
+  sessionNumber: number,
+  filename: string,
+  mimeType: string
+): Promise<string> {
+  const { getSupabase } = await import('../../db/client.js');
+  const db = getSupabase();
+
+  const timestamp = Date.now();
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `${studentId}/session-${sessionNumber}/${timestamp}-${safeName}`;
+
+  const { error } = await db.storage
+    .from('exercise-submissions')
+    .upload(storagePath, buffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (error) {
+    logger.error({ error, storagePath }, 'Failed to upload to Supabase Storage');
+    throw error;
+  }
+
+  logger.info({ storagePath, size: buffer.length }, 'File uploaded to Supabase Storage');
+  return storagePath;
+}
+
+async function triggerAiReview(
+  exerciseId: string,
+  student: Student,
+  session: Session,
+  storagePaths: string[]
+): Promise<void> {
+  const attachments: Array<{ signedUrl: string; type: AttachmentType; filename: string; mimeType: string }> = [];
+
+  for (const path of storagePaths) {
+    const signedUrl = await getSignedUrl(path, 3600);
+    const filename = path.split('/').pop() ?? 'file';
+    const isImage = /\.(png|jpe?g|webp|gif)$/i.test(filename);
+    attachments.push({
+      signedUrl,
+      type: isImage ? 'image' : 'file',
+      filename,
+      mimeType: isImage ? `image/${filename.split('.').pop()}` : 'application/octet-stream',
+    });
+  }
+
+  const result = await reviewExercise({
+    module: session.module,
+    exerciseNumber: session.session_number,
+    exerciseDescription: session.exercise_description ?? undefined,
+    studentName: student.name,
+    sessionNumber: session.session_number,
+    attachments,
+  });
+
+  await setAiReview(exerciseId, result as unknown as Record<string, unknown>);
+  logger.info({ exerciseId, score: result.score }, 'AI review completed and saved');
+}
+
 async function handleCreateSubmission(
   sessionNumber: number,
   studentComment: string | undefined,
@@ -244,12 +311,39 @@ async function handleCreateSubmission(
     return JSON.stringify({ error: 'session_not_published' });
   }
 
+  // Double-submit check: block if already submitted/ai_reviewed for this session
+  const existingExercises = await getExercisesByStudent(student.id);
+  const activeForSession = existingExercises.find(
+    (e) => e.session_id === session.id && (e.status === 'submitted' || e.status === 'ai_reviewed')
+  );
+  if (activeForSession) {
+    return JSON.stringify({
+      error: 'already_submitted',
+      message: 'Задание по этой сессии уже на проверке, дождись результата.',
+    });
+  }
+
+  // Upload files to storage
+  const storagePaths: string[] = [];
+  for (const attachment of pendingAttachments) {
+    if (attachment.buffer && attachment.type !== 'url') {
+      const path = await uploadFileToStorage(
+        attachment.buffer,
+        student.id,
+        sessionNumber,
+        attachment.originalFilename,
+        attachment.mimeType
+      );
+      storagePaths.push(path);
+    }
+  }
+
   // Create the exercise submission
   const exercise = await submitExercise({
     student_id: student.id,
     module: session.module,
     exercise_number: session.session_number,
-    submission_url: pendingAttachments.find((a) => a.type === 'url')?.storagePath ?? '',
+    submission_url: pendingAttachments.find((a) => a.type === 'url')?.url ?? '',
     submission_type: pendingAttachments.length > 0
       ? pendingAttachments.map((a) => a.type).join('+')
       : 'text',
@@ -261,16 +355,39 @@ async function handleCreateSubmission(
   await db.from('student_exercises').update({ session_id: session.id }).eq('id', exercise.id);
 
   // Create attachment records
+  let storageIdx = 0;
   for (const attachment of pendingAttachments) {
-    await addAttachment({
-      exercise_id: exercise.id,
-      type: attachment.type,
-      url: attachment.type === 'url' ? attachment.storagePath : undefined,
-      storage_path: attachment.type !== 'url' ? attachment.storagePath : undefined,
-      original_filename: attachment.originalFilename,
-      mime_type: attachment.mimeType,
-      text_content: attachment.type === 'text' ? attachment.storagePath : undefined,
-    });
+    if (attachment.type === 'url') {
+      await addAttachment({
+        exercise_id: exercise.id,
+        type: 'url',
+        url: attachment.url ?? undefined,
+        original_filename: attachment.originalFilename,
+        mime_type: attachment.mimeType,
+        file_size: attachment.fileSize,
+      });
+    } else if (attachment.type === 'text') {
+      await addAttachment({
+        exercise_id: exercise.id,
+        type: 'text',
+        storage_path: storagePaths[storageIdx],
+        original_filename: attachment.originalFilename,
+        mime_type: attachment.mimeType,
+        file_size: attachment.fileSize,
+        text_content: attachment.buffer?.toString('utf-8'),
+      });
+      storageIdx++;
+    } else {
+      await addAttachment({
+        exercise_id: exercise.id,
+        type: attachment.type,
+        storage_path: storagePaths[storageIdx],
+        original_filename: attachment.originalFilename,
+        mime_type: attachment.mimeType,
+        file_size: attachment.fileSize,
+      });
+      storageIdx++;
+    }
   }
 
   // Create event for Telegram notification
@@ -293,6 +410,13 @@ async function handleCreateSubmission(
     { studentId: student.id, sessionNumber, exerciseId: exercise.id, attachments: pendingAttachments.length },
     'Exercise submitted via DM agent'
   );
+
+  // Fire-and-forget AI review
+  if (storagePaths.length > 0) {
+    void triggerAiReview(exercise.id, student, session, storagePaths).catch((err) =>
+      logger.error({ err, exerciseId: exercise.id }, 'AI review failed (non-blocking)')
+    );
+  }
 
   return JSON.stringify({
     success: true,

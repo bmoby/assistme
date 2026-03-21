@@ -1,5 +1,5 @@
 import { EmbedBuilder } from 'discord.js';
-import type { Student, StudentExercise } from '@assistme/core';
+import type { Student, StudentExercise, SubmissionAttachment } from '@assistme/core';
 
 const STATUS_EMOJI: Record<string, string> = {
   interested: '⚪',
@@ -27,7 +27,11 @@ export function formatStudentEmbed(student: Student): EmbedBuilder {
     .setTimestamp();
 }
 
-export function formatExerciseEmbed(exercise: StudentExercise, studentName?: string): EmbedBuilder {
+export function formatExerciseEmbed(
+  exercise: StudentExercise,
+  studentName?: string,
+  attachments?: SubmissionAttachment[]
+): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setTitle(`${STATUS_EMOJI[exercise.status] ?? '📩'} Задание M${exercise.module}-З${exercise.exercise_number}`)
     .addFields(
@@ -40,6 +44,15 @@ export function formatExerciseEmbed(exercise: StudentExercise, studentName?: str
   if (studentName) embed.addFields({ name: 'Студент', value: studentName, inline: true });
   if (exercise.submission_url) embed.addFields({ name: 'Ссылка', value: exercise.submission_url });
   if (exercise.feedback) embed.addFields({ name: 'Отзыв', value: exercise.feedback.slice(0, 1024) });
+
+  if (attachments && attachments.length > 0) {
+    const lines = attachments.map((a) => {
+      if (a.type === 'url') return `🔗 [${a.original_filename ?? 'Ссылка'}](${a.url})`;
+      if (a.type === 'image') return `🖼️ ${a.original_filename ?? 'Изображение'}`;
+      return `📎 ${a.original_filename ?? 'Файл'}`;
+    });
+    embed.addFields({ name: `📁 Файлы (${attachments.length})`, value: lines.join('\n').slice(0, 1024) });
+  }
 
   return embed;
 }

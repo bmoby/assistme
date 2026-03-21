@@ -1,5 +1,5 @@
 import { Client, Message, DMChannel } from 'discord.js';
-import { logger, getSupabase } from '@assistme/core';
+import { logger } from '@assistme/core';
 import { runDmAgent } from '@assistme/core';
 import type { ConversationMessage, PendingAttachment } from '@assistme/core';
 
@@ -46,47 +46,6 @@ function getAttachmentType(mimeType: string): PendingAttachment['type'] {
 }
 
 // ============================================
-// File upload to Supabase Storage
-// ============================================
-
-async function uploadToStorage(
-  fileUrl: string,
-  studentId: string,
-  sessionNumber: number | null,
-  filename: string,
-  mimeType: string
-): Promise<string> {
-  // Download from Discord CDN
-  const response = await fetch(fileUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to download file: ${response.status}`);
-  }
-  const buffer = Buffer.from(await response.arrayBuffer());
-
-  // Build path: {student_id}/session-{N}/{filename} or {student_id}/misc/{filename}
-  const sessionDir = sessionNumber ? `session-${sessionNumber}` : 'misc';
-  const timestamp = Date.now();
-  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `${studentId}/${sessionDir}/${timestamp}-${safeName}`;
-
-  const db = getSupabase();
-  const { error } = await db.storage
-    .from('exercise-submissions')
-    .upload(storagePath, buffer, {
-      contentType: mimeType,
-      upsert: false,
-    });
-
-  if (error) {
-    logger.error({ error, storagePath }, 'Failed to upload to Supabase Storage');
-    throw error;
-  }
-
-  logger.info({ storagePath, size: buffer.length }, 'File uploaded to Supabase Storage');
-  return storagePath;
-}
-
-// ============================================
 // Process a single DM message
 // ============================================
 
@@ -107,7 +66,7 @@ async function processDmMessage(message: Message): Promise<void> {
   }
   conv.lastActivityAt = new Date();
 
-  // Handle file attachments
+  // Handle file attachments — download to buffer (upload deferred to submission)
   const attachmentInfoParts: string[] = [];
   for (const attachment of message.attachments.values()) {
     const mimeType = attachment.contentType ?? 'application/octet-stream';
@@ -125,26 +84,26 @@ async function processDmMessage(message: Message): Promise<void> {
     }
 
     try {
-      const storagePath = await uploadToStorage(
-        attachment.url,
-        conv.discordUserId, // use discord ID as folder until we have student DB ID
-        null, // session number unknown at upload time
-        filename,
-        mimeType
-      );
+      const response = await fetch(attachment.url);
+      if (!response.ok) {
+        throw new Error(`Failed to download file: ${response.status}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
 
       const pendingAttachment: PendingAttachment = {
-        storagePath,
+        buffer,
+        url: null,
         originalFilename: filename,
         mimeType,
         type: getAttachmentType(mimeType),
+        fileSize,
       };
       conv.pendingAttachments.push(pendingAttachment);
 
       const sizeKB = Math.round(fileSize / 1024);
       attachmentInfoParts.push(`Студент прикрепил файл: ${filename} (${mimeType}, ${sizeKB} КБ). Файл сохранён.`);
     } catch (err) {
-      logger.error({ err, filename }, 'Failed to process attachment');
+      logger.error({ err, filename }, 'Failed to download attachment');
       await message.reply('❌ Ошибка при загрузке файла. Попробуй ещё раз.');
       return;
     }
@@ -156,10 +115,12 @@ async function processDmMessage(message: Message): Promise<void> {
   if (urls) {
     for (const url of urls) {
       conv.pendingAttachments.push({
-        storagePath: url,
+        buffer: null,
+        url,
         originalFilename: url,
         mimeType: 'text/uri-list',
         type: 'url',
+        fileSize: 0,
       });
       attachmentInfoParts.push(`Студент отправил ссылку: ${url}`);
     }

@@ -11,6 +11,9 @@ export const revisionCommand = new SlashCommandBuilder()
   )
   .addStringOption((opt) =>
     opt.setName('отзыв').setDescription('Подробный отзыв для студента').setRequired(true)
+  )
+  .addIntegerOption((opt) =>
+    opt.setName('сессия').setDescription('Номер сессии (если несколько заданий)').setRequired(false)
   );
 
 export async function handleRevision(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -21,6 +24,7 @@ export async function handleRevision(interaction: ChatInputCommandInteraction): 
 
   const studentName = interaction.options.getString('студент', true);
   const feedback = interaction.options.getString('отзыв', true);
+  const sessionFilter = interaction.options.getInteger('сессия');
 
   try {
     const students = await searchStudentByName(studentName);
@@ -31,10 +35,24 @@ export async function handleRevision(interaction: ChatInputCommandInteraction): 
 
     const student = students[0]!;
     const exercises = await getExercisesByStudent(student.id);
-    const pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed');
+    let pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed');
 
     if (pending.length === 0) {
       await interaction.reply({ content: `У ${student.name} нет заданий на проверку.`, ephemeral: true });
+      return;
+    }
+
+    if (sessionFilter !== null) {
+      pending = pending.filter((e) => e.exercise_number === sessionFilter);
+      if (pending.length === 0) {
+        await interaction.reply({ content: `У ${student.name} нет задания на проверку для сессии ${sessionFilter}.`, ephemeral: true });
+        return;
+      }
+    }
+
+    if (pending.length > 1 && sessionFilter === null) {
+      const list = pending.map((e) => `• M${e.module}-З${e.exercise_number}`).join('\n');
+      await interaction.reply({ content: `У ${student.name} несколько заданий на проверку:\n${list}\n\nУкажи параметр \`сессия\` для выбора.`, ephemeral: true });
       return;
     }
 
@@ -51,7 +69,7 @@ export async function handleRevision(interaction: ChatInputCommandInteraction): 
           await dm.send(
             `🔄 **Нужна доработка** — M${exercise.module}-З${exercise.exercise_number}\n\n` +
             `💬 Отзыв:\n${feedback}\n\n` +
-            `Исправь и отправь заново через \`/submit\`.`
+            `Исправь и напиши мне в личные сообщения, чтобы сдать заново.`
           );
         }
       } catch {
