@@ -429,12 +429,15 @@ async function handleCreateSession(
       await updateSession(session.id, { discord_thread_id: threadId });
     }
 
-    // Announce
-    const liveAnnounce = liveInfo ? `\n${liveInfo}` : '';
-    await context.discordActions.sendAnnouncement(
-      `\ud83c\udd95 **\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber}!**\n${title}${liveAnnounce}`,
-      true
-    );
+    // Announce — dynamic content based on what's provided
+    const announceParts = [`\ud83c\udd95 **\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber}!**\n${title}`];
+    if (input.video_url) {
+      announceParts.push(`\ud83c\udfac \u0412\u0438\u0434\u0435\u043e: ${input.video_url as string}`);
+    }
+    if (liveInfo) {
+      announceParts.push(liveInfo);
+    }
+    await context.discordActions.sendAnnouncement(announceParts.join('\n'), true);
   }
 
   return JSON.stringify({
