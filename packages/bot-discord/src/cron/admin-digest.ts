@@ -119,7 +119,7 @@ export async function sendAdminDigest(client: Client, guildId: string): Promise<
     if (parts.length === 0) {
       await adminChannel.send('\u2705 Tout est en ordre — aucun exercice en attente.');
     } else {
-      const dateStr = now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+      const dateStr = now.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' });
       const digest = `\ud83d\udcca **Digest Formation — ${dateStr}**\n\n${parts.join('\n\n')}`;
       await adminChannel.send(digest);
     }

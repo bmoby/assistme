@@ -117,6 +117,33 @@ const STUDENT_FACING_FIELDS = [
   'expected_deliverables', 'exercise_tips', 'text', 'message', 'feedback',
 ];
 
+/** Timezone constants for formation */
+const ADMIN_TZ = 'Asia/Bangkok';     // Admin input timezone
+const DISPLAY_TZ = 'Europe/Paris';   // Student-facing display timezone
+
+/**
+ * Interpret a datetime string as Bangkok local time, return UTC ISO string.
+ * The AI may output "2026-03-23T20:00:00", "2026-03-23T20:00" or with an offset.
+ * If no offset is present, we assume Bangkok (UTC+7).
+ */
+function toUTCFromAdmin(dateStr: string): string {
+  // If the string already has a timezone offset (Z, +XX:XX, -XX:XX), use as-is
+  if (/[Zz]$/.test(dateStr) || /[+-]\d{2}:\d{2}$/.test(dateStr)) {
+    return new Date(dateStr).toISOString();
+  }
+  // No offset — interpret as Bangkok time (UTC+7)
+  return new Date(dateStr + '+07:00').toISOString();
+}
+
+/** Format a UTC date for student-facing display (Paris timezone, Russian locale) */
+function formatDateParis(date: Date | string): { dateStr: string; timeStr: string } {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return {
+    dateStr: d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long', timeZone: DISPLAY_TZ }),
+    timeStr: d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: DISPLAY_TZ }),
+  };
+}
+
 // ============================================
 // Tool definitions
 // ============================================
@@ -432,8 +459,8 @@ async function handleCreateSession(
     exercise_description: input.exercise_description as string | undefined,
     expected_deliverables: input.expected_deliverables as string | undefined,
     exercise_tips: input.exercise_tips as string | undefined,
-    deadline: input.deadline as string | undefined,
-    live_at: input.live_at as string | undefined,
+    deadline: input.deadline ? toUTCFromAdmin(input.deadline as string) : undefined,
+    live_at: input.live_at ? toUTCFromAdmin(input.live_at as string) : undefined,
     live_channel: input.live_channel as string | undefined,
     status: status as 'draft' | 'published',
   });
@@ -450,11 +477,10 @@ async function handleCreateSession(
     // Format live date for display
     let liveInfo: string | null = null;
     if (input.live_at) {
-      const liveDate = new Date(input.live_at as string);
-      const dateStr = liveDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' });
-      const timeStr = liveDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+      const liveUtc = toUTCFromAdmin(input.live_at as string);
+      const { dateStr, timeStr } = formatDateParis(liveUtc);
       const channelStr = input.live_channel ? ` в канале **${input.live_channel as string}**` : '';
-      liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (ICT)${channelStr}`;
+      liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (Paris)${channelStr}`;
     }
 
     // Build clean, readable forum post with proper spacing
@@ -481,9 +507,11 @@ async function handleCreateSession(
     if (input.exercise_tips) exerciseLines.push(`\n**\u0421\u043e\u0432\u0435\u0442\u044b:** ${input.exercise_tips as string}`);
     if (exerciseLines.length > 0) sections.push(`## \u0417\u0430\u0434\u0430\u043d\u0438\u0435\n${exerciseLines.join('\n')}`);
 
-    // Deadline
+    // Deadline — display in Paris time
     if (input.deadline) {
-      sections.push(`\u23f0 **\u0414\u0435\u0434\u043b\u0430\u0439\u043d:** ${input.deadline as string}`);
+      const deadlineUtc = toUTCFromAdmin(input.deadline as string);
+      const { dateStr: dlDate, timeStr: dlTime } = formatDateParis(deadlineUtc);
+      sections.push(`\u23f0 **\u0414\u0435\u0434\u043b\u0430\u0439\u043d:** ${dlDate}, ${dlTime} (Paris)`);
     }
 
     const forumContent = sections.join('\n\n');
@@ -527,9 +555,9 @@ async function handleUpdateSession(input: Record<string, unknown>, context: Tsar
   if (input.exercise_description) updates.exercise_description = input.exercise_description;
   if (input.expected_deliverables) updates.expected_deliverables = input.expected_deliverables;
   if (input.exercise_tips) updates.exercise_tips = input.exercise_tips;
-  if (input.deadline) updates.deadline = input.deadline;
+  if (input.deadline) updates.deadline = toUTCFromAdmin(input.deadline as string);
   if (input.video_url) updates.pre_session_video_url = input.video_url;
-  if (input.live_at) updates.live_at = input.live_at;
+  if (input.live_at) updates.live_at = toUTCFromAdmin(input.live_at as string);
   if (input.live_channel) updates.live_channel = input.live_channel;
   if (input.status) updates.status = input.status;
 
