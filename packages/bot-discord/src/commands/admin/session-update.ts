@@ -1,6 +1,13 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
+import {
+  ChatInputCommandInteraction,
+  SlashCommandBuilder,
+  ForumChannel,
+  ChannelType,
+  TextChannel,
+} from 'discord.js';
 import { logger, getSessionByNumber, updateSession, createMeetEvent } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
+import { CHANNELS, ROLES } from '../../config.js';
 
 export const sessionUpdateCommand = new SlashCommandBuilder()
   .setName('session-update')
@@ -34,6 +41,17 @@ export const sessionUpdateCommand = new SlashCommandBuilder()
   )
   .addStringOption((opt) =>
     opt.setName('советы').setDescription('Советы по выполнению задания').setRequired(false)
+  )
+  .addStringOption((opt) =>
+    opt
+      .setName('статус')
+      .setDescription('Статус сессии')
+      .setRequired(false)
+      .addChoices(
+        { name: 'draft', value: 'draft' },
+        { name: 'published', value: 'published' },
+        { name: 'completed', value: 'completed' }
+      )
   );
 
 export async function handleSessionUpdate(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -52,9 +70,10 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
   const videoUrl = interaction.options.getString('видео');
   const replayUrl = interaction.options.getString('replay');
   const exerciseTips = interaction.options.getString('советы');
+  const status = interaction.options.getString('статус');
 
   // Check that at least one field is provided
-  if (!exerciseDescription && !expectedDeliverables && !deadline && !liveAt && !title && !description && !videoUrl && !replayUrl && !exerciseTips) {
+  if (!exerciseDescription && !expectedDeliverables && !deadline && !liveAt && !title && !description && !videoUrl && !replayUrl && !exerciseTips && !status) {
     await interaction.reply({
       content: 'Укажи хотя бы одно поле для обновления.',
       ephemeral: true,
@@ -116,17 +135,20 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
       updates.live_at = liveIso;
       changes.push('live');
 
-      // Auto-generate Google Meet link
-      try {
-        const sessionTitle = title ?? session.title;
-        const { meetUrl } = await createMeetEvent(
-          `Session ${sessionNumber} — ${sessionTitle}`,
-          liveIso
-        );
-        updates.live_url = meetUrl;
-        changes.push(`meet (${meetUrl})`);
-      } catch (meetError) {
-        logger.warn({ error: meetError }, 'Failed to create Google Meet link — skipping');
+      // Auto-generate Google Meet link only if date changed or no link exists
+      const dateChanged = session.live_at !== liveIso;
+      if (dateChanged || !session.live_url) {
+        try {
+          const sessionTitle = title ?? session.title;
+          const { meetUrl } = await createMeetEvent(
+            `Session ${sessionNumber} — ${sessionTitle}`,
+            liveIso
+          );
+          updates.live_url = meetUrl;
+          changes.push(`meet (${meetUrl})`);
+        } catch (meetError) {
+          logger.warn({ error: meetError }, 'Failed to create Google Meet link — skipping');
+        }
       }
     }
     if (title) {
@@ -150,7 +172,78 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
       changes.push('советы');
     }
 
+    if (status) {
+      updates.status = status;
+      changes.push(`статус → ${status}`);
+    }
+
     await updateSession(session.id, updates);
+
+    // If publishing a draft → create forum thread + announce
+    const isPublishing = status === 'published' && session.status !== 'published';
+    if (isPublishing && !session.discord_thread_id) {
+      const sessionTitle = (title ?? session.title);
+      const sessionModule = session.module;
+
+      // Create forum thread
+      const forumChannel = interaction.guild?.channels.cache.find(
+        (ch) => ch.name === CHANNELS.sessions && ch.type === ChannelType.GuildForum
+      ) as ForumChannel | undefined;
+
+      if (forumChannel) {
+        const moduleTagName = `Модуль ${sessionModule}`;
+        const moduleTag = forumChannel.availableTags.find((t) => t.name === moduleTagName);
+
+        const liveUrl = (updates.live_url as string) ?? session.live_url;
+        const liveSection = liveUrl
+          ? `[Присоединиться к live](${liveUrl})`
+          : '_(ссылка будет добавлена)_';
+
+        const thread = await forumChannel.threads.create({
+          name: `Сессия ${sessionNumber} — ${sessionTitle}`,
+          message: {
+            content: [
+              `📌 **Сессия ${sessionNumber} — ${sessionTitle}**`,
+              `Модуль ${sessionModule}`,
+              '',
+              '🎬 **ВИДЕО К СЕССИИ:**',
+              session.pre_session_video_url ?? '_(добавить ссылку)_',
+              '',
+              '📝 **ТЕМА:**',
+              session.description ?? '_(добавить описание)_',
+              '',
+              '📋 **ЗАДАНИЕ:**',
+              session.exercise_description ?? '_(добавить описание задания)_',
+              `📅 Сдать задание до: ${session.deadline ? new Date(session.deadline).toLocaleDateString('ru-RU') : '_(добавить)_'}`,
+              '',
+              `🔴 **LIVE:**`,
+              liveSection,
+              '',
+              '🎥 **REPLAY:**',
+              '_(будет добавлен после эфира)_',
+            ].join('\n'),
+          },
+          appliedTags: moduleTag ? [moduleTag.id] : [],
+        });
+
+        await updateSession(session.id, { discord_thread_id: thread.id });
+        changes.push('форум');
+      }
+
+      // Post announcement
+      const announcesChannel = interaction.guild?.channels.cache.find(
+        (ch) => ch.name === CHANNELS.annonces && ch instanceof TextChannel
+      ) as TextChannel | undefined;
+
+      if (announcesChannel) {
+        const studentRole = interaction.guild?.roles.cache.find((r) => r.name === ROLES.student);
+        const mention = studentRole ? `<@&${studentRole.id}> ` : '';
+        await announcesChannel.send(
+          `${mention}🆕 **Доступна Сессия ${sessionNumber}!**\n${sessionTitle}\n\nПосмотри видео к сессии. Ссылка на live будет в посте сессии.`
+        );
+        changes.push('анонс');
+      }
+    }
 
     await interaction.editReply({
       content: `✅ Сессия ${sessionNumber} обновлена: ${changes.join(', ')}.`,
