@@ -8,9 +8,9 @@ import { cleanupOrphanedFiles } from './storage-cleanup.js';
 import { sendAdminDigest } from './admin-digest.js';
 
 export function registerCronJobs(client: Client, guildId: string): void {
-  // Daily exercise digest at 20:00
-  scheduler.registerJob('formation-exercise-digest', '0 20 * * *', async () => {
-    await sendExerciseDigest();
+  // Daily exercise digest at 09:00 (Paris time)
+  scheduler.registerJob('formation-exercise-digest', '0 9 * * *', async () => {
+    await sendExerciseDigest(client, guildId);
     logger.info('Exercise digest sent');
   });
 
