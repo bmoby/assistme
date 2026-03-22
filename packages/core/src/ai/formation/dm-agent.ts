@@ -449,22 +449,6 @@ async function handleCreateSubmission(
     }
   }
 
-  // Create event for Telegram notification (kept as fallback until layer 11)
-  await createFormationEvent({
-    type: 'exercise_submitted',
-    source: 'discord',
-    target: 'telegram-admin',
-    data: {
-      student_name: student.name,
-      student_id: student.id,
-      session_number: sessionNumber,
-      session_title: session.title,
-      exercise_id: exercise.id,
-      attachment_count: pendingAttachments.length,
-      comment: studentComment ?? null,
-    },
-  });
-
   // Fire-and-forget AI review
   if (storagePaths.length > 0) {
     void triggerAiReview(exercise.id, student, session, storagePaths).catch(async (err) => {

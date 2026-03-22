@@ -6,7 +6,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
 } from 'discord.js';
-import { getExerciseSummary, getPendingExercises, createFormationEvent } from '@assistme/core';
+import { getExerciseSummary, getPendingExercises } from '@assistme/core';
 import type { StudentExercise } from '@assistme/core';
 import { logger } from '@assistme/core';
 import { CHANNELS } from '../config.js';
@@ -81,24 +81,6 @@ export async function sendExerciseDigest(client: Client, guildId: string): Promi
       logger.warn('Admin channel not found for exercise digest');
     }
 
-    // Keep Telegram event as fallback (will be removed in layer 11)
-    await createFormationEvent({
-      type: 'daily_exercise_digest',
-      source: 'discord',
-      target: 'telegram-admin',
-      data: {
-        total: summary.total,
-        pending: summary.pending,
-        approved: summary.approved,
-        revision_needed: summary.revision_needed,
-        pending_details: pending.map((e) => ({
-          module: e.module,
-          exercise_number: e.exercise_number,
-          status: e.status,
-          submitted_at: e.submitted_at,
-        })),
-      },
-    });
   } catch (error) {
     logger.error({ error }, 'Failed to send exercise digest');
   }
