@@ -105,7 +105,18 @@ export interface StudentExercise {
   reviewed_at: string | null;
   feedback: string | null;
   session_id: string | null;
+  submission_count: number;
+  review_history: ReviewHistoryEntry[];
+  notification_message_id: string | null;
   created_at: string;
+}
+
+export interface ReviewHistoryEntry {
+  reviewed_at: string;
+  status: string;
+  feedback: string | null;
+  ai_review: Record<string, unknown> | null;
+  submission_count: number;
 }
 
 // ============================================

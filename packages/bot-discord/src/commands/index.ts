@@ -1,5 +1,6 @@
 import { Client, REST, Routes, Collection, ChatInputCommandInteraction, SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 import { logger } from '@assistme/core';
+import { handleButtonInteraction } from '../handlers/button-handler.js';
 
 // Admin commands
 import { addStudentCommand, handleAddStudent } from './admin/add-student.js';
@@ -69,6 +70,11 @@ export async function registerSlashCommands(token: string, clientId: string, gui
 
 export function setupCommandHandler(client: Client): void {
   client.on('interactionCreate', async (interaction) => {
+    if (interaction.isButton()) {
+      await handleButtonInteraction(interaction);
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const handler = commandHandlers.get(interaction.commandName);

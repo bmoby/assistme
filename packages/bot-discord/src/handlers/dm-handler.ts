@@ -1,7 +1,12 @@
-import { Client, Message, DMChannel } from 'discord.js';
-import { logger } from '@assistme/core';
+import { Client, Message, DMChannel, TextChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { logger, getExercise, getSession, getStudentByDiscordId, getAttachmentsByExercise, updateExercise } from '@assistme/core';
 import { runDmAgent } from '@assistme/core';
 import type { ConversationMessage, PendingAttachment } from '@assistme/core';
+import { formatSubmissionNotification } from '../utils/format.js';
+import { CHANNELS } from '../config.js';
+
+// Discord client reference (set in setupDmHandler)
+let discordClient: Client;
 
 // ============================================
 // Conversation state (in-memory)
@@ -153,6 +158,11 @@ async function processDmMessage(message: Message): Promise<void> {
     // Clear pending attachments if a submission was made
     if (result.submissionId) {
       conv.pendingAttachments = [];
+
+      // Send notification to #админ (fire-and-forget, don't block student response)
+      void notifyAdminChannel(result.submissionId, userId).catch((err) => {
+        logger.error({ err, submissionId: result.submissionId }, 'Failed to send admin notification');
+      });
     }
 
     // Send response (split if > 2000 chars)
@@ -194,6 +204,50 @@ async function sendLongMessage(message: Message, text: string): Promise<void> {
 }
 
 // ============================================
+// Notify #админ when a student submits
+// ============================================
+
+async function notifyAdminChannel(exerciseId: string, discordUserId: string): Promise<void> {
+  const exercise = await getExercise(exerciseId);
+  if (!exercise) return;
+
+  const student = await getStudentByDiscordId(discordUserId);
+  if (!student) return;
+
+  const session = exercise.session_id ? await getSession(exercise.session_id) : null;
+  const attachments = await getAttachmentsByExercise(exerciseId);
+
+  const isResubmission = exercise.submission_count > 1;
+
+  // Find #админ channel
+  const adminChannel = discordClient.channels.cache.find(
+    (ch) => ch instanceof TextChannel && ch.name === CHANNELS.admin
+  ) as TextChannel | undefined;
+
+  if (!adminChannel) {
+    logger.warn('Admin channel not found for exercise notification');
+    return;
+  }
+
+  // Build embed + button
+  const embed = formatSubmissionNotification(exercise, session, student.name, attachments, isResubmission);
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`review_open_${exerciseId}`)
+      .setLabel('Ouvrir la review')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('📝')
+  );
+
+  const msg = await adminChannel.send({ embeds: [embed], components: [row] });
+
+  // Store message ID for later editing (when AI score arrives)
+  await updateExercise(exerciseId, { notification_message_id: msg.id });
+
+  logger.info({ exerciseId, messageId: msg.id, isResubmission }, 'Admin notification sent');
+}
+
+// ============================================
 // Cleanup stale conversations (>30 min inactive)
 // ============================================
 
@@ -216,6 +270,8 @@ function cleanupConversations(): void {
 // ============================================
 
 export function setupDmHandler(client: Client): void {
+  discordClient = client;
+
   client.on('messageCreate', async (message: Message) => {
     // Only handle DMs from users (not bots, not guild messages)
     if (message.author.bot) return;
