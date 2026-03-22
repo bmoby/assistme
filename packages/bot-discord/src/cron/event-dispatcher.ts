@@ -1,7 +1,8 @@
 import { Client, TextChannel, AttachmentBuilder } from 'discord.js';
-import { getUnprocessedEvents, markEventProcessed, agents } from '@assistme/core';
+import { getUnprocessedEvents, markEventProcessed, agents, getExercise, getSession, getAttachmentsByExercise } from '@assistme/core';
 import { logger } from '@assistme/core';
 import { CHANNELS } from '../config.js';
+import { formatSubmissionNotification } from '../utils/format.js';
 
 export async function dispatchDiscordEvents(client: Client, guildId: string): Promise<void> {
   try {
@@ -65,6 +66,43 @@ export async function dispatchDiscordEvents(client: Client, guildId: string): Pr
                   logger.error({ err, storagePath: file.storage_path }, 'Failed to send agent file to Discord');
                 }
               }
+            }
+            break;
+          }
+
+          case 'ai_review_complete': {
+            const exerciseId = (event.data as Record<string, string>).exercise_id;
+            if (!exerciseId) break;
+
+            const exercise = await getExercise(exerciseId);
+            if (!exercise || !exercise.notification_message_id) break;
+
+            // Find the admin channel and the original notification message
+            const adminCh = guild.channels.cache.find(
+              (ch) => ch.name === CHANNELS.admin && ch instanceof TextChannel
+            ) as TextChannel | undefined;
+
+            if (!adminCh) break;
+
+            try {
+              const msg = await adminCh.messages.fetch(exercise.notification_message_id);
+              if (!msg) break;
+
+              // Rebuild the embed with AI score
+              const session = exercise.session_id ? await getSession(exercise.session_id) : null;
+              const attachments = await getAttachmentsByExercise(exerciseId);
+
+              // Find student name from the existing embed
+              const existingStudentField = msg.embeds[0]?.fields?.find((f) => f.name === '👤 Etudiant');
+              const studentName = existingStudentField?.value ?? 'Etudiant';
+
+              const isResubmission = exercise.submission_count > 1;
+              const updatedEmbed = formatSubmissionNotification(exercise, session, studentName, attachments, isResubmission);
+
+              await msg.edit({ embeds: [updatedEmbed], components: msg.components });
+              logger.info({ exerciseId, score: (exercise.ai_review as Record<string, unknown>)?.score }, 'Admin notification updated with AI score');
+            } catch (editErr) {
+              logger.warn({ error: editErr, exerciseId }, 'Failed to edit admin notification with AI score');
             }
             break;
           }

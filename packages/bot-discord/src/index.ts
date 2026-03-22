@@ -14,6 +14,7 @@ import { setupGuildMemberHandler } from './handlers/guild-member.js';
 import { setupDmHandler } from './handlers/dm-handler.js';
 import { setupAdminHandler } from './handlers/admin-handler.js';
 import { registerCronJobs } from './cron/index.js';
+import { registerReviewButtons } from './handlers/review-buttons.js';
 
 async function main(): Promise<void> {
   const token = process.env['DISCORD_BOT_TOKEN'];
@@ -42,6 +43,9 @@ async function main(): Promise<void> {
 
   // Register slash commands via REST API (guild-level for instant updates)
   await registerSlashCommands(token, clientId, guildId);
+
+  // Register button handlers
+  registerReviewButtons();
 
   // Setup handlers
   setupCommandHandler(client);
