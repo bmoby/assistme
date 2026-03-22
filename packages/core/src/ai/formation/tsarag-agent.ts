@@ -605,16 +605,19 @@ async function handleUpdateSession(input: Record<string, unknown>, context: Tsar
     const liveIso = parseAdminDate(input.live_at as string);
     if (liveIso) {
       updates.live_at = liveIso;
-      // Auto-generate Google Meet link
-      try {
-        const sessionTitle = (input.title as string) ?? session.title;
-        const { meetUrl } = await createMeetEvent(
-          `Session ${sessionNumber} — ${sessionTitle}`,
-          liveIso
-        );
-        updates.live_url = meetUrl;
-      } catch (meetError) {
-        logger.warn({ error: meetError }, 'Failed to create Google Meet link for session update');
+      // Auto-generate Google Meet link only if date changed or no link exists
+      const dateChanged = session.live_at !== liveIso;
+      if (dateChanged || !session.live_url) {
+        try {
+          const sessionTitle = (input.title as string) ?? session.title;
+          const { meetUrl } = await createMeetEvent(
+            `Session ${sessionNumber} — ${sessionTitle}`,
+            liveIso
+          );
+          updates.live_url = meetUrl;
+        } catch (meetError) {
+          logger.warn({ error: meetError }, 'Failed to create Google Meet link for session update');
+        }
       }
     }
   }

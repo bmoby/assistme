@@ -116,17 +116,20 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
       updates.live_at = liveIso;
       changes.push('live');
 
-      // Auto-generate Google Meet link
-      try {
-        const sessionTitle = title ?? session.title;
-        const { meetUrl } = await createMeetEvent(
-          `Session ${sessionNumber} — ${sessionTitle}`,
-          liveIso
-        );
-        updates.live_url = meetUrl;
-        changes.push(`meet (${meetUrl})`);
-      } catch (meetError) {
-        logger.warn({ error: meetError }, 'Failed to create Google Meet link — skipping');
+      // Auto-generate Google Meet link only if date changed or no link exists
+      const dateChanged = session.live_at !== liveIso;
+      if (dateChanged || !session.live_url) {
+        try {
+          const sessionTitle = title ?? session.title;
+          const { meetUrl } = await createMeetEvent(
+            `Session ${sessionNumber} — ${sessionTitle}`,
+            liveIso
+          );
+          updates.live_url = meetUrl;
+          changes.push(`meet (${meetUrl})`);
+        } catch (meetError) {
+          logger.warn({ error: meetError }, 'Failed to create Google Meet link — skipping');
+        }
       }
     }
     if (title) {
