@@ -298,6 +298,18 @@ async function triggerAiReview(
 
   await setAiReview(exerciseId, result as unknown as Record<string, unknown>);
   logger.info({ exerciseId, score: result.score }, 'AI review completed and saved');
+
+  // Notify Discord to update the admin notification with AI score
+  try {
+    await createFormationEvent({
+      type: 'ai_review_complete',
+      source: 'discord',
+      target: 'discord',
+      data: { exercise_id: exerciseId },
+    });
+  } catch {
+    // Non-blocking — notification edit is best-effort
+  }
 }
 
 async function handleCreateSubmission(
