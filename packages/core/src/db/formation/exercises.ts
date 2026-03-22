@@ -130,6 +130,25 @@ export async function updateExerciseStatus(
   return data as StudentExercise;
 }
 
+export async function updateExercise(
+  id: string,
+  updates: Partial<Omit<StudentExercise, 'id' | 'created_at'>>
+): Promise<StudentExercise> {
+  const db = getSupabase();
+  const { data, error } = await db
+    .from(TABLE)
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error({ error, id }, 'Failed to update exercise');
+    throw error;
+  }
+  return data as StudentExercise;
+}
+
 export async function setAiReview(id: string, review: Record<string, unknown>): Promise<StudentExercise> {
   const db = getSupabase();
   const { data, error } = await db
