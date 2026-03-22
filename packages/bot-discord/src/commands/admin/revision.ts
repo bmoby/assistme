@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { searchStudentByName, getExercisesByStudent, updateExerciseStatus, createFormationEvent } from '@assistme/core';
+import { searchStudentByName, getExercisesByStudent, updateExerciseStatus } from '@assistme/core';
 import { logger } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 
@@ -76,13 +76,6 @@ export async function handleRevision(interaction: ChatInputCommandInteraction): 
         logger.warn({ studentId: student.id }, 'Could not DM student for revision');
       }
     }
-
-    await createFormationEvent({
-      type: 'exercise_reviewed',
-      source: 'discord',
-      target: 'telegram-admin',
-      data: { student_name: student.name, module: exercise.module, exercise_number: exercise.exercise_number, status: 'revision_needed' },
-    });
 
     await interaction.reply({ content: `Доработка запрошена для M${exercise.module}-З${exercise.exercise_number} студента ${student.name}.`, ephemeral: true });
   } catch (error) {

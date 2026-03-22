@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, SlashCommandBuilder } from 'discord.js';
-import { searchStudentByName, getExercisesByStudent, updateExerciseStatus, createFormationEvent } from '@assistme/core';
+import { searchStudentByName, getExercisesByStudent, updateExerciseStatus } from '@assistme/core';
 import { logger } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 
@@ -75,13 +75,6 @@ export async function handleApprove(interaction: ChatInputCommandInteraction): P
         logger.warn({ studentId: student.id }, 'Could not DM student for approval');
       }
     }
-
-    await createFormationEvent({
-      type: 'exercise_reviewed',
-      source: 'discord',
-      target: 'telegram-admin',
-      data: { student_name: student.name, module: exercise.module, exercise_number: exercise.exercise_number, status: 'approved' },
-    });
 
     await interaction.reply({ content: `Задание M${exercise.module}-З${exercise.exercise_number} студента ${student.name} одобрено.`, ephemeral: true });
   } catch (error) {
