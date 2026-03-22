@@ -180,10 +180,39 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
 
     await updateSession(session.id, updates);
 
-    // If publishing a draft → create forum thread + announce
+    // Sync Discord state with session status
+    if (status && session.discord_thread_id) {
+      const forumChannel = interaction.guild?.channels.cache.find(
+        (ch) => ch.name === CHANNELS.sessions && ch.type === ChannelType.GuildForum
+      ) as ForumChannel | undefined;
+
+      if (forumChannel) {
+        try {
+          const thread = await forumChannel.threads.fetch(session.discord_thread_id);
+          if (thread) {
+            if (status === 'draft') {
+              // Draft → archive + lock thread (hidden from students)
+              await thread.setArchived(true);
+              changes.push('форум архивирован');
+            } else if (status === 'published' && session.status !== 'published') {
+              // Re-publish → unarchive thread
+              await thread.setArchived(false);
+              changes.push('форум восстановлен');
+            } else if (status === 'completed') {
+              // Completed → lock but keep visible
+              await thread.setLocked(true);
+              changes.push('форум закрыт');
+            }
+          }
+        } catch (threadError) {
+          logger.warn({ error: threadError }, 'Failed to sync forum thread state');
+        }
+      }
+    }
+
+    // If publishing for the first time (no thread exists) → create forum thread + announce
     const isPublishing = status === 'published' && session.status !== 'published';
     if (isPublishing && !session.discord_thread_id) {
-      // Build updated session object with all changes applied
       const updatedSession: Session = { ...session, ...updates } as Session;
       const sessionTitle = updatedSession.title;
 
