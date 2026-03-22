@@ -1,12 +1,16 @@
-import { ButtonInteraction, TextChannel } from 'discord.js';
+import { ButtonInteraction, TextChannel, ThreadChannel } from 'discord.js';
 import {
   logger,
   getExercise,
   getSession,
   getStudent,
+  updateExerciseStatus,
+  updateExercise,
 } from '@assistme/core';
+import type { ExerciseStatus, ReviewHistoryEntry } from '@assistme/core';
 import { registerButton } from './button-handler.js';
 import { createReviewThread } from '../utils/review-thread.js';
+import { formatStudentFeedbackDM, formatSubmissionNotification } from '../utils/format.js';
 import { CHANNELS } from '../config.js';
 
 /**
@@ -14,7 +18,13 @@ import { CHANNELS } from '../config.js';
  */
 export function registerReviewButtons(): void {
   registerButton('review_open_', handleReviewOpen);
+  registerButton('review_approve_', handleReviewDecision);
+  registerButton('review_revision_', handleReviewDecision);
 }
+
+// ============================================
+// Open review thread
+// ============================================
 
 async function handleReviewOpen(interaction: ButtonInteraction): Promise<void> {
   const exerciseId = interaction.customId.replace('review_open_', '');
@@ -52,4 +62,120 @@ async function handleReviewOpen(interaction: ButtonInteraction): Promise<void> {
   await createReviewThread(adminChannel, exercise, student, session);
 
   await interaction.editReply({ content: '📝 Thread de review cree.' });
+}
+
+// ============================================
+// Approve or request revision from thread
+// ============================================
+
+async function handleReviewDecision(interaction: ButtonInteraction): Promise<void> {
+  const isApprove = interaction.customId.startsWith('review_approve_');
+  const exerciseId = interaction.customId.replace(
+    isApprove ? 'review_approve_' : 'review_revision_',
+    ''
+  );
+  const newStatus: ExerciseStatus = isApprove ? 'approved' : 'revision_needed';
+
+  await interaction.deferReply({ ephemeral: true });
+
+  // 1. Load exercise and verify status (race condition guard)
+  const exercise = await getExercise(exerciseId);
+  if (!exercise) {
+    await interaction.editReply({ content: 'Exercice non trouve.' });
+    return;
+  }
+
+  if (exercise.status !== 'submitted' && exercise.status !== 'ai_reviewed') {
+    await interaction.editReply({ content: `Exercice deja traite (${exercise.status}). Impossible de valider.` });
+    return;
+  }
+
+  // 2. Collect formateur's messages from the thread
+  const thread = interaction.channel;
+  if (!thread || !thread.isThread()) {
+    await interaction.editReply({ content: 'Cette action doit etre utilisee dans un thread de review.' });
+    return;
+  }
+
+  const messages = await thread.messages.fetch({ limit: 100 });
+  const botId = interaction.client.user?.id;
+  const formateurMessages = messages
+    .filter((m) => m.author.id !== botId && !m.author.bot)
+    .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+    .map((m) => m.content)
+    .filter((content) => content.trim().length > 0);
+
+  const feedback = formateurMessages.length > 0
+    ? formateurMessages.map((msg) => `— ${msg}`).join('\n')
+    : isApprove ? '— Отличная работа!' : '— Нужна доработка.';
+
+  // 3. Update DB
+  await updateExerciseStatus(exerciseId, newStatus, feedback);
+
+  logger.info(
+    { exerciseId, newStatus, feedbackLength: feedback.length, commentCount: formateurMessages.length },
+    'Exercise review completed from thread'
+  );
+
+  // 4. Send DM to student
+  const student = await getStudent(exercise.student_id);
+  const session = exercise.session_id ? await getSession(exercise.session_id) : null;
+
+  if (student?.discord_id) {
+    try {
+      const guild = interaction.guild;
+      const member = await guild?.members.fetch(student.discord_id);
+      if (member) {
+        const dm = await member.createDM();
+        const dmText = formatStudentFeedbackDM(exercise, session, feedback, newStatus);
+        await dm.send(dmText);
+        logger.info({ studentId: student.id, exerciseId }, 'Feedback DM sent to student');
+      }
+    } catch (dmError) {
+      logger.warn({ error: dmError, studentId: student?.id }, 'Could not DM student for review feedback');
+    }
+  }
+
+  // 5. Edit the original notification in #админ
+  if (exercise.notification_message_id) {
+    try {
+      const adminChannel = interaction.guild?.channels.cache.find(
+        (ch) => ch.name === CHANNELS.admin && ch instanceof TextChannel
+      ) as TextChannel | undefined;
+
+      if (adminChannel) {
+        const notifMsg = await adminChannel.messages.fetch(exercise.notification_message_id);
+        if (notifMsg) {
+          // Reload exercise to get updated status
+          const updatedExercise = await getExercise(exerciseId);
+          if (updatedExercise && student) {
+            const attachments = await import('@assistme/core').then((m) => m.getAttachmentsByExercise(exerciseId));
+            const updatedEmbed = formatSubmissionNotification(
+              updatedExercise,
+              session,
+              student.name,
+              attachments,
+              updatedExercise.submission_count > 1
+            );
+            // Remove the button (exercise is processed)
+            await notifMsg.edit({ embeds: [updatedEmbed], components: [] });
+          }
+        }
+      }
+    } catch (editError) {
+      logger.warn({ error: editError, exerciseId }, 'Could not edit notification message');
+    }
+  }
+
+  // 6. Confirm in thread and archive
+  const statusLabel = isApprove ? '✅ Approuve' : '🔄 Revision demandee';
+  await thread.send(`${statusLabel} — feedback envoye a l'etudiant.`);
+
+  try {
+    await (thread as ThreadChannel).setArchived(true);
+  } catch (archiveError) {
+    logger.warn({ error: archiveError }, 'Could not archive review thread');
+  }
+
+  await interaction.editReply({ content: `${statusLabel}. Thread archive.` });
 }
