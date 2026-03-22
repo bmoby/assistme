@@ -17,6 +17,7 @@ import {
 } from '../../db/formation/index.js';
 import { getEmbedding } from '../embeddings.js';
 import { createMeetEvent } from '../../google/meet.js';
+import { buildSessionForumContent, buildSessionAnnouncement } from '../../utils/session-forum.js';
 import type {
   TsaragAgentContext,
   TsaragAgentResponse,
@@ -514,67 +515,19 @@ async function handleCreateSession(
 
   // Post to forum
   if (status === 'published') {
-    // Format live date for display
-    let liveInfo: string | null = null;
-    if (input.live_at) {
-      const liveUtc = parseAdminDate(input.live_at as string);
-      if (liveUtc) {
-        const { dateStr, timeStr } = formatDateParis(liveUtc);
-        const meetLink = session.live_url ? `\n[Присоединиться к live](${session.live_url})` : '';
-        liveInfo = `\ud83d\udfe2 **LIVE:** ${dateStr}, ${timeStr} (Paris)${meetLink}`;
-      }
-    }
+    // Refresh session from DB to get all updates (meet link, video, etc.)
+    const freshSession = await getSessionByNumber(sessionNumber);
+    const sessionForForum = freshSession ?? session;
 
-    // Build clean, readable forum post with proper spacing
-    const sections: string[] = [];
-
-    // Header
-    sections.push(`# \u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber} \u2014 ${title}\n\u041c\u043e\u0434\u0443\u043b\u044c ${module}`);
-
-    // Info block (live + video)
-    const infoLines: string[] = [];
-    if (liveInfo) infoLines.push(liveInfo);
-    if (input.video_url) infoLines.push(`\ud83c\udfac **\u0412\u0438\u0434\u0435\u043e:** ${input.video_url as string}`);
-    if (infoLines.length > 0) sections.push(infoLines.join('\n'));
-
-    // Description
-    if (input.description) {
-      sections.push(`## \u0422\u0435\u043c\u0430\n${input.description as string}`);
-    }
-
-    // Exercise block
-    const exerciseLines: string[] = [];
-    if (input.exercise_description) exerciseLines.push(input.exercise_description as string);
-    if (input.expected_deliverables) exerciseLines.push(`\n**\u0427\u0442\u043e \u0441\u0434\u0430\u0442\u044c:** ${input.expected_deliverables as string}`);
-    if (input.exercise_tips) exerciseLines.push(`\n**\u0421\u043e\u0432\u0435\u0442\u044b:** ${input.exercise_tips as string}`);
-    if (exerciseLines.length > 0) sections.push(`## \u0417\u0430\u0434\u0430\u043d\u0438\u0435\n${exerciseLines.join('\n')}`);
-
-    // Deadline — display in Paris time
-    if (input.deadline) {
-      const deadlineUtc = parseAdminDate(input.deadline as string);
-      if (deadlineUtc) {
-        const { dateStr: dlDate, timeStr: dlTime } = formatDateParis(deadlineUtc);
-        sections.push(`\ud83d\udcc5 **\u0421\u0434\u0430\u0442\u044c \u0437\u0430\u0434\u0430\u043d\u0438\u0435 \u0434\u043e:** ${dlDate}, ${dlTime} (Paris)`);
-      }
-    }
-
-    const forumContent = sections.join('\n\n');
-
+    const forumContent = buildSessionForumContent(sessionForForum);
     threadId = await context.discordActions.sendToSessionsForum(sessionNumber, title, forumContent, module);
 
     if (threadId) {
-      await updateSession(session.id, { discord_thread_id: threadId });
+      await updateSession(sessionForForum.id, { discord_thread_id: threadId });
     }
 
-    // Announce — dynamic content based on what's provided
-    const announceParts = [`\ud83c\udd95 **\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u0430 \u0421\u0435\u0441\u0441\u0438\u044f ${sessionNumber}!**\n${title}`];
-    if (input.video_url) {
-      announceParts.push(`\ud83c\udfac \u0412\u0438\u0434\u0435\u043e: ${input.video_url as string}`);
-    }
-    if (liveInfo) {
-      announceParts.push(liveInfo);
-    }
-    await context.discordActions.sendAnnouncement(announceParts.join('\n'), true);
+    // Announce
+    await context.discordActions.sendAnnouncement(buildSessionAnnouncement(sessionForForum), true);
   }
 
   return JSON.stringify({

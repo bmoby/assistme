@@ -5,7 +5,8 @@ import {
   ChannelType,
   TextChannel,
 } from 'discord.js';
-import { logger, createSession, updateSession } from '@assistme/core';
+import { logger, createSession, updateSession, buildSessionForumContent, buildSessionAnnouncement } from '@assistme/core';
+import type { Session } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 import { CHANNELS, ROLES } from '../../config.js';
 
@@ -57,26 +58,7 @@ export async function handleSession(interaction: ChatInputCommandInteraction): P
       const thread = await forumChannel.threads.create({
         name: `Сессия ${sessionNumber} — ${title}`,
         message: {
-          content: [
-            `📌 **Сессия ${sessionNumber} — ${title}**`,
-            `Модуль ${module}`,
-            '',
-            '🎬 **ВИДЕО К СЕССИИ:**',
-            '_(добавить ссылку)_',
-            '',
-            '📝 **ТЕМА:**',
-            '_(добавить описание)_',
-            '',
-            '📋 **ЗАДАНИЕ:**',
-            '_(добавить описание задания)_',
-            '📅 Сдать задание до: _(добавить)_',
-            '',
-            '🔴 **LIVE:**',
-            '_(ссылка будет добавлена)_',
-            '',
-            '🎥 **REPLAY:**',
-            '_(будет добавлен после эфира)_',
-          ].join('\n'),
+          content: buildSessionForumContent(session as Session),
         },
         appliedTags: moduleTag ? [moduleTag.id] : [],
       });
@@ -96,7 +78,7 @@ export async function handleSession(interaction: ChatInputCommandInteraction): P
       const studentRole = interaction.guild?.roles.cache.find((r) => r.name === ROLES.student);
       const mention = studentRole ? `<@&${studentRole.id}> ` : '';
       await announcesChannel.send(
-        `${mention}🆕 **Доступна Сессия ${sessionNumber}!**\n${title}\n\nПосмотри видео к сессии. Ссылка на live будет в посте сессии.`
+        `${mention}${buildSessionAnnouncement(session as Session)}`
       );
     }
 
