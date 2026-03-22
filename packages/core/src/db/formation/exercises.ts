@@ -1,5 +1,5 @@
 import { getSupabase } from '../client.js';
-import type { StudentExercise, ExerciseStatus } from '../../types/index.js';
+import type { StudentExercise, ExerciseStatus, ReviewHistoryEntry } from '../../types/index.js';
 import { logger } from '../../logger.js';
 
 const TABLE = 'student_exercises';
@@ -170,4 +170,98 @@ export async function getExerciseSummary(): Promise<{
     approved: exercises.filter((e) => e.status === 'approved').length,
     revision_needed: exercises.filter((e) => e.status === 'revision_needed').length,
   };
+}
+
+export async function getPendingExercisesBySession(sessionNumber: number): Promise<StudentExercise[]> {
+  const db = getSupabase();
+  const { data, error } = await db
+    .from(TABLE)
+    .select()
+    .eq('exercise_number', sessionNumber)
+    .in('status', ['submitted', 'ai_reviewed'])
+    .order('submitted_at', { ascending: true });
+
+  if (error) {
+    logger.error({ error, sessionNumber }, 'Failed to get pending exercises by session');
+    throw error;
+  }
+  return (data ?? []) as StudentExercise[];
+}
+
+export async function getExerciseWithSession(exerciseId: string): Promise<StudentExercise | null> {
+  const db = getSupabase();
+  const { data, error } = await db
+    .from(TABLE)
+    .select()
+    .eq('id', exerciseId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    logger.error({ error, exerciseId }, 'Failed to get exercise with session');
+    throw error;
+  }
+  return data as StudentExercise;
+}
+
+export async function resubmitExercise(
+  exerciseId: string,
+  params: {
+    submission_url: string | null;
+    submission_type: string;
+  }
+): Promise<StudentExercise> {
+  const db = getSupabase();
+
+  // First, get current exercise to build history entry
+  const { data: current, error: fetchError } = await db
+    .from(TABLE)
+    .select()
+    .eq('id', exerciseId)
+    .single();
+
+  if (fetchError) {
+    logger.error({ error: fetchError, exerciseId }, 'Failed to fetch exercise for resubmission');
+    throw fetchError;
+  }
+
+  const exercise = current as StudentExercise;
+
+  // Build history entry from current state
+  const historyEntry: ReviewHistoryEntry = {
+    reviewed_at: exercise.reviewed_at ?? new Date().toISOString(),
+    status: exercise.status,
+    feedback: exercise.feedback,
+    ai_review: exercise.ai_review,
+    submission_count: exercise.submission_count,
+  };
+
+  const updatedHistory = [...(exercise.review_history ?? []), historyEntry];
+
+  // Update exercise for re-submission
+  const { data, error } = await db
+    .from(TABLE)
+    .update({
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+      ai_review: null,
+      feedback: null,
+      reviewed_at: null,
+      submission_url: params.submission_url,
+      submission_type: params.submission_type,
+      submission_count: exercise.submission_count + 1,
+      review_history: updatedHistory,
+      notification_message_id: null,
+    })
+    .eq('id', exerciseId)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error({ error, exerciseId }, 'Failed to resubmit exercise');
+    throw error;
+  }
+
+  logger.info({ exerciseId, submissionCount: exercise.submission_count + 1 }, 'Exercise resubmitted');
+  return data as StudentExercise;
 }

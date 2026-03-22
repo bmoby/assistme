@@ -80,3 +80,62 @@ export async function deleteAttachment(id: string): Promise<void> {
     throw error;
   }
 }
+
+export async function deleteAttachmentsByExercise(exerciseId: string): Promise<string[]> {
+  const db = getSupabase();
+
+  // Get storage paths before deleting
+  const attachments = await getAttachmentsByExercise(exerciseId);
+  const storagePaths = attachments
+    .filter((a) => a.storage_path)
+    .map((a) => a.storage_path as string);
+
+  // Delete attachment records
+  const { error } = await db
+    .from(TABLE)
+    .delete()
+    .eq('exercise_id', exerciseId);
+
+  if (error) {
+    logger.error({ error, exerciseId }, 'Failed to delete attachments by exercise');
+    throw error;
+  }
+
+  return storagePaths;
+}
+
+export async function getSignedUrlsForExercise(exerciseId: string): Promise<Array<{
+  attachment: SubmissionAttachment;
+  signedUrl: string | null;
+}>> {
+  const attachments = await getAttachmentsByExercise(exerciseId);
+
+  const results = await Promise.all(
+    attachments.map(async (attachment) => {
+      let signedUrl: string | null = null;
+      if (attachment.storage_path) {
+        try {
+          signedUrl = await getSignedUrl(attachment.storage_path);
+        } catch {
+          logger.warn({ storagePath: attachment.storage_path }, 'Failed to generate signed URL');
+        }
+      }
+      return { attachment, signedUrl };
+    })
+  );
+
+  return results;
+}
+
+export async function deleteStorageFiles(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+
+  const db = getSupabase();
+  const { error } = await db.storage
+    .from('exercise-submissions')
+    .remove(paths);
+
+  if (error) {
+    logger.warn({ error, paths }, 'Failed to delete storage files (will be cleaned by cron)');
+  }
+}
