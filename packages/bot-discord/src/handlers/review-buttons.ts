@@ -1,13 +1,23 @@
-import { ButtonInteraction, TextChannel, ThreadChannel } from 'discord.js';
+import {
+  ButtonInteraction,
+  TextChannel,
+  ThreadChannel,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from 'discord.js';
 import {
   logger,
   getExercise,
   getSession,
   getStudent,
+  getSessionByNumber,
+  getPendingExercisesBySession,
   updateExerciseStatus,
   updateExercise,
 } from '@assistme/core';
-import type { ExerciseStatus, ReviewHistoryEntry } from '@assistme/core';
+import type { ExerciseStatus } from '@assistme/core';
 import { registerButton } from './button-handler.js';
 import { createReviewThread } from '../utils/review-thread.js';
 import { formatStudentFeedbackDM, formatSubmissionNotification } from '../utils/format.js';
@@ -20,6 +30,7 @@ export function registerReviewButtons(): void {
   registerButton('review_open_', handleReviewOpen);
   registerButton('review_approve_', handleReviewDecision);
   registerButton('review_revision_', handleReviewDecision);
+  registerButton('review_session_', handleReviewSession);
 }
 
 // ============================================
@@ -178,4 +189,74 @@ async function handleReviewDecision(interaction: ButtonInteraction): Promise<voi
   }
 
   await interaction.editReply({ content: `${statusLabel}. Thread archive.` });
+}
+
+// ============================================
+// View exercises by session (from digest or /review global buttons)
+// ============================================
+
+async function handleReviewSession(interaction: ButtonInteraction): Promise<void> {
+  const sessionNumber = parseInt(interaction.customId.replace('review_session_', ''), 10);
+  if (isNaN(sessionNumber)) {
+    await interaction.reply({ content: 'Session invalide.', ephemeral: true });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const session = await getSessionByNumber(sessionNumber);
+  const pending = await getPendingExercisesBySession(sessionNumber);
+
+  if (pending.length === 0) {
+    await interaction.editReply({ content: `Нет заданий на проверку для сессии ${sessionNumber}.` });
+    return;
+  }
+
+  // Resolve student names
+  const studentNames = new Map<string, string>();
+  for (const ex of pending) {
+    if (!studentNames.has(ex.student_id)) {
+      const student = await getStudent(ex.student_id);
+      studentNames.set(ex.student_id, student?.name ?? 'Inconnu');
+    }
+  }
+
+  const sessionTitle = session ? `${session.session_number} — ${session.title}` : `Session ${sessionNumber}`;
+
+  const lines = pending.map((ex) => {
+    const name = studentNames.get(ex.student_id) ?? 'Inconnu';
+    const aiReview = ex.ai_review as Record<string, unknown> | null;
+    const score = aiReview?.score as number | undefined;
+    const rec = aiReview?.recommendation as string | undefined;
+    const emoji = ex.status === 'ai_reviewed' ? '🤖' : '📩';
+    const scoreStr = score !== undefined ? `Score IA : ${score}/10 — ${rec ?? '?'}` : 'Score IA : en cours...';
+    const resubLabel = ex.submission_count > 1 ? ` (#${ex.submission_count})` : '';
+    return `${emoji} **${name}**${resubLabel} — ${scoreStr}`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setTitle(`📋 Exercices — ${sessionTitle}`)
+    .setDescription(`**En attente : ${pending.length}**\n\n${lines.join('\n')}`)
+    .setColor(0x5865f2)
+    .setTimestamp();
+
+  const rows: ActionRowBuilder<ButtonBuilder>[] = [];
+  const displayed = pending.slice(0, 25);
+
+  for (let i = 0; i < displayed.length; i += 5) {
+    const row = new ActionRowBuilder<ButtonBuilder>();
+    for (const ex of displayed.slice(i, i + 5)) {
+      const name = studentNames.get(ex.student_id) ?? '?';
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`review_open_${ex.id}`)
+          .setLabel(name.slice(0, 20))
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('📝')
+      );
+    }
+    rows.push(row);
+  }
+
+  await interaction.editReply({ embeds: [embed], components: rows });
 }
