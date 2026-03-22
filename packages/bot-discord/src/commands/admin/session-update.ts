@@ -5,7 +5,8 @@ import {
   ChannelType,
   TextChannel,
 } from 'discord.js';
-import { logger, getSessionByNumber, updateSession, createMeetEvent } from '@assistme/core';
+import { logger, getSessionByNumber, updateSession, createMeetEvent, buildSessionForumContent, buildSessionAnnouncement } from '@assistme/core';
+import type { Session } from '@assistme/core';
 import { isAdmin } from '../../utils/auth.js';
 import { CHANNELS, ROLES } from '../../config.js';
 
@@ -182,8 +183,9 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
     // If publishing a draft → create forum thread + announce
     const isPublishing = status === 'published' && session.status !== 'published';
     if (isPublishing && !session.discord_thread_id) {
-      const sessionTitle = (title ?? session.title);
-      const sessionModule = session.module;
+      // Build updated session object with all changes applied
+      const updatedSession: Session = { ...session, ...updates } as Session;
+      const sessionTitle = updatedSession.title;
 
       // Create forum thread
       const forumChannel = interaction.guild?.channels.cache.find(
@@ -191,37 +193,13 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
       ) as ForumChannel | undefined;
 
       if (forumChannel) {
-        const moduleTagName = `Модуль ${sessionModule}`;
+        const moduleTagName = `Модуль ${updatedSession.module}`;
         const moduleTag = forumChannel.availableTags.find((t) => t.name === moduleTagName);
-
-        const liveUrl = (updates.live_url as string) ?? session.live_url;
-        const liveSection = liveUrl
-          ? `[Присоединиться к live](${liveUrl})`
-          : '_(ссылка будет добавлена)_';
 
         const thread = await forumChannel.threads.create({
           name: `Сессия ${sessionNumber} — ${sessionTitle}`,
           message: {
-            content: [
-              `📌 **Сессия ${sessionNumber} — ${sessionTitle}**`,
-              `Модуль ${sessionModule}`,
-              '',
-              '🎬 **ВИДЕО К СЕССИИ:**',
-              session.pre_session_video_url ?? '_(добавить ссылку)_',
-              '',
-              '📝 **ТЕМА:**',
-              session.description ?? '_(добавить описание)_',
-              '',
-              '📋 **ЗАДАНИЕ:**',
-              session.exercise_description ?? '_(добавить описание задания)_',
-              `📅 Сдать задание до: ${session.deadline ? new Date(session.deadline).toLocaleDateString('ru-RU') : '_(добавить)_'}`,
-              '',
-              `🔴 **LIVE:**`,
-              liveSection,
-              '',
-              '🎥 **REPLAY:**',
-              '_(будет добавлен после эфира)_',
-            ].join('\n'),
+            content: buildSessionForumContent(updatedSession),
           },
           appliedTags: moduleTag ? [moduleTag.id] : [],
         });
@@ -239,7 +217,7 @@ export async function handleSessionUpdate(interaction: ChatInputCommandInteracti
         const studentRole = interaction.guild?.roles.cache.find((r) => r.name === ROLES.student);
         const mention = studentRole ? `<@&${studentRole.id}> ` : '';
         await announcesChannel.send(
-          `${mention}🆕 **Доступна Сессия ${sessionNumber}!**\n${sessionTitle}\n\nПосмотри видео к сессии. Ссылка на live будет в посте сессии.`
+          `${mention}${buildSessionAnnouncement(updatedSession)}`
         );
         changes.push('анонс');
       }
