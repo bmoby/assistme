@@ -44,7 +44,13 @@ Plans:
   3. A test can drive the DM Agent through a multi-turn tool-use sequence with a deterministic fixture response — same input always produces same output
   4. All four handlers (dm-handler, admin-handler, FAQ, review-buttons) and slash commands have at least one passing test covering their primary routing logic
   5. Module-level Discord client singleton does not bleed state between test files
-**Plans**: TBD
+**Plans:** 4 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Mock infrastructure: Discord.js builders, Anthropic SDK mock, JSON fixtures, domain factories, handler state isolation
+- [ ] 02-02-PLAN.md — Unit tests for FAQ handler and all 9 slash commands
+- [ ] 02-03-PLAN.md — Unit tests for DM handler, admin handler, and review-buttons
+- [ ] 02-04-PLAN.md — Unit tests for DM Agent, FAQ Agent, and Tsarag Agent tool routing logic
 **UI hint**: no
 
 ### Phase 3: Integration + CI
@@ -80,6 +86,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete   | 2026-03-24 |
-| 2. Mocks + Unit Tests | 0/? | Not started | - |
+| 2. Mocks + Unit Tests | 0/4 | Planning complete | - |
 | 3. Integration + CI | 0/? | Not started | - |
 | 4. E2E Discord Dev | 0/? | Not started | - |
