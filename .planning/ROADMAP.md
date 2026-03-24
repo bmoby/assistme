@@ -12,7 +12,7 @@ Starting from zero tests in a 15K+ line TypeScript/ESM Discord.js v14 codebase, 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Vitest configured for ESM monorepo, all test scripts functional, zero crashes at import
+- [x] **Phase 1: Foundation** - Vitest configured for ESM monorepo, all test scripts functional, zero crashes at import (completed 2026-03-24)
 - [ ] **Phase 2: Mocks + Unit Tests** - Shared mock layer built, all handlers covered with deterministic unit tests
 - [ ] **Phase 3: Integration + CI** - Real Supabase Docker validates DB layer, GitHub Actions CI gates every PR
 - [ ] **Phase 4: E2E Discord Dev** - Dedicated dev bot + test server, critical flows covered with real Discord interactions
@@ -29,10 +29,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. `pnpm test:watch` starts in watch mode and responds to file changes
   4. `@assistme/core` imported in a test file resolves to source TypeScript (not stale `dist/`)
   5. A test file that imports any handler does not throw at import time even when `SUPABASE_URL` and `DISCORD_TOKEN` are absent
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 01-01-PLAN.md — Install Vitest, create root config with projects API, add test scripts, create smoke tests
+- [x] 01-01-PLAN.md — Install Vitest, create root config with projects API, add test scripts, create smoke tests
 
 ### Phase 2: Mocks + Unit Tests
 **Goal**: Every Discord handler and AI agent can be tested in isolation — no real DB, no real Discord, no real Claude API required to run the full unit suite
@@ -79,7 +79,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/1 | Planning complete | - |
+| 1. Foundation | 1/1 | Complete   | 2026-03-24 |
 | 2. Mocks + Unit Tests | 0/? | Not started | - |
 | 3. Integration + CI | 0/? | Not started | - |
 | 4. E2E Discord Dev | 0/? | Not started | - |

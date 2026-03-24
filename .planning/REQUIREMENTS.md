@@ -9,11 +9,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Test Foundation
 
-- [ ] **FOUND-01**: Vitest configure pour le monorepo ESM avec `projects:` API et `pool: 'forks'`
-- [ ] **FOUND-02**: `@assistme/core` resolu via `resolve.alias` vers les sources (pas `dist/`)
-- [ ] **FOUND-03**: Variables d'environnement factices dans la config test pour eviter les crashes a l'import
-- [ ] **FOUND-04**: Scripts `pnpm test`, `pnpm test:unit`, `pnpm test:integration` fonctionnels
-- [ ] **FOUND-05**: Watch mode (`pnpm test:watch`) avec filtrage par fichier
+- [x] **FOUND-01**: Vitest configure pour le monorepo ESM avec `projects:` API et `pool: 'forks'`
+- [x] **FOUND-02**: `@assistme/core` resolu via `resolve.alias` vers les sources (pas `dist/`)
+- [x] **FOUND-03**: Variables d'environnement factices dans la config test pour eviter les crashes a l'import
+- [x] **FOUND-04**: Scripts `pnpm test`, `pnpm test:unit`, `pnpm test:integration` fonctionnels
+- [x] **FOUND-05**: Watch mode (`pnpm test:watch`) avec filtrage par fichier
 
 ### Mock Infrastructure
 
@@ -85,11 +85,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1 | Pending |
-| FOUND-02 | Phase 1 | Pending |
-| FOUND-03 | Phase 1 | Pending |
-| FOUND-04 | Phase 1 | Pending |
-| FOUND-05 | Phase 1 | Pending |
+| FOUND-01 | Phase 1 | Complete |
+| FOUND-02 | Phase 1 | Complete |
+| FOUND-03 | Phase 1 | Complete |
+| FOUND-04 | Phase 1 | Complete |
+| FOUND-05 | Phase 1 | Complete |
 | MOCK-01 | Phase 2 | Pending |
 | MOCK-02 | Phase 2 | Pending |
 | MOCK-03 | Phase 2 | Pending |

@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-24T11:48:22.471Z"
-last_activity: 2026-03-24 — Roadmap created, Phase 1 ready for planning
+status: Phase complete — ready for verification
+stopped_at: Completed 01-foundation-01-01-PLAN.md
+last_updated: "2026-03-24T12:39:14.280Z"
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
 ---
 
 # Project State
@@ -21,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca casse quelque chose -- sans deployer en prod.
-**Current focus:** Phase 1 — Foundation
+**Current focus:** Phase 01 — foundation
 
 ## Current Position
 
-Phase: 1 of 4 (Foundation)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-03-24 — Roadmap created, Phase 1 ready for planning
-
-Progress: [░░░░░░░░░░] 0%
+Phase: 01 (foundation) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
@@ -52,6 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01-foundation P01 | 2 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -64,6 +59,10 @@ Recent decisions affecting current work:
 - Supabase local Docker over mock DB: integration tests need real pgvector
 - Bot de dev Discord separe: zero risk on prod, dedicated token
 - 3-tier test pyramid: unit (fast, no services) + integration (real DB) + E2E (real Discord, manual only)
+- [Phase 01-foundation]: Vitest projects API (not workspace file) for inline monorepo project definitions — no deprecated vitest.workspace.ts
+- [Phase 01-foundation]: pool: forks over vmThreads for ESM native module stability
+- [Phase 01-foundation]: test.env fake vars per Vitest project to prevent import-time env crashes from getSupabase() and logger
+- [Phase 01-foundation]: test:integration script uses || exit 0 — Vitest 4.x exits 1 on unknown --project filter names
 
 ### Pending Todos
 
@@ -76,6 +75,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T11:48:22.445Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-foundation/01-CONTEXT.md
+Last session: 2026-03-24T12:39:14.275Z
+Stopped at: Completed 01-foundation-01-01-PLAN.md
+Resume file: None
