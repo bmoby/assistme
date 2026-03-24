@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-24T13:22:56.764Z"
+status: Ready to execute
+stopped_at: Completed 02-05-PLAN.md
+last_updated: "2026-03-24T14:07:13.452Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_plans: 6
+  completed_plans: 2
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca casse quelque chose -- sans deployer en prod.
-**Current focus:** Phase 01 — foundation
+**Current focus:** Phase 02 — mocks-unit-tests
 
 ## Current Position
 
-Phase: 2
-Plan: Not started
+Phase: 02 (mocks-unit-tests) — EXECUTING
+Plan: 2 of 5
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Plan: Not started
 
 *Updated after each plan completion*
 | Phase 01-foundation P01 | 2 | 2 tasks | 8 files |
+| Phase 02-mocks-unit-tests P05 | 15 | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,8 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: pool: forks over vmThreads for ESM native module stability
 - [Phase 01-foundation]: test.env fake vars per Vitest project to prevent import-time env crashes from getSupabase() and logger
 - [Phase 01-foundation]: test:integration script uses || exit 0 — Vitest 4.x exits 1 on unknown --project filter names
+- [Phase 02-05]: JSON arrays for multi-turn agent sequences — dm-agent-submission: 3 responses, tsarag-read-propose: 2 responses
+- [Phase 02-05]: Module-level seq counter (not closure) for fixture factories to allow external resetSeq() without re-import
 
 ### Pending Todos
 
@@ -75,6 +78,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T13:22:56.748Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-mocks-unit-tests/02-CONTEXT.md
+Last session: 2026-03-24T14:07:13.445Z
+Stopped at: Completed 02-05-PLAN.md
+Resume file: None

@@ -49,7 +49,7 @@ Plans:
 
 Plans:
 - [ ] 02-01-PLAN.md — Discord.js builders, Anthropic SDK mock helper, handler state isolation exports
-- [ ] 02-05-PLAN.md — Claude API JSON fixtures and domain fixture factories
+- [x] 02-05-PLAN.md — Claude API JSON fixtures and domain fixture factories
 - [ ] 02-02-PLAN.md — Unit tests for FAQ handler and all 9 slash commands
 - [ ] 02-03-PLAN.md — Unit tests for DM handler, admin handler, and review-buttons
 - [ ] 02-04-PLAN.md — Unit tests for DM Agent, FAQ Agent, and Tsarag Agent tool routing logic
