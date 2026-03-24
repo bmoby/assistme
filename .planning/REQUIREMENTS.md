@@ -85,9 +85,33 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01..05 | TBD | Pending |
-| MOCK-01..04 | TBD | Pending |
-| UNIT-01..07 | TBD | Pending |
-| INTG-01..05 | TBD | Pending |
-| E2E-01..05 | TBD | Pending |
-| CI-01..04 | TBD | Pending |
+| FOUND-01 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Pending |
+| FOUND-03 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Pending |
+| FOUND-05 | Phase 1 | Pending |
+| MOCK-01 | Phase 2 | Pending |
+| MOCK-02 | Phase 2 | Pending |
+| MOCK-03 | Phase 2 | Pending |
+| MOCK-04 | Phase 2 | Pending |
+| UNIT-01 | Phase 2 | Pending |
+| UNIT-02 | Phase 2 | Pending |
+| UNIT-03 | Phase 2 | Pending |
+| UNIT-04 | Phase 2 | Pending |
+| UNIT-05 | Phase 2 | Pending |
+| UNIT-06 | Phase 2 | Pending |
+| UNIT-07 | Phase 2 | Pending |
+| INTG-01 | Phase 3 | Pending |
+| INTG-02 | Phase 3 | Pending |
+| INTG-03 | Phase 3 | Pending |
+| INTG-04 | Phase 3 | Pending |
+| INTG-05 | Phase 3 | Pending |
+| CI-01 | Phase 3 | Pending |
+| CI-02 | Phase 3 | Pending |
+| CI-03 | Phase 3 | Pending |
+| CI-04 | Phase 3 | Pending |
+| E2E-01 | Phase 4 | Pending |
+| E2E-02 | Phase 4 | Pending |
+| E2E-03 | Phase 4 | Pending |
+| E2E-04 | Phase 4 | Pending |
+| E2E-05 | Phase 4 | Pending |
