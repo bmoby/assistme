@@ -268,3 +268,13 @@ export function setupAdminHandler(client: Client): void {
 
   logger.info('Admin handler registered');
 }
+
+/**
+ * Test-only: reset module-level state between tests.
+ * Prevents conversation state and processing locks from leaking across test runs.
+ */
+export function _clearStateForTesting(): void {
+  if (process.env['NODE_ENV'] !== 'test') return;
+  conversations.clear();
+  processingLocks.clear();
+}
