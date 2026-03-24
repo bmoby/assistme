@@ -20,7 +20,7 @@ Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca ca
 ### Active
 
 - [ ] Environnement de dev Discord (serveur de test + bot de dev separe)
-- [ ] Framework de test (Vitest) configure pour le monorepo ESM
+- [x] Framework de test (Vitest) configure pour le monorepo ESM — Validated in Phase 1: Foundation
 - [ ] Tests unitaires: handlers, agents, commandes, utils en isolation
 - [ ] Tests d'integration: Supabase local (Docker) + mock Claude API
 - [ ] Tests E2E: vrai bot de dev sur serveur Discord de test, scenarios complets
@@ -37,8 +37,8 @@ Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca ca
 ## Context
 
 - **Codebase existante:** ~15K+ lignes de code TypeScript strict, ESM modules
-- **Zero tests actuellement:** Aucun fichier .test.ts, aucune config de test, aucune dependance de test
-- **Douleur principale:** Pas de feedback local -- obliger de deployer en prod pour tester
+- **Phase 1 complete:** Vitest configure avec projects API (core + bot-discord), 3 smoke tests passent, env isolation fonctionne
+- **Douleur principale:** Pas de feedback local -- obliger de deployer en prod pour tester (Phase 2+ addressera)
 - **Bot Discord:** discord.js 14.16, handlers (DM, admin, FAQ, review), slash commands, crons
 - **Core partage:** Supabase (PostgreSQL + pgvector), Claude API (agents avec tool use), Redis (optionnel)
 - **Agents IA:** Orchestrator, DM Agent, Tsarag Agent, FAQ Agent -- logique complexe avec tool calling
@@ -56,7 +56,7 @@ Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca ca
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Vitest over Jest | Meilleur support ESM natif, plus rapide, meme API | -- Pending |
+| Vitest over Jest | Meilleur support ESM natif, plus rapide, meme API | Validated Phase 1 |
 | Bot Discord de dev separe | Zero risque sur la prod, token dedie | -- Pending |
 | Supabase local Docker | Tests d'integration avec vraie DB, pas de mocks DB | -- Pending |
 | 3 couches de tests | Unit (rapide) + Integration (DB reelle) + E2E (vrai Discord) | -- Pending |
@@ -79,4 +79,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after initialization*
+*Last updated: 2026-03-24 after Phase 1: Foundation completion*
