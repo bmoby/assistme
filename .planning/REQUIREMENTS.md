@@ -17,14 +17,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Mock Infrastructure
 
-- [ ] **MOCK-01**: Factories Discord.js (Message, Guild, GuildMember, Interaction) via plain objects + `vi.fn()`
+- [x] **MOCK-01**: Factories Discord.js (Message, Guild, GuildMember, Interaction) via plain objects + `vi.fn()`
 - [x] **MOCK-02**: Fixtures Claude API avec sequences tool-use multi-turn (DM Agent, Tsarag, FAQ)
 - [ ] **MOCK-03**: MSW v2 handlers pour intercepter Supabase REST et Claude API HTTP (deferred from Phase 2 to Phase 3 per D-04: vi.mock() only in Phase 2)
 - [x] **MOCK-04**: Fixtures domaine partagees (students, sessions, exercises, formation knowledge)
 
 ### Unit Tests
 
-- [ ] **UNIT-01**: Handler isolation refactor -- extraire la logique pure des handlers couples au Client Discord
+- [x] **UNIT-01**: Handler isolation refactor -- extraire la logique pure des handlers couples au Client Discord
 - [ ] **UNIT-02**: Tests unitaires dm-handler (routing DM, parsing messages, delegation au DM Agent)
 - [ ] **UNIT-03**: Tests unitaires admin-handler (messages #admin, delegation Tsarag Agent)
 - [ ] **UNIT-04**: Tests unitaires FAQ handler (detection patterns, reponses)
@@ -90,11 +90,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUND-03 | Phase 1 | Complete |
 | FOUND-04 | Phase 1 | Complete |
 | FOUND-05 | Phase 1 | Complete |
-| MOCK-01 | Phase 2 | Pending |
+| MOCK-01 | Phase 2 | Complete |
 | MOCK-02 | Phase 2 | Complete |
 | MOCK-03 | Phase 3 | Pending (deferred from Phase 2 per D-04) |
 | MOCK-04 | Phase 2 | Complete |
-| UNIT-01 | Phase 2 | Pending |
+| UNIT-01 | Phase 2 | Complete |
 | UNIT-02 | Phase 2 | Pending |
 | UNIT-03 | Phase 2 | Pending |
 | UNIT-04 | Phase 2 | Pending |
