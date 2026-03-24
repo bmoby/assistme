@@ -37,17 +37,19 @@ Plans:
 ### Phase 2: Mocks + Unit Tests
 **Goal**: Every Discord handler and AI agent can be tested in isolation — no real DB, no real Discord, no real Claude API required to run the full unit suite
 **Depends on**: Phase 1
-**Requirements**: MOCK-01, MOCK-02, MOCK-03, MOCK-04, UNIT-01, UNIT-02, UNIT-03, UNIT-04, UNIT-05, UNIT-06, UNIT-07
+**Requirements**: MOCK-01, MOCK-02, MOCK-04, UNIT-01, UNIT-02, UNIT-03, UNIT-04, UNIT-05, UNIT-06, UNIT-07
+**Note**: MOCK-03 (MSW v2 handlers) deferred to Phase 3 per decision D-04 (vi.mock() only in Phase 2).
 **Success Criteria** (what must be TRUE):
   1. `pnpm test:unit` runs all handler tests in under 5 seconds with zero external service calls
   2. A test can construct a fake Discord Message, Interaction, and GuildMember using factory functions without touching discord.js constructors
   3. A test can drive the DM Agent through a multi-turn tool-use sequence with a deterministic fixture response — same input always produces same output
   4. All four handlers (dm-handler, admin-handler, FAQ, review-buttons) and slash commands have at least one passing test covering their primary routing logic
   5. Module-level Discord client singleton does not bleed state between test files
-**Plans:** 4 plans
+**Plans:** 5 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Mock infrastructure: Discord.js builders, Anthropic SDK mock, JSON fixtures, domain factories, handler state isolation
+- [ ] 02-01-PLAN.md — Discord.js builders, Anthropic SDK mock helper, handler state isolation exports
+- [ ] 02-05-PLAN.md — Claude API JSON fixtures and domain fixture factories
 - [ ] 02-02-PLAN.md — Unit tests for FAQ handler and all 9 slash commands
 - [ ] 02-03-PLAN.md — Unit tests for DM handler, admin handler, and review-buttons
 - [ ] 02-04-PLAN.md — Unit tests for DM Agent, FAQ Agent, and Tsarag Agent tool routing logic
@@ -56,7 +58,7 @@ Plans:
 ### Phase 3: Integration + CI
 **Goal**: DB correctness is validated against a real local Postgres+pgvector instance, and every push automatically runs the unit suite while every PR runs the integration suite
 **Depends on**: Phase 2
-**Requirements**: INTG-01, INTG-02, INTG-03, INTG-04, INTG-05, CI-01, CI-02, CI-03, CI-04
+**Requirements**: MOCK-03, INTG-01, INTG-02, INTG-03, INTG-04, INTG-05, CI-01, CI-02, CI-03, CI-04
 **Success Criteria** (what must be TRUE):
   1. `pnpm test:integration` starts a local Supabase instance, runs all migrations, executes DB tests, and tears down cleanly
   2. `search_formation_knowledge()` RPC and pgvector hybrid search return correct results verified by an integration test
@@ -86,6 +88,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete   | 2026-03-24 |
-| 2. Mocks + Unit Tests | 0/4 | Planning complete | - |
+| 2. Mocks + Unit Tests | 0/5 | Planning complete | - |
 | 3. Integration + CI | 0/? | Not started | - |
 | 4. E2E Discord Dev | 0/? | Not started | - |
