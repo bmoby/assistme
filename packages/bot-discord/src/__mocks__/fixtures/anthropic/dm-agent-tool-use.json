@@ -1,0 +1,22 @@
+{
+  "id": "msg_01Abcdef1234567890",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "tool_use",
+      "id": "call_1",
+      "name": "get_student_progress",
+      "input": {
+        "discord_id": "discord-123"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "model": "claude-sonnet-4-5",
+  "usage": {
+    "input_tokens": 150,
+    "output_tokens": 60
+  }
+}

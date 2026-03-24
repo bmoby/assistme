@@ -1,0 +1,18 @@
+{
+  "id": "msg_02Bcdefg2345678901",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Привет! Вот твой прогресс: модуль 1 завершён, модуль 2 в процессе."
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "model": "claude-sonnet-4-5",
+  "usage": {
+    "input_tokens": 250,
+    "output_tokens": 100
+  }
+}

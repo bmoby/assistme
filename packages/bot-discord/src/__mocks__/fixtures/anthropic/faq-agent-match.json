@@ -1,0 +1,18 @@
+{
+  "id": "msg_08Hijklm8901234567",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"answer\": \"ИИ-агенты — это автономные системы, которые принимают решения.\", \"confidence\": 90, \"matchedFaqId\": \"faq-1\", \"suggestAddToFaq\": false}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "model": "claude-sonnet-4-5",
+  "usage": {
+    "input_tokens": 400,
+    "output_tokens": 80
+  }
+}

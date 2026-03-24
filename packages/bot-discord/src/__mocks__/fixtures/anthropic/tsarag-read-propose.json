@@ -1,0 +1,51 @@
+[
+  {
+    "id": "msg_06Fghijk6789012345",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "call_1",
+        "name": "read_students",
+        "input": {
+          "session": 2
+        }
+      }
+    ],
+    "stop_reason": "tool_use",
+    "stop_sequence": null,
+    "model": "claude-sonnet-4-5",
+    "usage": {
+      "input_tokens": 200,
+      "output_tokens": 65
+    }
+  },
+  {
+    "id": "msg_07Ghijkl7890123456",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "Вот список студентов сессии 2. Хочешь отправить им напоминание?",
+        "proposedAction": {
+          "type": "send_announcement",
+          "params": {
+            "session": 2,
+            "message": "Напоминание о сдаче задания"
+          },
+          "summary": "Отправить напоминание всем студентам сессии 2",
+          "id": "action-tsarag-001"
+        }
+      }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "model": "claude-sonnet-4-5",
+    "usage": {
+      "input_tokens": 320,
+      "output_tokens": 120
+    }
+  }
+]

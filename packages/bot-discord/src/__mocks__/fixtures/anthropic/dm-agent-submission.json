@@ -1,0 +1,64 @@
+[
+  {
+    "id": "msg_03Cdefgh3456789012",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "call_1",
+        "name": "get_student_progress",
+        "input": {}
+      }
+    ],
+    "stop_reason": "tool_use",
+    "stop_sequence": null,
+    "model": "claude-sonnet-4-5",
+    "usage": {
+      "input_tokens": 160,
+      "output_tokens": 55
+    }
+  },
+  {
+    "id": "msg_04Defghi4567890123",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "call_2",
+        "name": "create_submission",
+        "input": {
+          "module": 1,
+          "exercise_number": 1,
+          "submission_type": "file"
+        }
+      }
+    ],
+    "stop_reason": "tool_use",
+    "stop_sequence": null,
+    "model": "claude-sonnet-4-5",
+    "usage": {
+      "input_tokens": 280,
+      "output_tokens": 70
+    }
+  },
+  {
+    "id": "msg_05Efghij5678901234",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "Твоё задание принято! Тренер проверит его в ближайшее время."
+      }
+    ],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "model": "claude-sonnet-4-5",
+    "usage": {
+      "input_tokens": 350,
+      "output_tokens": 90
+    }
+  }
+]

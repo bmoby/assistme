@@ -1,0 +1,18 @@
+{
+  "id": "msg_09Ijklmn9012345678",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"answer\": \"Не уверен в ответе на этот вопрос.\", \"confidence\": 35, \"matchedFaqId\": null, \"suggestAddToFaq\": true}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "model": "claude-sonnet-4-5",
+  "usage": {
+    "input_tokens": 380,
+    "output_tokens": 60
+  }
+}
