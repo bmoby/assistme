@@ -10,13 +10,22 @@
     "lint:fix": "eslint packages/*/src/**/*.ts --fix",
     "format": "prettier --write 'packages/*/src/**/*.ts'",
     "typecheck": "pnpm -r run typecheck",
-    "seed:knowledge": "pnpm exec tsx scripts/seed-formation-knowledge.ts"
+    "seed:knowledge": "pnpm exec tsx scripts/seed-formation-knowledge.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:integration": "vitest run --project core-integration --project bot-discord-integration",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=7.0.0"
   },
   "devDependencies": {
-    "tsx": "^4.21.0"
+    "@vitest/coverage-v8": "^4.1.1",
+    "msw": "^2.12.14",
+    "tsx": "^4.21.0",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.1"
   }
 }
