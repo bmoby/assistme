@@ -84,10 +84,10 @@ Plans:
   3. A full DM student flow (user sends message, bot invokes DM Agent, user receives formatted response) passes as an E2E test
   4. An exercise submission flow (file upload to channel, review bot processes it, feedback posted) passes as an E2E test
   5. The test Discord server channels mirror the production server structure so E2E tests reflect real usage conditions
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 04-01-PLAN.md — E2E infrastructure: Vitest e2e project, two-bot lifecycle, helper utilities, env template
+- [x] 04-01-PLAN.md — E2E infrastructure: Vitest e2e project, two-bot lifecycle, helper utilities, env template
 - [ ] 04-02-PLAN.md — E2E scenarios: DM student flow, exercise submission, FAQ flow, CI workflow update
 
 ## Progress
@@ -100,4 +100,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Foundation | 1/1 | Complete   | 2026-03-24 |
 | 2. Mocks + Unit Tests | 5/5 | Complete   | 2026-03-25 |
 | 3. Integration + CI | 4/4 | Complete   | 2026-03-25 |
-| 4. E2E Discord Dev | 0/2 | Not started | - |
+| 4. E2E Discord Dev | 1/2 | In Progress|  |

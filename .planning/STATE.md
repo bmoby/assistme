@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-25T03:59:40.426Z"
+status: Ready to execute
+stopped_at: Completed 04-e2e-discord-dev 04-01-PLAN.md
+last_updated: "2026-03-25T04:35:21.372Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 11
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca casse quelque chose -- sans deployer en prod.
-**Current focus:** Phase 03 — integration-ci
+**Current focus:** Phase 04 — e2e-discord-dev
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
+Phase: 04 (e2e-discord-dev) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Plan: Not started
 | Phase 03-integration-ci P01 | 2 | 2 tasks | 5 files |
 | Phase 03-integration-ci P02 | 2 | 2 tasks | 2 files |
 | Phase 03-integration-ci P03 | 15 | 2 tasks | 2 files |
+| Phase 04-e2e-discord-dev P01 | 3 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,10 @@ Recent decisions affecting current work:
 - [Phase 03-02]: Known 1536-dim unit vector for pgvector test: cosine similarity of identical vectors = 1.0, deterministic without embedding server
 - [Phase 03-integration-ci]: vi.mock('@anthropic-ai/sdk') hoisted before agent import: ESM mock hoisting requires mock declaration before any import that loads the SDK
 - [Phase 03-integration-ci]: Per-glob coverage thresholds in vitest.config.ts: handlers 70/65/70/70, agents 70/60/70/70 — floor at current coverage, not a forced increase
+- [Phase 04-e2e-discord-dev]: setupFile handles Discord bot lifecycle (not globalSetup) — globalSetup runs in main thread, bots must live in test worker fork
+- [Phase 04-e2e-discord-dev]: singleFork: true — all e2e test files share one fork process, bots connect once and remain connected for all tests
+- [Phase 04-e2e-discord-dev]: clients.ts mutable let exports populated by setters — avoids circular imports, stable import path for test files
+- [Phase 04-e2e-discord-dev]: loadE2eEnv() maps DISCORD_DEV_BOT_TOKEN to DISCORD_BOT_TOKEN — handlers read standard env names without modification
 
 ### Pending Todos
 
@@ -105,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T03:59:40.419Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-e2e-discord-dev/04-CONTEXT.md
+Last session: 2026-03-25T04:35:21.367Z
+Stopped at: Completed 04-e2e-discord-dev 04-01-PLAN.md
+Resume file: None
