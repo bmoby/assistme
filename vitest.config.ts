@@ -107,6 +107,28 @@ export default defineConfig({
           },
         },
       },
+      {
+        test: {
+          name: 'e2e',
+          root: path.resolve(__dirname, 'test/e2e'),
+          include: ['**/*.e2e.test.ts'],
+          globalSetup: path.resolve(__dirname, 'test/e2e/globalSetup.e2e.ts'),
+          setupFiles: [path.resolve(__dirname, 'test/e2e/setup.e2e.ts')],
+          testTimeout: 30_000,
+          hookTimeout: 60_000,
+          pool: 'forks',
+          poolOptions: { forks: { singleFork: true } },
+          env: {
+            NODE_ENV: 'test',
+            LOG_LEVEL: 'silent',
+          },
+        },
+        resolve: {
+          alias: {
+            '@assistme/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
+          },
+        },
+      },
     ],
     coverage: {
       provider: 'v8',

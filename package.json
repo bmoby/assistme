@@ -15,7 +15,8 @@
     "test:unit": "vitest run --project core --project bot-discord",
     "test:integration": "vitest run --project core-integration --project bot-discord-integration",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --project core --project bot-discord --coverage"
+    "test:coverage": "vitest run --project core --project bot-discord --coverage",
+    "test:e2e": "vitest run --project e2e"
   },
   "engines": {
     "node": ">=20.0.0",
