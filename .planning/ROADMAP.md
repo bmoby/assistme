@@ -100,8 +100,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Migration 017 + types + exercises.ts functions + dm-agent.ts caller update
-- [ ] 05-02-PLAN.md — Integration tests for exercise DB layer (23505, atomic session_id, lookups)
+- [x] 05-01-PLAN.md — Migration 017 + types + exercises.ts functions + dm-agent.ts caller update
+- [x] 05-02-PLAN.md — Integration tests for exercise DB layer (23505, atomic session_id, lookups)
 
 ### Phase 6: Submission Handler Correctness + Student UX
 **Goal**: Students can submit exercises with confidence — empty submissions are blocked, sessions are validated, re-submission works cleanly, and the preview-then-confirm flow is reliable

@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Exercise Submission Flow
-status: planning
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-25T09:40:00.657Z"
-last_activity: 2026-03-25 — Roadmap v2.0 created
+status: Phase complete — ready for verification
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-25T10:17:51.202Z"
 progress:
   total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 2
+  completed_plans: 2
 ---
 
 # Project State
@@ -21,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
-**Current focus:** Phase 5 — DB Foundation + Core Hardening
+**Current focus:** Phase 05 — db-foundation-core-hardening
 
 ## Current Position
 
-Phase: 5 of 7 (DB Foundation + Core Hardening)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-25 — Roadmap v2.0 created
-
-Progress: [░░░░░░░░░░] 0% (v2.0 phases only)
+Phase: 05 (db-foundation-core-hardening) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -52,6 +46,8 @@ Progress: [░░░░░░░░░░] 0% (v2.0 phases only)
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 05 P01 | 5min | 2 tasks | 6 files |
+| Phase 05 P02 | 5min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -64,6 +60,10 @@ Recent decisions affecting current work:
 - Button-based preview/confirm (ActionRowBuilder + awaitMessageComponent) preferred over LLM-driven confirmation — deterministic handler, no Claude misinterpretation risk
 - Partial unique index on `(student_id, session_id) WHERE status IN ('submitted', 'ai_reviewed')` — not a full unique constraint, intentionally scoped to active statuses
 - Re-submission uses expand-then-contract ordering: upload new files first, delete old records last (fire-and-forget) — never leaves a zero-attachment submitted state
+- [Phase 05]: DO block with duplicate detection before index creation for safe production migration
+- [Phase 05]: Keep getPendingExercisesBySession(sessionNumber) signature to avoid breaking callers; resolve UUID internally
+- [Phase 05]: Use DB-generated UUIDs for student test fixtures (students.id is UUID column)
+- [Phase 05]: Verify unique index via 23505 error behavior (Supabase JS cannot query pg_indexes)
 
 ### Pending Todos
 
@@ -76,6 +76,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T09:40:00.650Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-db-foundation-core-hardening/05-CONTEXT.md
+Last session: 2026-03-25T10:17:51.197Z
+Stopped at: Completed 05-02-PLAN.md
+Resume file: None
