@@ -2,36 +2,37 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: exercise-submission-flow
-status: Defining requirements
-stopped_at: Milestone v2.0 started
-last_updated: "2026-03-25T04:48:10.432Z"
+status: Ready to plan
+stopped_at: Roadmap created — Phase 5 ready to plan
+last_updated: "2026-03-25T00:00:00.000Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 12
-  completed_plans: 12
+  total_phases: 3
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-24)
+See: .planning/PROJECT.md (updated 2026-03-25)
 
-**Core value:** Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca casse quelque chose -- sans deployer en prod.
-**Current focus:** Milestone v2.0 — Exercise Submission Flow
+**Core value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
+**Current focus:** Phase 5 — DB Foundation + Core Hardening
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-25 — Milestone v2.0 started
+Phase: 5 of 7 (DB Foundation + Core Hardening)
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-03-25 — Roadmap v2.0 created
+
+Progress: [░░░░░░░░░░] 0% (v2.0 phases only)
 
 ## Performance Metrics
 
-**Velocity:**
-
+**Velocity (v2.0):**
 - Total plans completed: 0
 - Average duration: -
 - Total execution time: 0 hours
@@ -43,23 +44,10 @@ Last activity: 2026-03-25 — Milestone v2.0 started
 | - | - | - | - |
 
 **Recent Trend:**
-
 - Last 5 plans: none yet
 - Trend: -
 
 *Updated after each plan completion*
-| Phase 01-foundation P01 | 2 | 2 tasks | 8 files |
-| Phase 02-mocks-unit-tests P05 | 15 | 2 tasks | 11 files |
-| Phase 02-mocks-unit-tests P01 | 15 | 2 tasks | 7 files |
-| Phase 02-mocks-unit-tests P02 | 35 | 3 tasks | 11 files |
-| Phase 02-mocks-unit-tests P04 | 15 | 2 tasks | 2 files |
-| Phase 02-mocks-unit-tests P03 | 10 | 3 tasks | 3 files |
-| Phase 03-integration-ci P04 | 3 | 1 tasks | 1 files |
-| Phase 03-integration-ci P01 | 2 | 2 tasks | 5 files |
-| Phase 03-integration-ci P02 | 2 | 2 tasks | 2 files |
-| Phase 03-integration-ci P03 | 15 | 2 tasks | 2 files |
-| Phase 04-e2e-discord-dev P01 | 3 | 2 tasks | 10 files |
-| Phase 04-e2e-discord-dev PP02 | 20 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -68,42 +56,10 @@ Last activity: 2026-03-25 — Milestone v2.0 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Vitest over Jest: better native ESM support, faster for this workload
-- Supabase local Docker over mock DB: integration tests need real pgvector
-- Bot de dev Discord separe: zero risk on prod, dedicated token
-- 3-tier test pyramid: unit (fast, no services) + integration (real DB) + E2E (real Discord, manual only)
-- [Phase 01-foundation]: Vitest projects API (not workspace file) for inline monorepo project definitions — no deprecated vitest.workspace.ts
-- [Phase 01-foundation]: pool: forks over vmThreads for ESM native module stability
-- [Phase 01-foundation]: test.env fake vars per Vitest project to prevent import-time env crashes from getSupabase() and logger
-- [Phase 01-foundation]: test:integration script uses || exit 0 — Vitest 4.x exits 1 on unknown --project filter names
-- [Phase 02-05]: JSON arrays for multi-turn agent sequences — dm-agent-submission: 3 responses, tsarag-read-propose: 2 responses
-- [Phase 02-05]: Module-level seq counter (not closure) for fixture factories to allow external resetSeq() without re-import
-- [Phase 02-mocks-unit-tests]: Object.defineProperty over Object.assign for GuildMember.prototype base — GuildMember.prototype defines some properties as getter-only
-- [Phase 02-mocks-unit-tests]: getAnthropicMockFactory() must return {default: vi.fn()} for ESM default import mock pattern
-- [Phase 02-mocks-unit-tests]: GuildMemberBuilder rolesCache must expose .map() — create.ts calls roles.cache.map() for agent role resolution; missing method causes silent TypeError in try/catch
-- [Phase 02-mocks-unit-tests]: agents namespace mock: use MockedFunction<AgentNS['method']> typed cast to get type-safe .mockReturnValue() access on auto-mocked namespace properties
-- [Phase 02-mocks-unit-tests]: FAQ agent mocks askClaude (../client.js) not @anthropic-ai/sdk directly — faq-agent.ts delegates to client abstraction
-- [Phase 02-mocks-unit-tests]: Tsarag agent max iterations = 8 (vs 5 for DM agent) — verified in source before writing iteration limit test
-- [Phase 02-mocks-unit-tests]: drainProcessing() helper after __emit: processingLocks queue returns before actual processing completes
-- [Phase 02-mocks-unit-tests]: TextChannel.prototype base for admin channel mocks: handleReviewOpen uses instanceof TextChannel in find predicate
-- [Phase 02-mocks-unit-tests]: Approach A (mock button-handler to capture handlers) for review-buttons: handler functions not exported
-- [Phase 03-integration-ci]: Three-tier CI: unit on push, integration on PR, E2E on workflow_dispatch only — no Discord secrets in automated jobs
-- [Phase 03-integration-ci]: Supabase Docker cache keyed on migrations/** hash — auto-invalidates on schema changes in CI
-- [Phase 03-integration-ci]: Integration projects use real Supabase local service role key committed to vitest.config.ts — safe for localhost-only key
-- [Phase 03-integration-ci]: globalSetup teardown is no-op: keep Supabase running for dev speed, stop manually with supabase stop
-- [Phase 03-integration-ci]: test:integration script no longer needs || exit 0 — integration projects now defined in vitest config
-- [Phase 03-02]: Insert test fixtures via adminDb.from().insert() not upsertFormationKnowledge() — avoids background embedding server call in test env
-- [Phase 03-02]: threshold: 0.0 in integration search calls — default 0.25 filters BM25-only rows causing false negatives with null queryEmbedding
-- [Phase 03-02]: Known 1536-dim unit vector for pgvector test: cosine similarity of identical vectors = 1.0, deterministic without embedding server
-- [Phase 03-integration-ci]: vi.mock('@anthropic-ai/sdk') hoisted before agent import: ESM mock hoisting requires mock declaration before any import that loads the SDK
-- [Phase 03-integration-ci]: Per-glob coverage thresholds in vitest.config.ts: handlers 70/65/70/70, agents 70/60/70/70 — floor at current coverage, not a forced increase
-- [Phase 04-e2e-discord-dev]: setupFile handles Discord bot lifecycle (not globalSetup) — globalSetup runs in main thread, bots must live in test worker fork
-- [Phase 04-e2e-discord-dev]: singleFork: true — all e2e test files share one fork process, bots connect once and remain connected for all tests
-- [Phase 04-e2e-discord-dev]: clients.ts mutable let exports populated by setters — avoids circular imports, stable import path for test files
-- [Phase 04-e2e-discord-dev]: loadE2eEnv() maps DISCORD_DEV_BOT_TOKEN to DISCORD_BOT_TOKEN — handlers read standard env names without modification
-- [Phase 04-e2e-discord-dev]: faq.ts bot-check bypass uses NODE_ENV=test only — production behavior unchanged, unit tests unaffected
-- [Phase 04-e2e-discord-dev]: In-memory Buffer fixtures for PDF/PNG attachments avoid disk I/O and make E2E tests self-contained
-- [Phase 04-e2e-discord-dev]: CI e2e job writes .env.test from GitHub secrets via heredoc, runs only on workflow_dispatch
+- DB migration must run and be applied to prod before any handler changes ship
+- Button-based preview/confirm (ActionRowBuilder + awaitMessageComponent) preferred over LLM-driven confirmation — deterministic handler, no Claude misinterpretation risk
+- Partial unique index on `(student_id, session_id) WHERE status IN ('submitted', 'ai_reviewed')` — not a full unique constraint, intentionally scoped to active statuses
+- Re-submission uses expand-then-contract ordering: upload new files first, delete old records last (fire-and-forget) — never leaves a zero-attachment submitted state
 
 ### Pending Todos
 
@@ -111,11 +67,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- Handler isolation scope for dm-handler and admin-handler is not fully analyzed — module-level singleton refactor depth unknown. Assess during Phase 2 planning.
-- Supabase CLI version that bundles pgvector 0.7+ needs confirmation against `supabase/config.toml`. Validate at Phase 3 start.
+- Phase 4 (admin UX, thread reuse): `client.channels.fetch(threadId)` can return null if thread was manually deleted from Discord — fallback to new thread creation must be explicitly implemented and tested
+- Phase 4 (admin UX, AI message update): re-read `event-dispatcher.ts` before implementing `ai_review_complete` handler — existing dispatch lifecycle timing matters
 
 ## Session Continuity
 
-Last session: 2026-03-25T04:41:04.370Z
-Stopped at: Completed 04-e2e-discord-dev 04-02-PLAN.md
+Last session: 2026-03-25
+Stopped at: Roadmap v2.0 created — ready to plan Phase 5
 Resume file: None

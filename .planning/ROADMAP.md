@@ -1,23 +1,14 @@
 # Roadmap: Dev Environment & Automated Tests — Bot Discord
 
-## Overview
+## Milestones
 
-Starting from zero tests in a 15K+ line TypeScript/ESM Discord.js v14 codebase, this roadmap builds a complete automated testing infrastructure in four sequential phases. Phase 1 makes Vitest run at all. Phase 2 builds the shared mock layer and covers every handler with unit tests. Phase 3 validates DB correctness with real Supabase Docker and gates the CI pipeline. Phase 4 adds an optional E2E smoke-test layer using a dedicated dev Discord bot. Each phase is a prerequisite for the next; the safety net is real and usable after Phase 3 even if Phase 4 is deferred.
+- ✅ **v1.0 Test Infrastructure** - Phases 1-4 (shipped 2026-03-25)
+- 🚧 **v2.0 Exercise Submission Flow** - Phases 5-7 (in progress)
 
 ## Phases
 
-**Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
-
-Decimal phases appear between their surrounding integers in numeric order.
-
-- [x] **Phase 1: Foundation** - Vitest configured for ESM monorepo, all test scripts functional, zero crashes at import (completed 2026-03-24)
-- [x] **Phase 2: Mocks + Unit Tests** - Shared mock layer built, all handlers covered with deterministic unit tests (completed 2026-03-25)
-- [x] **Phase 3: Integration + CI** - Real Supabase Docker validates DB layer, GitHub Actions CI gates every PR (completed 2026-03-25)
-- [x] **Phase 4: E2E Discord Dev** - Dedicated dev bot + test server, critical flows covered with real Discord interactions (completed 2026-03-25)
-
-## Phase Details
+<details>
+<summary>✅ v1.0 Test Infrastructure (Phases 1-4) - SHIPPED 2026-03-25</summary>
 
 ### Phase 1: Foundation
 **Goal**: The test infrastructure runs without errors — any test file can be executed without import-time crashes, env var explosions, or module resolution failures
@@ -53,7 +44,6 @@ Plans:
 - [x] 02-02-PLAN.md — Unit tests for FAQ handler and all 9 slash commands
 - [x] 02-03-PLAN.md — Unit tests for DM handler, admin handler, and review-buttons
 - [x] 02-04-PLAN.md — Unit tests for DM Agent, FAQ Agent, and Tsarag Agent tool routing logic
-**UI hint**: no
 
 ### Phase 3: Integration + CI
 **Goal**: DB correctness is validated against a real local Postgres+pgvector instance, and every push automatically runs the unit suite while every PR runs the integration suite
@@ -90,14 +80,61 @@ Plans:
 - [x] 04-01-PLAN.md — E2E infrastructure: Vitest e2e project, two-bot lifecycle, helper utilities, env template
 - [x] 04-02-PLAN.md — E2E scenarios: DM student flow, exercise submission, FAQ flow, CI workflow update
 
+</details>
+
+### 🚧 v2.0 Exercise Submission Flow (In Progress)
+
+**Milestone Goal:** Solidifier le flow complet de soumission d'exercices — unicite par session garantie en DB, guards d'etat dans les handlers, apercu-confirmation fiable, et UX formateur sans doublons de threads.
+
+## Phase Details
+
+### Phase 5: DB Foundation + Core Hardening
+**Goal**: The schema and DB functions are correct — duplicate submissions are impossible at the database level and session_id is written atomically in a single INSERT
+**Depends on**: Phase 4
+**Requirements**: SUB-01, SUB-03
+**Success Criteria** (what must be TRUE):
+  1. Inserting two exercises for the same student and session returns a Postgres `23505` unique violation, not a silent duplicate row
+  2. A submitted exercise record always contains `session_id` immediately after insertion — no window where it is NULL
+  3. `getExerciseByStudentAndSession()` returns the exercise or null using a single targeted query, not a linear scan
+  4. `pnpm typecheck` passes clean with `review_thread_id` and `review_thread_ai_message_id` as `string | null` on `StudentExercise`
+**Plans**: TBD
+
+### Phase 6: Submission Handler Correctness + Student UX
+**Goal**: Students can submit exercises with confidence — empty submissions are blocked, sessions are validated, re-submission works cleanly, and the preview-then-confirm flow is reliable
+**Depends on**: Phase 5
+**Requirements**: SUB-02, SUB-04, UX-01, UX-02, UX-03, UX-04
+**Success Criteria** (what must be TRUE):
+  1. Sending a submit command with no attached content receives an immediate rejection message — no DB write occurs
+  2. Specifying a session number that does not exist in the DB produces an error message before any exercise record is created
+  3. Student sees a summary embed (text, files, links) with "Soumettre" and "Annuler" buttons before the submission is committed
+  4. Typing "annuler" or clicking Cancel at any point clears all accumulated content and confirms cancellation to the student
+  5. After receiving feedback, a student can re-submit and the new submission replaces the old one via the same flow
+  6. An error during submission clears `pendingAttachments` so the next submission attempt starts from a clean state
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 7: Admin Review UX + Test Coverage
+**Goal**: Admins review re-submissions in the same thread without duplicates, and the full submission state machine is covered by integration and E2E tests
+**Depends on**: Phase 6
+**Requirements**: ADM-01, ADM-02, ADM-03, TST-01
+**Success Criteria** (what must be TRUE):
+  1. A re-submitted exercise opens the original review thread (unarchived) instead of creating a new thread
+  2. Double-clicking "Ouvrir review" creates exactly one thread — the second click is a no-op
+  3. The AI review message in the thread updates in place when the review is complete — the "en cours..." placeholder is replaced, not appended
+  4. `pnpm test:unit` and `pnpm test:integration` pass covering the full state machine: accumulate → preview → confirm → submitted → review → revision → re-submit → thread reuse
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Foundation | 1/1 | Complete   | 2026-03-24 |
-| 2. Mocks + Unit Tests | 5/5 | Complete   | 2026-03-25 |
-| 3. Integration + CI | 4/4 | Complete   | 2026-03-25 |
-| 4. E2E Discord Dev | 2/2 | Complete   | 2026-03-25 |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Foundation | v1.0 | 1/1 | Complete | 2026-03-24 |
+| 2. Mocks + Unit Tests | v1.0 | 5/5 | Complete | 2026-03-25 |
+| 3. Integration + CI | v1.0 | 4/4 | Complete | 2026-03-25 |
+| 4. E2E Discord Dev | v1.0 | 2/2 | Complete | 2026-03-25 |
+| 5. DB Foundation + Core Hardening | v2.0 | 0/? | Not started | - |
+| 6. Submission Handler Correctness + Student UX | v2.0 | 0/? | Not started | - |
+| 7. Admin Review UX + Test Coverage | v2.0 | 0/? | Not started | - |

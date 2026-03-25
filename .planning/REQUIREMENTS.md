@@ -62,15 +62,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SUB-01 | TBD | Pending |
-| SUB-02 | TBD | Pending |
-| SUB-03 | TBD | Pending |
-| SUB-04 | TBD | Pending |
-| UX-01 | TBD | Pending |
-| UX-02 | TBD | Pending |
-| UX-03 | TBD | Pending |
-| UX-04 | TBD | Pending |
-| ADM-01 | TBD | Pending |
-| ADM-02 | TBD | Pending |
-| ADM-03 | TBD | Pending |
-| TST-01 | TBD | Pending |
+| SUB-01 | Phase 5 | Pending |
+| SUB-02 | Phase 6 | Pending |
+| SUB-03 | Phase 5 | Pending |
+| SUB-04 | Phase 6 | Pending |
+| UX-01 | Phase 6 | Pending |
+| UX-02 | Phase 6 | Pending |
+| UX-03 | Phase 6 | Pending |
+| UX-04 | Phase 6 | Pending |
+| ADM-01 | Phase 7 | Pending |
+| ADM-02 | Phase 7 | Pending |
+| ADM-03 | Phase 7 | Pending |
+| TST-01 | Phase 7 | Pending |
