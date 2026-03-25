@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Vitest configured for ESM monorepo, all test scripts functional, zero crashes at import (completed 2026-03-24)
 - [x] **Phase 2: Mocks + Unit Tests** - Shared mock layer built, all handlers covered with deterministic unit tests (completed 2026-03-25)
-- [ ] **Phase 3: Integration + CI** - Real Supabase Docker validates DB layer, GitHub Actions CI gates every PR
+- [x] **Phase 3: Integration + CI** - Real Supabase Docker validates DB layer, GitHub Actions CI gates every PR (completed 2026-03-25)
 - [ ] **Phase 4: E2E Discord Dev** - Dedicated dev bot + test server, critical flows covered with real Discord interactions
 
 ## Phase Details
@@ -66,13 +66,13 @@ Plans:
   4. A GitHub Actions run on push executes unit tests without Docker and without any secret env vars
   5. A GitHub Actions run on PR executes integration tests in a separate job with Supabase local Docker
   6. Coverage thresholds are enforced on handlers and agents packages (failing if below threshold)
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [x] 03-01-PLAN.md — Integration test infrastructure: Vitest projects, globalSetup, MSW server, test isolation helpers
 - [x] 03-04-PLAN.md — GitHub Actions CI pipeline: unit on push, integration on PR, E2E placeholder
-- [ ] 03-02-PLAN.md — DB layer integration tests: students CRUD and knowledge search (BM25 + pgvector)
-- [ ] 03-03-PLAN.md — Agent integration test (DM Agent + real DB) and coverage thresholds
+- [x] 03-02-PLAN.md — DB layer integration tests: students CRUD and knowledge search (BM25 + pgvector)
+- [x] 03-03-PLAN.md — Agent integration test (DM Agent + real DB) and coverage thresholds
 
 ### Phase 4: E2E Discord Dev
 **Goal**: Critical bot flows can be smoke-tested against a real Discord server using a dedicated dev bot — without touching production channels or production data
@@ -95,5 +95,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete   | 2026-03-24 |
 | 2. Mocks + Unit Tests | 5/5 | Complete   | 2026-03-25 |
-| 3. Integration + CI | 2/4 | In Progress|  |
+| 3. Integration + CI | 4/4 | Complete   | 2026-03-25 |
 | 4. E2E Discord Dev | 0/? | Not started | - |

@@ -35,9 +35,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Integration Tests
 
 - [x] **INTG-01**: Supabase local Docker setup (`supabase start` / `supabase db reset` dans le test lifecycle)
-- [ ] **INTG-02**: Tests DB layer (queries, RPC functions type `search_formation_knowledge`)
-- [ ] **INTG-03**: Tests pgvector (hybrid search vector cosine + BM25)
-- [ ] **INTG-04**: Tests agent + DB integration (vraies queries Supabase, Claude API mocke)
+- [x] **INTG-02**: Tests DB layer (queries, RPC functions type `search_formation_knowledge`)
+- [x] **INTG-03**: Tests pgvector (hybrid search vector cosine + BM25)
+- [x] **INTG-04**: Tests agent + DB integration (vraies queries Supabase, Claude API mocke)
 - [x] **INTG-05**: Test isolation par prefixage de donnees + cleanup `afterAll`
 
 ### E2E Tests
@@ -53,7 +53,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CI-01**: GitHub Actions: tests unitaires sur chaque push (rapide, pas de Docker)
 - [x] **CI-02**: GitHub Actions: tests integration sur PR (job separe avec Docker/Supabase)
 - [x] **CI-03**: E2E en trigger manuel uniquement (workflow_dispatch)
-- [ ] **CI-04**: Coverage thresholds sur handlers et agents
+- [x] **CI-04**: Coverage thresholds sur handlers et agents
 
 ## v2 Requirements
 
@@ -102,14 +102,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UNIT-06 | Phase 2 | Complete |
 | UNIT-07 | Phase 2 | Complete |
 | INTG-01 | Phase 3 | Complete |
-| INTG-02 | Phase 3 | Pending |
-| INTG-03 | Phase 3 | Pending |
-| INTG-04 | Phase 3 | Pending |
+| INTG-02 | Phase 3 | Complete |
+| INTG-03 | Phase 3 | Complete |
+| INTG-04 | Phase 3 | Complete |
 | INTG-05 | Phase 3 | Complete |
 | CI-01 | Phase 3 | Complete |
 | CI-02 | Phase 3 | Complete |
 | CI-03 | Phase 3 | Complete |
-| CI-04 | Phase 3 | Pending |
+| CI-04 | Phase 3 | Complete |
 | E2E-01 | Phase 4 | Pending |
 | E2E-02 | Phase 4 | Pending |
 | E2E-03 | Phase 4 | Pending |

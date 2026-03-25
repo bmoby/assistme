@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 03-integration-ci/03-01-PLAN.md
-last_updated: "2026-03-25T02:37:29.400Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 03-integration-ci/03-03-PLAN.md
+last_updated: "2026-03-25T02:42:23.214Z"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 10
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-24)
 ## Current Position
 
 Phase: 03 (integration-ci) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 
 ## Performance Metrics
 
@@ -54,6 +54,8 @@ Plan: 3 of 4
 | Phase 02-mocks-unit-tests P03 | 10 | 3 tasks | 3 files |
 | Phase 03-integration-ci P04 | 3 | 1 tasks | 1 files |
 | Phase 03-integration-ci P01 | 2 | 2 tasks | 5 files |
+| Phase 03-integration-ci P02 | 2 | 2 tasks | 2 files |
+| Phase 03-integration-ci P03 | 15 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -86,6 +88,11 @@ Recent decisions affecting current work:
 - [Phase 03-integration-ci]: Integration projects use real Supabase local service role key committed to vitest.config.ts — safe for localhost-only key
 - [Phase 03-integration-ci]: globalSetup teardown is no-op: keep Supabase running for dev speed, stop manually with supabase stop
 - [Phase 03-integration-ci]: test:integration script no longer needs || exit 0 — integration projects now defined in vitest config
+- [Phase 03-02]: Insert test fixtures via adminDb.from().insert() not upsertFormationKnowledge() — avoids background embedding server call in test env
+- [Phase 03-02]: threshold: 0.0 in integration search calls — default 0.25 filters BM25-only rows causing false negatives with null queryEmbedding
+- [Phase 03-02]: Known 1536-dim unit vector for pgvector test: cosine similarity of identical vectors = 1.0, deterministic without embedding server
+- [Phase 03-integration-ci]: vi.mock('@anthropic-ai/sdk') hoisted before agent import: ESM mock hoisting requires mock declaration before any import that loads the SDK
+- [Phase 03-integration-ci]: Per-glob coverage thresholds in vitest.config.ts: handlers 70/65/70/70, agents 70/60/70/70 — floor at current coverage, not a forced increase
 
 ### Pending Todos
 
@@ -98,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T02:37:29.394Z
-Stopped at: Completed 03-integration-ci/03-01-PLAN.md
+Last session: 2026-03-25T02:42:23.207Z
+Stopped at: Completed 03-integration-ci/03-03-PLAN.md
 Resume file: None
