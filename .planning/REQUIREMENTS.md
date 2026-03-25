@@ -14,17 +14,17 @@ Requirements for exercise submission flow milestone. Each maps to roadmap phases
 
 ### Submission Correctness
 
-- [ ] **SUB-01**: DB unique constraint `(student_id, session_id)` empeche les doublons de soumission
-- [ ] **SUB-02**: Soumission vide refusee (pas de fichier, lien, ou texte substantiel)
-- [ ] **SUB-03**: `session_id` assigne atomiquement dans l'INSERT (pas en UPDATE separe)
-- [ ] **SUB-04**: `pendingAttachments` nettoye sur erreur agent (pas de fuite d'etat entre messages)
+- [x] **SUB-01**: DB unique constraint `(student_id, session_id)` empeche les doublons de soumission
+- [x] **SUB-02**: Soumission vide refusee (pas de fichier, lien, ou texte substantiel)
+- [x] **SUB-03**: `session_id` assigne atomiquement dans l'INSERT (pas en UPDATE separe)
+- [x] **SUB-04**: `pendingAttachments` nettoye sur erreur agent (pas de fuite d'etat entre messages)
 
 ### Student UX
 
-- [ ] **UX-01**: Bot affiche un recapitulatif (texte, fichiers, liens) avec bouton "Soumettre" / "Annuler" avant soumission
-- [ ] **UX-02**: Etudiant precise le numero de session — bot valide l'existence en DB, refuse si inexistant
-- [ ] **UX-03**: Re-soumission autorisee apres feedback — remplace l'ancienne soumission, meme processus
-- [ ] **UX-04**: Etudiant peut annuler une soumission en cours ("annuler", bouton Cancel)
+- [x] **UX-01**: Bot affiche un recapitulatif (texte, fichiers, liens) avec bouton "Soumettre" / "Annuler" avant soumission
+- [x] **UX-02**: Etudiant precise le numero de session — bot valide l'existence en DB, refuse si inexistant
+- [x] **UX-03**: Re-soumission autorisee apres feedback — remplace l'ancienne soumission, meme processus
+- [x] **UX-04**: Etudiant peut annuler une soumission en cours ("annuler", bouton Cancel)
 
 ### Admin Review UX
 
@@ -62,14 +62,14 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SUB-01 | Phase 5 | Pending |
-| SUB-02 | Phase 6 | Pending |
-| SUB-03 | Phase 5 | Pending |
-| SUB-04 | Phase 6 | Pending |
-| UX-01 | Phase 6 | Pending |
-| UX-02 | Phase 6 | Pending |
-| UX-03 | Phase 6 | Pending |
-| UX-04 | Phase 6 | Pending |
+| SUB-01 | Phase 5 | Complete |
+| SUB-02 | Phase 6 | Complete |
+| SUB-03 | Phase 5 | Complete |
+| SUB-04 | Phase 6 | Complete |
+| UX-01 | Phase 6 | Complete |
+| UX-02 | Phase 6 | Complete |
+| UX-03 | Phase 6 | Complete |
+| UX-04 | Phase 6 | Complete |
 | ADM-01 | Phase 7 | Pending |
 | ADM-02 | Phase 7 | Pending |
 | ADM-03 | Phase 7 | Pending |
