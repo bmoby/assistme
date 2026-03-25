@@ -66,11 +66,12 @@ export class GuildMemberBuilder {
   build(): GuildMember {
     const storedRoles = [...this.roles];
 
-    // Build a Collection-like roles.cache with .some() / .find() / .has()
+    // Build a Collection-like roles.cache with .some() / .find() / .has() / .map()
     const rolesCache = {
       some: (pred: (role: MockRole) => boolean): boolean => storedRoles.some(pred),
       find: (pred: (role: MockRole) => boolean): MockRole | undefined => storedRoles.find(pred),
       has: (id: string): boolean => storedRoles.some((r) => r.id === id),
+      map: <T>(fn: (role: MockRole) => T): T[] => storedRoles.map(fn),
       [Symbol.iterator]: function* () {
         yield* storedRoles;
       },
