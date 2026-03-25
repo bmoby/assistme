@@ -13,7 +13,7 @@ Starting from zero tests in a 15K+ line TypeScript/ESM Discord.js v14 codebase, 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Vitest configured for ESM monorepo, all test scripts functional, zero crashes at import (completed 2026-03-24)
-- [ ] **Phase 2: Mocks + Unit Tests** - Shared mock layer built, all handlers covered with deterministic unit tests
+- [x] **Phase 2: Mocks + Unit Tests** - Shared mock layer built, all handlers covered with deterministic unit tests (completed 2026-03-25)
 - [ ] **Phase 3: Integration + CI** - Real Supabase Docker validates DB layer, GitHub Actions CI gates every PR
 - [ ] **Phase 4: E2E Discord Dev** - Dedicated dev bot + test server, critical flows covered with real Discord interactions
 
@@ -45,13 +45,13 @@ Plans:
   3. A test can drive the DM Agent through a multi-turn tool-use sequence with a deterministic fixture response — same input always produces same output
   4. All four handlers (dm-handler, admin-handler, FAQ, review-buttons) and slash commands have at least one passing test covering their primary routing logic
   5. Module-level Discord client singleton does not bleed state between test files
-**Plans:** 3/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 - [x] 02-01-PLAN.md — Discord.js builders, Anthropic SDK mock helper, handler state isolation exports
 - [x] 02-05-PLAN.md — Claude API JSON fixtures and domain fixture factories
 - [x] 02-02-PLAN.md — Unit tests for FAQ handler and all 9 slash commands
-- [ ] 02-03-PLAN.md — Unit tests for DM handler, admin handler, and review-buttons
+- [x] 02-03-PLAN.md — Unit tests for DM handler, admin handler, and review-buttons
 - [x] 02-04-PLAN.md — Unit tests for DM Agent, FAQ Agent, and Tsarag Agent tool routing logic
 **UI hint**: no
 
@@ -88,6 +88,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete   | 2026-03-24 |
-| 2. Mocks + Unit Tests | 3/5 | In Progress|  |
+| 2. Mocks + Unit Tests | 5/5 | Complete   | 2026-03-25 |
 | 3. Integration + CI | 0/? | Not started | - |
 | 4. E2E Discord Dev | 0/? | Not started | - |

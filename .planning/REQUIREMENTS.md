@@ -25,10 +25,10 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Unit Tests
 
 - [x] **UNIT-01**: Handler isolation refactor -- extraire la logique pure des handlers couples au Client Discord
-- [ ] **UNIT-02**: Tests unitaires dm-handler (routing DM, parsing messages, delegation au DM Agent)
-- [ ] **UNIT-03**: Tests unitaires admin-handler (messages #admin, delegation Tsarag Agent)
+- [x] **UNIT-02**: Tests unitaires dm-handler (routing DM, parsing messages, delegation au DM Agent)
+- [x] **UNIT-03**: Tests unitaires admin-handler (messages #admin, delegation Tsarag Agent)
 - [x] **UNIT-04**: Tests unitaires FAQ handler (detection patterns, reponses)
-- [ ] **UNIT-05**: Tests unitaires review-buttons (interactions boutons, exercise review flow)
+- [x] **UNIT-05**: Tests unitaires review-buttons (interactions boutons, exercise review flow)
 - [x] **UNIT-06**: Tests unitaires slash commands (/session, /session-update, admin commands)
 - [x] **UNIT-07**: Tests logique agents (tool routing, response parsing, error handling)
 
@@ -95,10 +95,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MOCK-03 | Phase 3 | Pending (deferred from Phase 2 per D-04) |
 | MOCK-04 | Phase 2 | Complete |
 | UNIT-01 | Phase 2 | Complete |
-| UNIT-02 | Phase 2 | Pending |
-| UNIT-03 | Phase 2 | Pending |
+| UNIT-02 | Phase 2 | Complete |
+| UNIT-03 | Phase 2 | Complete |
 | UNIT-04 | Phase 2 | Complete |
-| UNIT-05 | Phase 2 | Pending |
+| UNIT-05 | Phase 2 | Complete |
 | UNIT-06 | Phase 2 | Complete |
 | UNIT-07 | Phase 2 | Complete |
 | INTG-01 | Phase 3 | Pending |
