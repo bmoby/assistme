@@ -23,5 +23,5 @@ export type { ExerciseReviewResult } from './formation/exercise-reviewer.js';
 export { answerFaqQuestion } from './formation/faq-agent.js';
 export type { FaqResponse } from './formation/faq-agent.js';
 export { runDmAgent } from './formation/dm-agent.js';
-export type { DmAgentContext, DmAgentResponse, ConversationMessage, PendingAttachment } from './formation/dm-agent.js';
+export type { DmAgentContext, DmAgentResponse, ConversationMessage, PendingAttachment, SubmissionIntent } from './formation/dm-agent.js';
 export { runTsaragAgent } from './formation/tsarag-agent.js';
