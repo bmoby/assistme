@@ -1,70 +1,48 @@
-# Requirements: Dev Environment & Automated Tests - Bot Discord
+# Requirements: Exercise Submission Flow - Bot Discord
 
-**Defined:** 2026-03-24
-**Core Value:** Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca casse quelque chose -- sans deployer en prod.
+**Defined:** 2026-03-25
+**Core Value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
 
-## v1 Requirements
+## v1.0 Requirements (Complete)
 
-Requirements for initial release. Each maps to roadmap phases.
+All v1.0 requirements (test infrastructure) were completed in milestone v1.0.
+See `.planning/phases/` for phase summaries.
 
-### Test Foundation
+## v2.0 Requirements
 
-- [x] **FOUND-01**: Vitest configure pour le monorepo ESM avec `projects:` API et `pool: 'forks'`
-- [x] **FOUND-02**: `@assistme/core` resolu via `resolve.alias` vers les sources (pas `dist/`)
-- [x] **FOUND-03**: Variables d'environnement factices dans la config test pour eviter les crashes a l'import
-- [x] **FOUND-04**: Scripts `pnpm test`, `pnpm test:unit`, `pnpm test:integration` fonctionnels
-- [x] **FOUND-05**: Watch mode (`pnpm test:watch`) avec filtrage par fichier
+Requirements for exercise submission flow milestone. Each maps to roadmap phases.
 
-### Mock Infrastructure
+### Submission Correctness
 
-- [x] **MOCK-01**: Factories Discord.js (Message, Guild, GuildMember, Interaction) via plain objects + `vi.fn()`
-- [x] **MOCK-02**: Fixtures Claude API avec sequences tool-use multi-turn (DM Agent, Tsarag, FAQ)
-- [x] **MOCK-03**: MSW v2 handlers pour intercepter Supabase REST et Claude API HTTP (deferred from Phase 2 to Phase 3 per D-04: vi.mock() only in Phase 2)
-- [x] **MOCK-04**: Fixtures domaine partagees (students, sessions, exercises, formation knowledge)
+- [ ] **SUB-01**: DB unique constraint `(student_id, session_id)` empeche les doublons de soumission
+- [ ] **SUB-02**: Soumission vide refusee (pas de fichier, lien, ou texte substantiel)
+- [ ] **SUB-03**: `session_id` assigne atomiquement dans l'INSERT (pas en UPDATE separe)
+- [ ] **SUB-04**: `pendingAttachments` nettoye sur erreur agent (pas de fuite d'etat entre messages)
 
-### Unit Tests
+### Student UX
 
-- [x] **UNIT-01**: Handler isolation refactor -- extraire la logique pure des handlers couples au Client Discord
-- [x] **UNIT-02**: Tests unitaires dm-handler (routing DM, parsing messages, delegation au DM Agent)
-- [x] **UNIT-03**: Tests unitaires admin-handler (messages #admin, delegation Tsarag Agent)
-- [x] **UNIT-04**: Tests unitaires FAQ handler (detection patterns, reponses)
-- [x] **UNIT-05**: Tests unitaires review-buttons (interactions boutons, exercise review flow)
-- [x] **UNIT-06**: Tests unitaires slash commands (/session, /session-update, admin commands)
-- [x] **UNIT-07**: Tests logique agents (tool routing, response parsing, error handling)
+- [ ] **UX-01**: Bot affiche un recapitulatif (texte, fichiers, liens) avec bouton "Soumettre" / "Annuler" avant soumission
+- [ ] **UX-02**: Etudiant precise le numero de session — bot valide l'existence en DB, refuse si inexistant
+- [ ] **UX-03**: Re-soumission autorisee apres feedback — remplace l'ancienne soumission, meme processus
+- [ ] **UX-04**: Etudiant peut annuler une soumission en cours ("annuler", bouton Cancel)
 
-### Integration Tests
+### Admin Review UX
 
-- [x] **INTG-01**: Supabase local Docker setup (`supabase start` / `supabase db reset` dans le test lifecycle)
-- [x] **INTG-02**: Tests DB layer (queries, RPC functions type `search_formation_knowledge`)
-- [x] **INTG-03**: Tests pgvector (hybrid search vector cosine + BM25)
-- [x] **INTG-04**: Tests agent + DB integration (vraies queries Supabase, Claude API mocke)
-- [x] **INTG-05**: Test isolation par prefixage de donnees + cleanup `afterAll`
+- [ ] **ADM-01**: Re-soumission reutilise le thread de review existant au lieu d'en creer un nouveau
+- [ ] **ADM-02**: Bouton "Ouvrir review" est idempotent — double-clic ne cree pas de thread doublon
+- [ ] **ADM-03**: Message AI dans le thread se met a jour en place quand la review AI est terminee
 
-### E2E Tests
+### Tests
 
-- [x] **E2E-01**: Bot Discord de dev cree (token separe, application Discord dediee)
-- [x] **E2E-02**: Serveur Discord de test cree avec channels miroir de la prod
-- [x] **E2E-03**: Scenario E2E: flux DM etudiant complet (message -> DM Agent -> reponse)
-- [x] **E2E-04**: Scenario E2E: soumission exercice (upload -> review -> feedback)
-- [x] **E2E-05**: Scenario E2E: FAQ (question -> detection pattern -> reponse)
+- [ ] **TST-01**: Tests unitaires et d'integration couvrant tous les nouveaux comportements
 
-### CI Pipeline
-
-- [x] **CI-01**: GitHub Actions: tests unitaires sur chaque push (rapide, pas de Docker)
-- [x] **CI-02**: GitHub Actions: tests integration sur PR (job separe avec Docker/Supabase)
-- [x] **CI-03**: E2E en trigger manuel uniquement (workflow_dispatch)
-- [x] **CI-04**: Coverage thresholds sur handlers et agents
-
-## v2 Requirements
+## Future Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
 
-### Extended Coverage
-
-- **V2-01**: Tests pour les bots Telegram (admin + public)
-- **V2-02**: Tests de performance/load sur les agents IA
-- **V2-03**: Snapshot-based response recording pour Claude API
-- **V2-04**: Fixture builder pattern composable et type
+- **FUT-01**: Tests pour les bots Telegram (admin + public)
+- **FUT-02**: Tests de performance/load sur les agents IA
+- **FUT-03**: Confirmation par modal Discord (quand Discord supportera l'upload fichier dans modals)
 
 ## Out of Scope
 
@@ -72,12 +50,11 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
-| Tests bots Telegram | Scope limite au bot Discord pour ce milestone |
-| Tests UI / visual regression | Backend only, pas de frontend |
-| Load testing | Pas la priorite -- stabilite d'abord |
-| Migration framework de test | Aucun test n'existe, on part de zero |
-| `@shoginn/discordjs-mock` / libs tierces | Non maintenues, incompatibles discord.js v14 + Vitest |
-| Mock du Client Discord entier | Anti-pattern confirme par les maintainers discord.js |
+| Refonte complete du DM Agent | On ameliore le flow existant, pas de rewrite |
+| Modal Discord pour soumission | Modals limitees a 5 champs texte, pas de fichier upload |
+| Soumission automatique sans confirmation | Risque de soumissions accidentelles |
+| Multi-session dans une soumission | 1 soumission = 1 session, scope clair |
+| Tests bots Telegram | Scope limite au bot Discord |
 
 ## Traceability
 
@@ -85,33 +62,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1 | Complete |
-| FOUND-02 | Phase 1 | Complete |
-| FOUND-03 | Phase 1 | Complete |
-| FOUND-04 | Phase 1 | Complete |
-| FOUND-05 | Phase 1 | Complete |
-| MOCK-01 | Phase 2 | Complete |
-| MOCK-02 | Phase 2 | Complete |
-| MOCK-03 | Phase 3 | Pending (deferred from Phase 2 per D-04) |
-| MOCK-04 | Phase 2 | Complete |
-| UNIT-01 | Phase 2 | Complete |
-| UNIT-02 | Phase 2 | Complete |
-| UNIT-03 | Phase 2 | Complete |
-| UNIT-04 | Phase 2 | Complete |
-| UNIT-05 | Phase 2 | Complete |
-| UNIT-06 | Phase 2 | Complete |
-| UNIT-07 | Phase 2 | Complete |
-| INTG-01 | Phase 3 | Complete |
-| INTG-02 | Phase 3 | Complete |
-| INTG-03 | Phase 3 | Complete |
-| INTG-04 | Phase 3 | Complete |
-| INTG-05 | Phase 3 | Complete |
-| CI-01 | Phase 3 | Complete |
-| CI-02 | Phase 3 | Complete |
-| CI-03 | Phase 3 | Complete |
-| CI-04 | Phase 3 | Complete |
-| E2E-01 | Phase 4 | Complete |
-| E2E-02 | Phase 4 | Complete |
-| E2E-03 | Phase 4 | Complete |
-| E2E-04 | Phase 4 | Complete |
-| E2E-05 | Phase 4 | Complete |
+| SUB-01 | TBD | Pending |
+| SUB-02 | TBD | Pending |
+| SUB-03 | TBD | Pending |
+| SUB-04 | TBD | Pending |
+| UX-01 | TBD | Pending |
+| UX-02 | TBD | Pending |
+| UX-03 | TBD | Pending |
+| UX-04 | TBD | Pending |
+| ADM-01 | TBD | Pending |
+| ADM-02 | TBD | Pending |
+| ADM-03 | TBD | Pending |
+| TST-01 | TBD | Pending |
