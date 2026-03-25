@@ -1,0 +1,78 @@
+name: Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Run unit tests
+        run: pnpm test:unit
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Cache Supabase Docker images
+        uses: actions/cache@v4
+        with:
+          path: ~/.supabase
+          key: supabase-docker-${{ hashFiles('supabase/migrations/**') }}
+          restore-keys: |
+            supabase-docker-
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start Supabase local
+        run: supabase start
+
+      - name: Run integration tests
+        run: pnpm test:integration
+
+  e2e-tests:
+    name: E2E Tests (manual only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Placeholder
+        run: echo "E2E tests require Discord dev bot token. Configure in Phase 4."
