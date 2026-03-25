@@ -33,13 +33,14 @@ Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), 
 
 ### Active
 
-- [ ] Soumission multi-messages avec accumulation (texte + fichiers + liens)
-- [ ] Apercu avant confirmation de soumission
-- [ ] Validation : refus de soumission vide (sans contenu)
-- [ ] Etudiant precise la session (validation existence en DB)
-- [ ] Unicite 1 etudiant / 1 session (constraint DB + handler)
-- [ ] Re-soumission apres feedback (remplace l'ancienne)
 - [ ] UX formateur : review plus fluide, re-ouverture facile
+
+### Validated in Phase 6
+
+- [x] Apercu avant confirmation de soumission — Validated Phase 6
+- [x] Validation : refus de soumission vide (sans contenu) — Validated Phase 6
+- [x] Etudiant precise la session (validation existence en DB) — Validated Phase 6
+- [x] Re-soumission apres feedback (remplace l'ancienne) — Validated Phase 6
 
 ### Out of Scope
 
@@ -78,6 +79,8 @@ Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), 
 | Pre-push hook obligatoire | Tests impossible a contourner | Validated v1.0 |
 | Partial unique index (not full constraint) | Scope to active statuses only — allows resubmission after approval | Validated Phase 5 |
 | Atomic session_id in single INSERT | No NULL window, no separate UPDATE race condition | Validated Phase 5 |
+| DM agent returns intent, handler confirms | Preview-confirm flow with buttons, agent doesn't write to DB | Validated Phase 6 |
+| Button timeout preserves attachments | Student can retry without re-uploading files | Validated Phase 6 |
 
 ## Evolution
 
@@ -97,4 +100,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 — Phase 5 complete (DB foundation + core hardening)*
+*Last updated: 2026-03-25 — Phase 6 complete (submission handler correctness + student UX)*
