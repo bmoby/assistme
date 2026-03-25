@@ -21,11 +21,11 @@ Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca ca
 
 - [ ] Environnement de dev Discord (serveur de test + bot de dev separe)
 - [x] Framework de test (Vitest) configure pour le monorepo ESM — Validated in Phase 1: Foundation
-- [ ] Tests unitaires: handlers, agents, commandes, utils en isolation
+- [x] Tests unitaires: handlers, agents, commandes, utils en isolation — Validated in Phase 2: Mocks + Unit Tests
 - [ ] Tests d'integration: Supabase local (Docker) + mock Claude API
 - [ ] Tests E2E: vrai bot de dev sur serveur Discord de test, scenarios complets
 - [ ] CI GitHub Actions: tests auto sur push/PR
-- [ ] Mocks/fixtures reutilisables pour Discord.js, Supabase, Claude API
+- [x] Mocks/fixtures reutilisables pour Discord.js, Supabase, Claude API — Validated in Phase 2: Mocks + Unit Tests
 
 ### Out of Scope
 
@@ -37,7 +37,7 @@ Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca ca
 ## Context
 
 - **Codebase existante:** ~15K+ lignes de code TypeScript strict, ESM modules
-- **Phase 1 complete:** Vitest configure avec projects API (core + bot-discord), 3 smoke tests passent, env isolation fonctionne
+- **Phase 2 complete:** 134 unit tests passing — Discord.js builder pattern, Anthropic SDK mock, JSON fixtures, domain factories, all handlers + agents tested in isolation
 - **Douleur principale:** Pas de feedback local -- obliger de deployer en prod pour tester (Phase 2+ addressera)
 - **Bot Discord:** discord.js 14.16, handlers (DM, admin, FAQ, review), slash commands, crons
 - **Core partage:** Supabase (PostgreSQL + pgvector), Claude API (agents avec tool use), Redis (optionnel)
@@ -79,4 +79,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 after Phase 1: Foundation completion*
+*Last updated: 2026-03-25 after Phase 2: Mocks + Unit Tests completion*
