@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: Milestone complete
-stopped_at: Completed 04-e2e-discord-dev 04-02-PLAN.md
+milestone: v2.0
+milestone_name: exercise-submission-flow
+status: Defining requirements
+stopped_at: Milestone v2.0 started
 last_updated: "2026-03-25T04:48:10.432Z"
 progress:
   total_phases: 4
@@ -19,12 +19,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca casse quelque chose -- sans deployer en prod.
-**Current focus:** Phase 04 — e2e-discord-dev
+**Current focus:** Milestone v2.0 — Exercise Submission Flow
 
 ## Current Position
 
-Phase: 04
-Plan: Not started
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-25 — Milestone v2.0 started
 
 ## Performance Metrics
 

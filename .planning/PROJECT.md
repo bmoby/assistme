@@ -1,12 +1,24 @@
-# Dev Environment & Automated Tests - Bot Discord
+# Exercise Submission Flow - Bot Discord
 
 ## What This Is
 
-Infrastructure de tests automatises et environnement de developpement pour le bot Discord formateur (`packages/bot-discord`). Actuellement zero tests, zero feedback local -- tout est teste en production. Ce projet met en place 3 couches de tests (unit, integration, E2E) et l'infra necessaire pour dev en confiance.
+Solidification du flow de soumission d'exercices pour le bot Discord formateur (`packages/bot-discord`). L'etudiant soumet des exercices via DM (multi-messages : texte, fichiers, liens), confirme via apercu, et le formateur review avec une UX amelioree. Unicite par session, re-soumission controlee apres feedback.
 
 ## Core Value
 
-Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca casse quelque chose -- sans deployer en prod.
+Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
+
+## Current Milestone: v2.0 Exercise Submission Flow
+
+**Goal:** Solidifier le flow complet de soumission d'exercices — accumulation multi-messages, apercu avant envoi, unicite par session, re-soumission controlee, et UX formateur amelioree.
+
+**Target features:**
+- Soumission multi-messages (texte, fichiers, liens) avec apercu avant confirmation
+- Unicite 1 etudiant = 1 soumission par session (DB constraint + handler logic)
+- Re-soumission apres feedback (remplace l'ancienne)
+- Validation : pas de soumission vide
+- L'etudiant precise la session (doit exister en DB)
+- UX formateur : navigation/review plus fluide (threads, boutons, re-ouverture facile)
 
 ## Requirements
 
@@ -16,51 +28,54 @@ Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca ca
 - Bot Discord en production avec discord.js 14.16 -- existing
 - Core package (DB Supabase, AI Claude, agents) -- existing
 - Handlers: DM agent, admin handler, FAQ, exercise review, slash commands -- existing
+- Test infrastructure: Vitest, unit, integration, E2E, CI -- validated v1.0
+- Dev environment: separate Discord bot, test server -- validated v1.0
 
 ### Active
 
-- [x] Environnement de dev Discord (serveur de test + bot de dev separe) — Validated in Phase 4: E2E Discord Dev
-- [x] Framework de test (Vitest) configure pour le monorepo ESM — Validated in Phase 1: Foundation
-- [x] Tests unitaires: handlers, agents, commandes, utils en isolation — Validated in Phase 2: Mocks + Unit Tests
-- [x] Tests d'integration: Supabase local (Docker) + mock Claude API — Validated in Phase 3: Integration + CI
-- [x] Tests E2E: vrai bot de dev sur serveur Discord de test, scenarios complets — Validated in Phase 4: E2E Discord Dev
-- [x] CI GitHub Actions: tests auto sur push/PR — Validated in Phase 3: Integration + CI
-- [x] Mocks/fixtures reutilisables pour Discord.js, Supabase, Claude API — Validated in Phase 2: Mocks + Unit Tests
+- [ ] Soumission multi-messages avec accumulation (texte + fichiers + liens)
+- [ ] Apercu avant confirmation de soumission
+- [ ] Validation : refus de soumission vide (sans contenu)
+- [ ] Etudiant precise la session (validation existence en DB)
+- [ ] Unicite 1 etudiant / 1 session (constraint DB + handler)
+- [ ] Re-soumission apres feedback (remplace l'ancienne)
+- [ ] UX formateur : review plus fluide, re-ouverture facile
 
 ### Out of Scope
 
 - Tests pour les bots Telegram (admin + public) -- scope limite au bot Discord
 - Tests de performance/load -- pas la priorite
 - UI tests / visual regression -- backend only
-- Migration de framework de test existant -- aucun test n'existe
+- Nouveau design du DM agent complet -- on ameliore le flow existant
 
 ## Context
 
-- **Codebase existante:** ~15K+ lignes de code TypeScript strict, ESM modules
-- **Phase 4 complete:** E2E tests with real Discord dev bot (14 tests: DM student flow, exercise submission, FAQ), two-bot architecture, `pnpm test:e2e`, CI workflow_dispatch job
-- **Phase 3 complete:** Integration tests against real Supabase Docker (students CRUD, pgvector search, agent+DB), GitHub Actions CI pipeline (unit on push, integration on PR), MSW v2, coverage thresholds
-- **Douleur principale:** Pas de feedback local -- obliger de deployer en prod pour tester (Phase 2+ addressera)
+- **Codebase existante:** ~15K+ lignes TypeScript strict, ESM modules
+- **v1.0 complete:** 163 tests (unit + integration + E2E), CI, dev environment
 - **Bot Discord:** discord.js 14.16, handlers (DM, admin, FAQ, review), slash commands, crons
-- **Core partage:** Supabase (PostgreSQL + pgvector), Claude API (agents avec tool use), Redis (optionnel)
-- **Agents IA:** Orchestrator, DM Agent, Tsarag Agent, FAQ Agent -- logique complexe avec tool calling
+- **Core partage:** Supabase (PostgreSQL + pgvector), Claude API (agents avec tool use)
+- **Tables existantes:** students, student_exercises, sessions, submission_attachments
+- **DM Agent:** Claude tool_use, 5 outils dont search_course_content
+- **Admin handler:** review-buttons.ts, thread-based review
 
 ## Constraints
 
-- **Stack:** TypeScript strict, ESM, pnpm workspaces -- pas de CJS
+- **Stack:** TypeScript strict, ESM, pnpm workspaces
 - **Runtime:** Node.js 20+
-- **Test framework:** Vitest (recommande par codebase map pour ESM + monorepo)
-- **DB locale:** Supabase local via Docker (pas de mock DB pour les tests d'integration)
-- **Bot de dev:** Token Discord separe de la prod, serveur de test dedie
-- **CI:** GitHub Actions, doit tourner sans secrets Discord pour unit/integration
+- **Test framework:** Vitest — tests obligatoires pour tout changement
+- **DB:** Supabase (PostgreSQL), migrations incrementales
+- **Discord limitations:** bots can't DM bots (E2E uses synthetic events)
+- **Pre-push hook:** tests doivent passer avant tout push
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Vitest over Jest | Meilleur support ESM natif, plus rapide, meme API | Validated Phase 1 |
-| Bot Discord de dev separe | Zero risque sur la prod, token dedie | Validated Phase 4 |
-| Supabase local Docker | Tests d'integration avec vraie DB, pas de mocks DB | Validated Phase 3 |
-| 3 couches de tests | Unit (rapide) + Integration (DB reelle) + E2E (vrai Discord) | Validated Phase 4 |
+| Vitest over Jest | Meilleur support ESM natif, plus rapide | Validated v1.0 |
+| Bot Discord de dev separe | Zero risque sur la prod | Validated v1.0 |
+| Supabase local Docker | Integration tests avec vraie DB | Validated v1.0 |
+| 3 couches de tests | Unit + Integration + E2E | Validated v1.0 |
+| Pre-push hook obligatoire | Tests impossible a contourner | Validated v1.0 |
 
 ## Evolution
 
@@ -80,4 +95,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 after Phase 3: Integration + CI completion*
+*Last updated: 2026-03-25 — Milestone v2.0 started*
