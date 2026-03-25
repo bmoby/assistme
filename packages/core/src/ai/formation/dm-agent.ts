@@ -5,16 +5,10 @@ import {
   getExercisesByStudent,
   getPublishedSessions,
   getSessionByNumber,
-  addAttachment,
-  getSignedUrl,
-  createFormationEvent,
   searchFormationKnowledge,
 } from '../../db/formation/index.js';
-import { submitExercise, setAiReview, resubmitExercise } from '../../db/formation/exercises.js';
-import { deleteAttachmentsByExercise, deleteStorageFiles } from '../../db/formation/attachments.js';
-import { reviewExercise } from './exercise-reviewer.js';
 import { getEmbedding } from '../embeddings.js';
-import type { Student, Session, StudentExercise, AttachmentType } from '../../types/index.js';
+import type { Student } from '../../types/index.js';
 
 // ============================================
 // Types
@@ -30,7 +24,7 @@ export interface PendingAttachment {
   url: string | null;
   originalFilename: string;
   mimeType: string;
-  type: AttachmentType;
+  type: import('../../types/index.js').AttachmentType;
   fileSize: number;
 }
 
@@ -42,14 +36,21 @@ export interface DmAgentContext {
   newAttachmentsInfo?: string;
 }
 
+export interface SubmissionIntent {
+  session_number: number;
+  student_comment?: string;
+}
+
 export interface DmAgentResponse {
   text: string;
-  /** If the agent created a submission, its ID */
+  /** If the agent created a submission, its ID (legacy - set by handler after confirm) */
   submissionId?: string;
   /** True if this was a re-submission of an existing exercise */
   isResubmission?: boolean;
   /** Number of times this exercise has been submitted */
   submissionCount?: number;
+  /** If the agent wants to create a submission, the intent data for the handler to process */
+  submissionIntent?: SubmissionIntent;
 }
 
 // ============================================
@@ -82,7 +83,7 @@ const SYSTEM_PROMPT = `Ты — ассистент обучения «Pilote Neu
 
 ПРАВИЛА СДАЧИ:
 - Всегда уточни для какой сессии задание, если студент не сказал
-- Перед отправкой покажи, что будет отправлено, и спроси подтверждение
+- Используй create_submission, когда студент готов сдать — система покажет ему предпросмотр для подтверждения
 - Если формат файла не совпадает с ожидаемым (expected_deliverables), предупреди, но не блокируй
 - Если задание по этой сессии уже одобрено, сообщи об этом
 
@@ -124,7 +125,7 @@ const TOOLS: Anthropic.Messages.Tool[] = [
   },
   {
     name: 'create_submission',
-    description: 'Создать сдачу задания. Вызывай ТОЛЬКО после того, как собрал все файлы/ссылки/текст и получил подтверждение от студента.',
+    description: 'Подготовить сдачу задания. Система покажет студенту предпросмотр для подтверждения. Вызывай ТОЛЬКО после того, как собрал все файлы/ссылки/текст и готов к отправке.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -242,240 +243,6 @@ async function handleGetSessionExercise(
   });
 }
 
-async function uploadFileToStorage(
-  buffer: Buffer,
-  studentId: string,
-  sessionNumber: number,
-  filename: string,
-  mimeType: string
-): Promise<string> {
-  const { getSupabase } = await import('../../db/client.js');
-  const db = getSupabase();
-
-  const timestamp = Date.now();
-  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storagePath = `${studentId}/session-${sessionNumber}/${timestamp}-${safeName}`;
-
-  const { error } = await db.storage
-    .from('exercise-submissions')
-    .upload(storagePath, buffer, {
-      contentType: mimeType,
-      upsert: false,
-    });
-
-  if (error) {
-    logger.error({ error, storagePath }, 'Failed to upload to Supabase Storage');
-    throw error;
-  }
-
-  logger.info({ storagePath, size: buffer.length }, 'File uploaded to Supabase Storage');
-  return storagePath;
-}
-
-async function triggerAiReview(
-  exerciseId: string,
-  student: Student,
-  session: Session,
-  storagePaths: string[]
-): Promise<void> {
-  const attachments: Array<{ signedUrl: string; type: AttachmentType; filename: string; mimeType: string }> = [];
-
-  for (const path of storagePaths) {
-    const signedUrl = await getSignedUrl(path, 3600);
-    const filename = path.split('/').pop() ?? 'file';
-    const isImage = /\.(png|jpe?g|webp|gif)$/i.test(filename);
-    attachments.push({
-      signedUrl,
-      type: isImage ? 'image' : 'file',
-      filename,
-      mimeType: isImage ? `image/${filename.split('.').pop()}` : 'application/octet-stream',
-    });
-  }
-
-  const result = await reviewExercise({
-    module: session.module,
-    exerciseNumber: session.session_number,
-    exerciseDescription: session.exercise_description ?? undefined,
-    studentName: student.name,
-    sessionNumber: session.session_number,
-    attachments,
-  });
-
-  await setAiReview(exerciseId, result as unknown as Record<string, unknown>);
-  logger.info({ exerciseId, score: result.score }, 'AI review completed and saved');
-
-  // Notify Discord to update the admin notification with AI score
-  try {
-    await createFormationEvent({
-      type: 'ai_review_complete',
-      source: 'discord',
-      target: 'discord',
-      data: { exercise_id: exerciseId },
-    });
-  } catch {
-    // Non-blocking — notification edit is best-effort
-  }
-}
-
-async function handleCreateSubmission(
-  sessionNumber: number,
-  studentComment: string | undefined,
-  student: Student,
-  pendingAttachments: PendingAttachment[]
-): Promise<string> {
-  const session = await getSessionByNumber(sessionNumber);
-
-  if (!session) {
-    return JSON.stringify({ error: 'session_not_found' });
-  }
-
-  if (session.status !== 'published') {
-    return JSON.stringify({ error: 'session_not_published' });
-  }
-
-  // Check existing exercises for this session
-  const existingExercises = await getExercisesByStudent(student.id);
-
-  // Block if already submitted/ai_reviewed (in progress)
-  const activeForSession = existingExercises.find(
-    (e) => e.session_id === session.id && (e.status === 'submitted' || e.status === 'ai_reviewed')
-  );
-  if (activeForSession) {
-    return JSON.stringify({
-      error: 'already_submitted',
-      message: 'Задание по этой сессии уже на проверке, дождись результата.',
-    });
-  }
-
-  // Check for re-submission (existing exercise in revision_needed)
-  const revisionExercise = existingExercises.find(
-    (e) => e.session_id === session.id && e.status === 'revision_needed'
-  );
-  const isResubmission = !!revisionExercise;
-
-  // Upload new files to storage
-  const storagePaths: string[] = [];
-  for (const attachment of pendingAttachments) {
-    if (attachment.buffer && attachment.type !== 'url') {
-      const path = await uploadFileToStorage(
-        attachment.buffer,
-        student.id,
-        sessionNumber,
-        attachment.originalFilename,
-        attachment.mimeType
-      );
-      storagePaths.push(path);
-    }
-  }
-
-  let exercise: StudentExercise;
-  const submissionType = pendingAttachments.length > 0
-    ? pendingAttachments.map((a) => a.type).join('+')
-    : 'text';
-  const submissionUrl = pendingAttachments.find((a) => a.type === 'url')?.url ?? '';
-
-  if (isResubmission && revisionExercise) {
-    // RE-SUBMISSION: delete old attachments, update existing record
-    const oldStoragePaths = await deleteAttachmentsByExercise(revisionExercise.id);
-
-    exercise = await resubmitExercise(revisionExercise.id, {
-      submission_url: submissionUrl || null,
-      submission_type: submissionType,
-    });
-
-    // Delete old files from storage (fire-and-forget)
-    void deleteStorageFiles(oldStoragePaths).catch((err) => {
-      logger.warn({ err, exerciseId: exercise.id }, 'Failed to delete old storage files');
-    });
-
-    logger.info(
-      { studentId: student.id, sessionNumber, exerciseId: exercise.id, submissionCount: exercise.submission_count },
-      'Exercise re-submitted via DM agent'
-    );
-  } else {
-    // FIRST SUBMISSION: create new record with session_id atomically
-    exercise = await submitExercise({
-      student_id: student.id,
-      session_id: session.id,
-      module: session.module,
-      exercise_number: session.session_number,
-      submission_url: submissionUrl,
-      submission_type: submissionType,
-    });
-
-    logger.info(
-      { studentId: student.id, sessionNumber, exerciseId: exercise.id, attachments: pendingAttachments.length },
-      'Exercise submitted via DM agent'
-    );
-  }
-
-  // Create attachment records for new files
-  let storageIdx = 0;
-  for (const attachment of pendingAttachments) {
-    if (attachment.type === 'url') {
-      await addAttachment({
-        exercise_id: exercise.id,
-        type: 'url',
-        url: attachment.url ?? undefined,
-        original_filename: attachment.originalFilename,
-        mime_type: attachment.mimeType,
-        file_size: attachment.fileSize,
-      });
-    } else if (attachment.type === 'text') {
-      await addAttachment({
-        exercise_id: exercise.id,
-        type: 'text',
-        storage_path: storagePaths[storageIdx],
-        original_filename: attachment.originalFilename,
-        mime_type: attachment.mimeType,
-        file_size: attachment.fileSize,
-        text_content: attachment.buffer?.toString('utf-8'),
-      });
-      storageIdx++;
-    } else {
-      await addAttachment({
-        exercise_id: exercise.id,
-        type: attachment.type,
-        storage_path: storagePaths[storageIdx],
-        original_filename: attachment.originalFilename,
-        mime_type: attachment.mimeType,
-        file_size: attachment.fileSize,
-      });
-      storageIdx++;
-    }
-  }
-
-  // Fire-and-forget AI review
-  if (storagePaths.length > 0) {
-    void triggerAiReview(exercise.id, student, session, storagePaths).catch(async (err) => {
-      logger.error({ err, exerciseId: exercise.id }, 'AI review failed (non-blocking)');
-      try {
-        await createFormationEvent({
-          type: 'student_alert',
-          source: 'discord',
-          target: 'telegram-admin',
-          data: {
-            alert_type: 'ai_review_failed',
-            student_name: student.name,
-            session_number: sessionNumber,
-            exercise_id: exercise.id,
-          },
-        });
-      } catch {
-        // Non-blocking
-      }
-    });
-  }
-
-  return JSON.stringify({
-    success: true,
-    exercise_id: exercise.id,
-    is_resubmission: isResubmission,
-    submission_count: exercise.submission_count,
-    message: isResubmission ? 'Исправленное задание отправлено на проверку' : 'Задание отправлено на проверку',
-  });
-}
-
 async function handleSearchCourseContent(
   query: string,
   sessionNumber?: number,
@@ -576,9 +343,7 @@ export async function runDmAgent(context: DmAgentContext): Promise<DmAgentRespon
   let response: Anthropic.Messages.Message;
   let iterations = 0;
   const maxIterations = 5;
-  let submissionId: string | undefined;
-  let isResubmission: boolean | undefined;
-  let submissionCount: number | undefined;
+  let pendingSubmissionIntent: SubmissionIntent | undefined;
 
   while (iterations < maxIterations) {
     iterations++;
@@ -628,18 +393,16 @@ export async function runDmAgent(context: DmAgentContext): Promise<DmAgentRespon
             );
             break;
           case 'create_submission': {
-            result = await handleCreateSubmission(
-              input.session_number as number,
-              input.student_comment as string | undefined,
-              student,
-              context.pendingAttachments
-            );
-            const parsed = JSON.parse(result) as { success?: boolean; exercise_id?: string; is_resubmission?: boolean; submission_count?: number };
-            if (parsed.success && parsed.exercise_id) {
-              submissionId = parsed.exercise_id;
-              isResubmission = parsed.is_resubmission;
-              submissionCount = parsed.submission_count;
-            }
+            // Capture intent — handler will show preview-confirm flow, NOT writing to DB here
+            pendingSubmissionIntent = {
+              session_number: input.session_number as number,
+              student_comment: input.student_comment as string | undefined,
+            };
+            result = JSON.stringify({
+              success: true,
+              message: 'Сдача подготовлена. Жди подтверждения от студента.',
+              awaiting_confirmation: true,
+            });
             break;
           }
           case 'get_pending_feedback':
@@ -678,9 +441,12 @@ export async function runDmAgent(context: DmAgentContext): Promise<DmAgentRespon
   const text = textBlocks.map((b) => b.text).join('\n') || 'Не удалось обработать запрос. Попробуй ещё раз.';
 
   logger.info(
-    { studentId: student.id, iterations, hasSubmission: !!submissionId },
+    { studentId: student.id, iterations, hasSubmissionIntent: !!pendingSubmissionIntent },
     'DM agent response ready'
   );
 
-  return { text, submissionId, isResubmission, submissionCount };
+  return {
+    text,
+    submissionIntent: pendingSubmissionIntent,
+  };
 }
