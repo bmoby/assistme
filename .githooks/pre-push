@@ -1,0 +1,15 @@
+#!/bin/sh
+# Pre-push hook: run unit tests before any push
+# Cannot be bypassed without --no-verify (which CLAUDE.md forbids)
+
+echo "🧪 Running unit tests before push..."
+pnpm test:unit 2>&1
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Tests failed. Push blocked."
+  echo "   Fix failing tests, then push again."
+  exit 1
+fi
+
+echo "✅ All tests passed. Pushing..."

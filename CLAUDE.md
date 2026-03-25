@@ -17,6 +17,13 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 - grammY (Telegram), discord.js (Discord)
 - pnpm workspaces, tsx for dev
 
+## Testing Rules (MANDATORY — NO EXCEPTIONS)
+- **Before committing ANY code change:** run `pnpm test:unit` and verify all tests pass
+- **Before pushing:** the pre-push hook runs tests automatically — NEVER use `--no-verify` to skip it
+- **When modifying a handler, agent, or core function:** run the relevant tests first, verify they pass, then make changes, then re-run to confirm nothing broke
+- **When adding a new feature:** add or update tests covering the new behavior
+- **CI is the final gate:** unit tests run on every push, integration tests run on every PR — both must pass
+
 ## Code Conventions
 - All code in TypeScript strict mode, no `any`
 - ESM imports (`import`/`export`, not `require`)
