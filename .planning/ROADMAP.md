@@ -52,7 +52,7 @@ Plans:
 - [x] 02-05-PLAN.md — Claude API JSON fixtures and domain fixture factories
 - [x] 02-02-PLAN.md — Unit tests for FAQ handler and all 9 slash commands
 - [ ] 02-03-PLAN.md — Unit tests for DM handler, admin handler, and review-buttons
-- [ ] 02-04-PLAN.md — Unit tests for DM Agent, FAQ Agent, and Tsarag Agent tool routing logic
+- [x] 02-04-PLAN.md — Unit tests for DM Agent, FAQ Agent, and Tsarag Agent tool routing logic
 **UI hint**: no
 
 ### Phase 3: Integration + CI
