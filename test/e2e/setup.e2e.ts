@@ -72,9 +72,10 @@ beforeAll(async () => {
   await waitForReady(testUserBot, 'testUserBot');
   setTestUserBot(testUserBot);
 
-  // Verify test-user bot has @student role in test guild
-  const guild = devBot.guilds.cache.get(env.DISCORD_TEST_GUILD_ID);
+  // Fetch guild data explicitly (cache may not be populated yet)
+  const guild = await devBot.guilds.fetch(env.DISCORD_TEST_GUILD_ID);
   if (!guild) throw new Error(`Dev bot is not in test guild ${env.DISCORD_TEST_GUILD_ID}`);
+  await guild.channels.fetch();
   const member = await guild.members.fetch(testUserBot.user!.id);
   const hasStudentRole = member.roles.cache.some((r) => r.name === ROLES.student);
   if (!hasStudentRole) {
