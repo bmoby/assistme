@@ -66,11 +66,11 @@ Plans:
   4. A GitHub Actions run on push executes unit tests without Docker and without any secret env vars
   5. A GitHub Actions run on PR executes integration tests in a separate job with Supabase local Docker
   6. Coverage thresholds are enforced on handlers and agents packages (failing if below threshold)
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 - [ ] 03-01-PLAN.md — Integration test infrastructure: Vitest projects, globalSetup, MSW server, test isolation helpers
-- [ ] 03-04-PLAN.md — GitHub Actions CI pipeline: unit on push, integration on PR, E2E placeholder
+- [x] 03-04-PLAN.md — GitHub Actions CI pipeline: unit on push, integration on PR, E2E placeholder
 - [ ] 03-02-PLAN.md — DB layer integration tests: students CRUD and knowledge search (BM25 + pgvector)
 - [ ] 03-03-PLAN.md — Agent integration test (DM Agent + real DB) and coverage thresholds
 
@@ -95,5 +95,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation | 1/1 | Complete   | 2026-03-24 |
 | 2. Mocks + Unit Tests | 5/5 | Complete   | 2026-03-25 |
-| 3. Integration + CI | 0/4 | In progress | - |
+| 3. Integration + CI | 1/4 | In Progress|  |
 | 4. E2E Discord Dev | 0/? | Not started | - |

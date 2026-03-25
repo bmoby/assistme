@@ -50,9 +50,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### CI Pipeline
 
-- [ ] **CI-01**: GitHub Actions: tests unitaires sur chaque push (rapide, pas de Docker)
-- [ ] **CI-02**: GitHub Actions: tests integration sur PR (job separe avec Docker/Supabase)
-- [ ] **CI-03**: E2E en trigger manuel uniquement (workflow_dispatch)
+- [x] **CI-01**: GitHub Actions: tests unitaires sur chaque push (rapide, pas de Docker)
+- [x] **CI-02**: GitHub Actions: tests integration sur PR (job separe avec Docker/Supabase)
+- [x] **CI-03**: E2E en trigger manuel uniquement (workflow_dispatch)
 - [ ] **CI-04**: Coverage thresholds sur handlers et agents
 
 ## v2 Requirements
@@ -106,9 +106,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INTG-03 | Phase 3 | Pending |
 | INTG-04 | Phase 3 | Pending |
 | INTG-05 | Phase 3 | Pending |
-| CI-01 | Phase 3 | Pending |
-| CI-02 | Phase 3 | Pending |
-| CI-03 | Phase 3 | Pending |
+| CI-01 | Phase 3 | Complete |
+| CI-02 | Phase 3 | Complete |
+| CI-03 | Phase 3 | Complete |
 | CI-04 | Phase 3 | Pending |
 | E2E-01 | Phase 4 | Pending |
 | E2E-02 | Phase 4 | Pending |

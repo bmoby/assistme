@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to plan
-stopped_at: Completed 02-mocks-unit-tests/02-03-PLAN.md
-last_updated: "2026-03-25T01:42:10.261Z"
+status: Ready to execute
+stopped_at: Completed 03-integration-ci/03-04-PLAN.md
+last_updated: "2026-03-25T02:36:17.587Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 10
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca casse quelque chose -- sans deployer en prod.
-**Current focus:** Phase 02 — mocks-unit-tests
+**Current focus:** Phase 03 — integration-ci
 
 ## Current Position
 
-Phase: 3
-Plan: Not started
+Phase: 03 (integration-ci) — EXECUTING
+Plan: 2 of 4
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: Not started
 | Phase 02-mocks-unit-tests P02 | 35 | 3 tasks | 11 files |
 | Phase 02-mocks-unit-tests P04 | 15 | 2 tasks | 2 files |
 | Phase 02-mocks-unit-tests P03 | 10 | 3 tasks | 3 files |
+| Phase 03-integration-ci P04 | 3 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,8 @@ Recent decisions affecting current work:
 - [Phase 02-mocks-unit-tests]: drainProcessing() helper after __emit: processingLocks queue returns before actual processing completes
 - [Phase 02-mocks-unit-tests]: TextChannel.prototype base for admin channel mocks: handleReviewOpen uses instanceof TextChannel in find predicate
 - [Phase 02-mocks-unit-tests]: Approach A (mock button-handler to capture handlers) for review-buttons: handler functions not exported
+- [Phase 03-integration-ci]: Three-tier CI: unit on push, integration on PR, E2E on workflow_dispatch only — no Discord secrets in automated jobs
+- [Phase 03-integration-ci]: Supabase Docker cache keyed on migrations/** hash — auto-invalidates on schema changes in CI
 
 ### Pending Todos
 
@@ -91,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T01:34:36.658Z
-Stopped at: Completed 02-mocks-unit-tests/02-03-PLAN.md
+Last session: 2026-03-25T02:36:17.581Z
+Stopped at: Completed 03-integration-ci/03-04-PLAN.md
 Resume file: None
