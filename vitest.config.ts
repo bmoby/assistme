@@ -121,6 +121,22 @@ export default defineConfig({
         '**/test/**',
         '**/__mocks__/**',
       ],
+      thresholds: {
+        // Handlers: primary business logic that must maintain coverage
+        'packages/bot-discord/src/handlers/**': {
+          statements: 70,
+          branches: 65,
+          functions: 70,
+          lines: 70,
+        },
+        // AI agents: core formation logic
+        'packages/core/src/ai/formation/**': {
+          statements: 70,
+          branches: 60,
+          functions: 70,
+          lines: 70,
+        },
+      },
     },
   },
 });
