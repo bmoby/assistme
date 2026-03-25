@@ -1,230 +1,355 @@
-# Technology Stack: Discord.js Bot Testing Infrastructure
+# Technology Stack: Exercise Submission Flow Improvements
 
-**Project:** Dev Environment & Automated Tests — Bot Discord
-**Researched:** 2026-03-24
-**Domain:** Testing infrastructure for TypeScript/ESM/Node.js Discord bot monorepo
+**Project:** Exercise Submission Flow — Bot Discord v2.0
+**Researched:** 2026-03-25
+**Domain:** Discord.js v14 interaction APIs + Supabase constraint patterns for multi-message accumulation, preview/confirm UI, uniqueness enforcement, re-submission logic, and admin review UX.
 
 ---
 
-## Recommended Stack
+## Verdict: No New Dependencies Required
 
-### Test Framework
+All required capabilities are already present in `discord.js 14.16.0` (installed) and `@supabase/supabase-js 2.49.1` (installed). This milestone is a **code addition** milestone, not a **dependency addition** milestone.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| vitest | ^4.1.1 | Test runner, assertions, mocking | Native ESM support without transformation hacks. Pool `forks` (default) is stable for ESM Node.js — `vmThreads` causes memory leaks and instability with ESM. `projects` API enables per-package configs in the pnpm monorepo without a separate `vitest.workspace` file (that pattern is deprecated as of v3.2). Faster than Jest by 3-5x for this workload. Same assertion API as Jest so switching cost is near zero. |
-| @vitest/coverage-v8 | ^4.1.1 | Coverage reports | V8 provider is the default since Vitest 3.2 added AST-based remapping, giving Istanbul-level accuracy with V8 speed. The old `c8` provider (0.33.0, last published 3 years ago) is dead — do not use it. |
+**Confidence: HIGH** — Verified against discord.js 14.16.3 class reference, Supabase JS reference, and existing codebase imports.
 
-**Confidence: HIGH** — Verified against current Vitest 4.1.1 docs and official blog posts.
+---
 
-### HTTP / API Mocking
+## Discord.js APIs Required (All Available in 14.16.0)
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| msw | ^2.x (latest) | Intercept HTTP calls to Anthropic, OpenAI, Supabase REST, Google APIs | Officially recommended by Vitest docs for request mocking in Node.js. Uses `@mswjs/interceptors` under the hood — intercepts `fetch`, Axios, and any HTTP client without module patching. Works identically in unit and integration test contexts. Framework-agnostic: mocks defined once, reusable across test layers. |
+### 1. Message Component Collector — Preview/Confirm UI
 
-**Confidence: HIGH** — Vitest documentation explicitly recommends MSW. MSW v2 supports Node.js 18+ (project uses 20+).
+**Purpose:** After accumulating messages, send a preview embed to the student's DM with Confirm/Cancel buttons, then await their click.
 
-**Do NOT use `nock`** — nock patches Node's `http` module directly, which breaks with ESM and native `fetch`. It has now adopted MSW's interceptors under the hood anyway, so MSW is the cleaner choice.
+**API:** `Message.createMessageComponentCollector(options)` and `Message.awaitMessageComponent(options)`.
 
-### Discord.js Mocking
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Custom vi.fn() factories | n/a | Mock Discord.js Client, Guild, Channel, Message, Interaction objects | No maintained third-party library exists for discord.js v14. `jest-discordjs-mocks` targets old Jest + older d.js versions. `@shoginn/discordjs-mock` last published >1 year ago, unknown v14 compatibility. `corde` (E2E library) last release November 2022, unmaintained. The discord.js v14 class internals are largely private — shallow factory objects with `vi.fn()` stubs is the standard community pattern (confirmed in discordjs/discord.js Discussion #6179). |
-
-**Confidence: MEDIUM** — The absence of a maintained library is confirmed across multiple official and community sources. The factory pattern is the pragmatic consensus.
-
-Minimal factory pattern for unit tests:
+These methods exist on `Message` objects in DMChannel context. `awaitMessageComponent` is the right choice here — it awaits a single interaction (the confirm or cancel click) and rejects on timeout.
 
 ```typescript
-// test/factories/discord.ts
-import { vi } from 'vitest';
+import { ComponentType } from 'discord.js';
 
-export function makeMockInteraction(overrides = {}) {
-  return {
-    reply: vi.fn().mockResolvedValue(undefined),
-    deferReply: vi.fn().mockResolvedValue(undefined),
-    editReply: vi.fn().mockResolvedValue(undefined),
-    followUp: vi.fn().mockResolvedValue(undefined),
-    user: { id: 'user-123', username: 'TestUser', tag: 'TestUser#0000' },
-    guildId: 'guild-123',
-    channelId: 'channel-123',
-    ...overrides,
-  };
-}
+// Send preview to student DM
+const previewMsg = await dmChannel.send({ embeds: [previewEmbed], components: [confirmRow] });
 
-export function makeMockMessage(overrides = {}) {
-  return {
-    reply: vi.fn().mockResolvedValue(undefined),
-    author: { id: 'user-123', username: 'TestUser', bot: false },
-    content: '',
-    channelId: 'channel-123',
-    guildId: 'guild-123',
-    ...overrides,
-  };
+// Wait for student to click Confirm or Cancel (90s timeout)
+try {
+  const btnInteraction = await previewMsg.awaitMessageComponent({
+    filter: (i) => i.user.id === discordUserId,
+    componentType: ComponentType.Button,
+    time: 90_000,
+  });
+  await btnInteraction.deferUpdate(); // Acknowledge within Discord's 3-second deadline
+  // btnInteraction.customId will be 'confirm_submit' or 'cancel_submit'
+} catch {
+  // Timeout — user did not respond within 90 seconds
+  await previewMsg.edit({ content: 'Время истекло. Отправь заново.', embeds: [], components: [] });
 }
 ```
 
-### Integration Test Database
+**Key constraint:** Discord requires ALL interactions to be acknowledged within 3 seconds. Call `btnInteraction.deferUpdate()` or `btnInteraction.update()` immediately in the handler — before any DB calls.
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| supabase CLI | latest | Local Supabase stack (Postgres + pgvector + Auth) via Docker | Official supported path for local integration testing. `supabase start` spins up the full stack (12 Docker containers). Tests run against a real Postgres instance with real migrations applied — no mock DB. This ensures pgvector queries, RLS policies, and RPC functions are actually tested. |
+**Confidence: HIGH** — `awaitMessageComponent` is documented on `DMChannel` and `Message` in discord.js 14.x official docs. The `componentType: ComponentType.Button` enum (not the string `'BUTTON'`) is the v14 pattern.
 
-**Confidence: HIGH** — Official Supabase docs confirm this is the recommended integration testing approach.
+---
 
-**Startup time warning:** First run pulls Docker images (~1 min). Subsequent runs are faster but still ~15-30s. This means integration tests must be in a separate test suite that is NOT run on every file save. Run them pre-commit or on CI only.
+### 2. EmbedBuilder — Submission Preview
 
-**Important constraint:** The Supabase CLI can only manage one local DB at a time. If you also run a local dev instance, you need to either use separate ports or stop the dev instance before running integration tests. Configure integration tests to point to a different port (e.g., `54322` instead of `54321`).
+**Purpose:** Build the preview embed shown to the student before they confirm the submission.
 
-### Supabase Test Client
+**API:** `EmbedBuilder` (already imported in `dm-handler.ts` indirectly via `format.ts` and `review-thread.ts`). Already used extensively in `packages/bot-discord/src/utils/format.ts`.
 
 ```typescript
-// test/setup/supabase.ts
-import { createClient } from '@supabase/supabase-js';
+import { EmbedBuilder } from 'discord.js';
 
-export const testSupabase = createClient(
-  process.env.SUPABASE_TEST_URL ?? 'http://127.0.0.1:54321',
-  process.env.SUPABASE_TEST_SERVICE_ROLE_KEY ?? 'your-local-anon-key'
+function buildPreviewEmbed(
+  sessionTitle: string,
+  textContent: string | null,
+  attachmentSummary: string[],
+  urlList: string[]
+): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setTitle('Предпросмотр задания')
+    .setDescription('Проверь перед отправкой:')
+    .setColor(0x5865f2);
+
+  if (textContent) embed.addFields({ name: 'Текст', value: textContent.slice(0, 1024) });
+  if (attachmentSummary.length > 0) {
+    embed.addFields({ name: 'Файлы', value: attachmentSummary.join('\n').slice(0, 1024) });
+  }
+  if (urlList.length > 0) {
+    embed.addFields({ name: 'Ссылки', value: urlList.join('\n').slice(0, 1024) });
+  }
+  embed.addFields({ name: 'Сессия', value: sessionTitle });
+  return embed;
+}
+```
+
+**Confidence: HIGH** — Already used in project. No changes needed.
+
+---
+
+### 3. ActionRowBuilder + ButtonBuilder — Confirm/Cancel Row
+
+**Purpose:** Attach Confirm and Cancel buttons to the preview message.
+
+**API:** `ActionRowBuilder<ButtonBuilder>` with `ButtonStyle.Success` (confirm) and `ButtonStyle.Secondary` (cancel). Already imported and used in `dm-handler.ts` and `review-buttons.ts`.
+
+```typescript
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+
+const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+  new ButtonBuilder()
+    .setCustomId('confirm_submit')
+    .setLabel('Отправить')
+    .setStyle(ButtonStyle.Success),
+  new ButtonBuilder()
+    .setCustomId('cancel_submit')
+    .setLabel('Отмена')
+    .setStyle(ButtonStyle.Secondary),
 );
 ```
 
-### Claude API Mocking
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| msw + vi.fn() | — | Mock Anthropic API responses | The `@anthropic-ai/sdk` has NO official test helpers or mock utilities (verified against SDK repo). The SDK uses standard `fetch` under the hood. MSW intercepts these calls at the network level, returning controlled JSON responses. For unit tests where you want to test agent logic without HTTP at all, mock the wrapper functions (`askClaude`, `runAgent`) directly with `vi.mock()`. |
-
-**Confidence: MEDIUM** — No official mocking utilities found in the Anthropic SDK. Pattern is inferred from SDK architecture (fetch-based) and standard Vitest/MSW practices.
-
-Two-level strategy:
-- **Unit tests:** `vi.mock('../ai/claude')` — stub `askClaude()` return value directly.
-- **Integration tests:** MSW handler intercepting `https://api.anthropic.com/v1/messages` — returns deterministic JSON.
-
-### CI
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| GitHub Actions | n/a | Run unit + integration tests on push/PR | Already the project's VCS platform. `pnpm/action-setup@v3` + `actions/setup-node@v4` is the standard 2025 pattern. Unit tests run without any secrets. Integration tests require Supabase local stack — run via `supabase start` in CI before test suite. E2E tests (real Discord bot) are excluded from CI — they require a live Discord token and are run manually. |
-
-**Confidence: HIGH** — Standard pattern, well-documented and widely used.
+**Confidence: HIGH** — Exact same pattern already used in the codebase.
 
 ---
 
-## Alternatives Considered and Rejected
+### 4. ButtonInteraction.deferUpdate / .update — Interaction Acknowledgement
 
-| Category | Recommended | Rejected | Reason for Rejection |
-|----------|-------------|----------|---------------------|
-| Test runner | Vitest 4.x | Jest 29+ | Jest ESM support requires `--experimental-vm-modules` or Babel transform — adds friction to a pure ESM monorepo. Slower. Vitest is the current standard for Node.js ESM projects. |
-| Test runner | Vitest 4.x | Node.js built-in test runner | The built-in runner (`node:test`) lacks the ecosystem depth: no first-class mocking, no coverage, no monorepo `projects` config, poor assertion ergonomics. Acceptable only for trivial scripts. |
-| HTTP mocking | msw | nock | nock patches `http` module, incompatible with `fetch`-based SDKs (Anthropic, Supabase) in ESM. Archived/unmaintained direction. |
-| HTTP mocking | msw | direct vi.mock on SDK modules | Module mocking breaks when the module wraps `fetch` at import time. MSW intercepts at network layer — more realistic and more maintainable. |
-| Discord mocking | vi.fn() factories | jest-discordjs-mocks | Targets Jest + d.js v12/v13. Not compatible with Vitest or d.js v14 without rewriting. |
-| Discord mocking | vi.fn() factories | @shoginn/discordjs-mock | Last published >1 year ago. Unknown v14 support. Single maintainer. Risk of being a dead dependency. |
-| Discord E2E | Custom test bot | corde | Last release November 2022. Does not support discord.js v14. Unmaintained. |
-| DB for integration | supabase local | Mock Supabase client | Mocking the entire Supabase client means tests never catch query errors, pgvector issues, or RLS policy bugs. Real DB is necessary for this codebase's complexity (hybrid search, RPC functions). |
-| Coverage | @vitest/coverage-v8 | @vitest/coverage-c8 | c8 package last published 3 years ago (v0.33.0). Superseded entirely by v8 provider. Dead package — do not install. |
+**Purpose:** Acknowledge the student's button click within Discord's 3-second deadline before performing async DB operations.
 
----
+**API:** Two methods on `ButtonInteraction`:
 
-## Installation
+- `interaction.deferUpdate()` — Acknowledges interaction, keeps the original message intact. Use when you will edit the message after async work.
+- `interaction.update({ content, embeds, components })` — Acknowledges and immediately edits the original message in one call. Use when the edit is fast/synchronous.
 
-```bash
-# Test runner + coverage
-pnpm add -D vitest @vitest/coverage-v8
-
-# HTTP mocking (for Anthropic API, OpenAI, Supabase REST)
-pnpm add -D msw
-
-# TypeScript types for test utilities (usually bundled with vitest)
-# No additional @types packages needed for vitest itself
-```
-
-Install at **root level** for monorepo-wide test runner. The `vitest` binary is invoked from root using the `projects` config.
-
----
-
-## Vitest Configuration Structure
-
-### Root config (vitest.config.ts at repo root)
+For the confirm flow (which triggers DB writes and file uploads), use `deferUpdate()` first, then `previewMsg.edit(...)` after the async work completes.
 
 ```typescript
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
-  test: {
-    // projects replaces the deprecated vitest.workspace file (deprecated in v3.2)
-    projects: ['packages/*/vitest.config.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html', 'lcov'],
-      exclude: ['**/node_modules/**', '**/dist/**', '**/*.config.ts'],
-    },
-  },
-});
+await btnInteraction.deferUpdate();
+// ... do async work (DB, file uploads) ...
+await previewMsg.edit({ content: 'Задание отправлено!', embeds: [], components: [] });
 ```
 
-### Per-package config (e.g., packages/bot-discord/vitest.config.ts)
+**Confidence: HIGH** — Standard discord.js v14 interaction pattern. `deferUpdate` is available on `ButtonInteraction` in v14.
+
+---
+
+### 5. ThreadChannel APIs — Admin Review UX
+
+**Purpose:** The admin review UX improvements (re-opening closed threads, finding existing threads by name) require the `ThreadChannel` API.
+
+These are already used in `review-thread.ts`. The specific additions needed for "re-ouverture facile":
+
+**Find existing thread before creating a new one:**
 
 ```typescript
-import { defineProject } from 'vitest/config';
+// Check if a review thread already exists for this exercise (avoid duplicates)
+const existingThread = adminChannel.threads.cache.find(
+  (t) => t.name.startsWith(`Review: ${student.name}`) && !t.archived
+);
 
-export default defineProject({
-  test: {
-    name: 'bot-discord',
-    environment: 'node',
-    // pool: 'forks' is the default — ESM-safe. Do not change to vmThreads.
-    include: ['src/**/*.test.ts'],
-    exclude: ['src/**/*.integration.test.ts', 'src/**/*.e2e.test.ts'],
-    setupFiles: ['../../test/setup/unit.ts'],
-  },
-});
-```
-
----
-
-## Test Suite Separation
-
-| Suite | Files | Trigger | Secrets needed |
-|-------|-------|---------|---------------|
-| Unit | `*.test.ts` | Every push, watch mode | None |
-| Integration | `*.integration.test.ts` | Pre-commit, CI | `SUPABASE_TEST_URL`, `SUPABASE_TEST_SERVICE_ROLE_KEY` |
-| E2E | `*.e2e.test.ts` | Manual only | `DISCORD_BOT_TOKEN_DEV`, `DISCORD_TEST_GUILD_ID` |
-
-This separation is enforced via filename convention and per-suite Vitest configs. Unit tests MUST be runnable with zero external services.
-
----
-
-## pnpm Scripts
-
-Add to root `package.json`:
-
-```json
-{
-  "scripts": {
-    "test": "vitest run --project 'bot-discord' --project 'core'",
-    "test:watch": "vitest --project 'bot-discord' --project 'core'",
-    "test:coverage": "vitest run --coverage",
-    "test:integration": "vitest run --project 'bot-discord-integration'",
-    "test:all": "vitest run"
-  }
+// Unarchive if needed (e.g., student re-submitted, thread was archived)
+if (existingThread?.archived) {
+  await existingThread.setArchived(false);
 }
 ```
+
+**`setArchived(bool)` signature:**
+```typescript
+thread.setArchived(archived: boolean, reason?: string): Promise<ThreadChannel>
+```
+
+**`threads.create` options** (already used in `review-thread.ts`):
+```typescript
+adminChannel.threads.create({
+  name: threadName.slice(0, 100),  // Discord hard limit: 100 chars
+  autoArchiveDuration: ThreadAutoArchiveDuration.ThreeDays,  // enum from discord.js
+})
+```
+
+**Available `ThreadAutoArchiveDuration` enum values:**
+- `ThreadAutoArchiveDuration.OneHour` = 60
+- `ThreadAutoArchiveDuration.OneDay` = 1440
+- `ThreadAutoArchiveDuration.ThreeDays` = 4320
+- `ThreadAutoArchiveDuration.OneWeek` = 10080
+
+**`thread.messages.fetch({ limit: 100 })`** — already used in `review-buttons.ts` to collect formateur feedback messages. No changes needed.
+
+**Confidence: HIGH** — All these APIs are already used in the codebase. `setArchived` confirmed in ThreadChannel docs.
+
+---
+
+### 6. DMChannel.send / sendTyping — Already in Use
+
+**Purpose:** Send preview message to student and show typing indicator during processing. Both already used in `dm-handler.ts`. No changes needed.
+
+**Confidence: HIGH** — In use today.
+
+---
+
+## Supabase Patterns Required
+
+### 1. Unique Constraint on (student_id, session_id)
+
+**Purpose:** Enforce at the DB level that one student can have at most one exercise row per session. This is the "1 student = 1 submission per session" guarantee, currently enforced only in application logic (`dm-agent.ts` lines 340-348).
+
+**Current state:** No unique constraint exists on `student_exercises(student_id, session_id)`. The application logic is the only guard. A DB-level constraint is the correct belt-and-suspenders approach.
+
+**PostgreSQL pattern:** A `UNIQUE INDEX` (not just a `UNIQUE CONSTRAINT`) is required for Supabase's PostgREST `upsert` with `onConflict` to work correctly. PostgREST uses the index, not the constraint name.
+
+```sql
+-- Migration 017: unique constraint for 1 student per session
+CREATE UNIQUE INDEX IF NOT EXISTS idx_student_exercises_student_session
+  ON student_exercises(student_id, session_id)
+  WHERE session_id IS NOT NULL;
+```
+
+The `WHERE session_id IS NOT NULL` partial index is critical — existing rows with `session_id = NULL` (exercises submitted before session tracking was added) must not be affected.
+
+**Confidence: HIGH** — PostgreSQL partial unique index behavior is standard and well-documented. The `WHERE session_id IS NOT NULL` guard is confirmed necessary by examining migration 001 (original schema had no `session_id`) and migration 005 (added `session_id` as nullable).
+
+---
+
+### 2. Upsert Pattern with onConflict
+
+**Purpose:** The re-submission flow currently does a read-then-write (`resubmitExercise` fetches then updates). With the unique index in place, `upsert` is an alternative but is NOT recommended here.
+
+**Why not upsert:** The re-submission logic requires:
+1. Reading the current exercise to build the `review_history` JSONB append
+2. Deleting old storage attachments
+3. Updating with incremented `submission_count`
+
+This is a multi-step operation that cannot be expressed as a single `upsert`. The existing `resubmitExercise` function in `exercises.ts` is the correct approach — keep it. The unique index adds DB-level protection without requiring a rewrite.
+
+**Upsert is useful for the `getOrCreate` lookup pattern** — checking if an exercise exists for (student_id, session_id) before deciding to submit or resubmit:
+
+```typescript
+// Supabase JS v2 upsert with onConflict (for reference only)
+const { data, error } = await db
+  .from('student_exercises')
+  .upsert(
+    { student_id, session_id, status: 'submitted', ... },
+    { onConflict: 'student_id,session_id', ignoreDuplicates: false }
+  )
+  .select()
+  .single();
+```
+
+**But this is NOT the right pattern here.** The correct pattern is to query first, then branch on `submitExercise` vs `resubmitExercise`. Keep the existing application-level logic, add the DB-level unique index as a safety net only.
+
+**Confidence: HIGH** — The read-then-write pattern is already implemented and working. The unique index adds protection; upsert is not needed.
+
+---
+
+### 3. getExerciseByStudentAndSession — New DB Function Needed
+
+**Purpose:** The current code in `dm-agent.ts` calls `getExercisesByStudent(student.id)` (fetches ALL exercises for the student) and then filters in memory. With the new unique constraint, a targeted query is cleaner and more efficient.
+
+**New function to add in `exercises.ts`:**
+
+```typescript
+export async function getExerciseByStudentAndSession(
+  studentId: string,
+  sessionId: string
+): Promise<StudentExercise | null> {
+  const db = getSupabase();
+  const { data, error } = await db
+    .from('student_exercises')
+    .select()
+    .eq('student_id', studentId)
+    .eq('session_id', sessionId)
+    .maybeSingle(); // Returns null if not found, unlike .single() which throws
+
+  if (error) {
+    logger.error({ error, studentId, sessionId }, 'Failed to get exercise by student and session');
+    throw error;
+  }
+  return data as StudentExercise | null;
+}
+```
+
+**Key detail:** Use `.maybeSingle()` (not `.single()`). `.single()` throws a `PGRST116` error when no row is found. `.maybeSingle()` returns `null` cleanly. This is the correct pattern for "find or null" queries.
+
+**Confidence: HIGH** — `.maybeSingle()` is confirmed in Supabase JS v2 docs. The pattern is the standard codebase approach (see `getExercise()` which handles `PGRST116` manually — `maybeSingle()` avoids that boilerplate).
+
+---
+
+### 4. Validation: Empty Submission Guard
+
+**Purpose:** Reject submissions with no content (no text, no attachments, no URLs). This is application-layer logic, not a DB constraint.
+
+The check belongs in the DM handler before calling `runDmAgent`, or inside `handleCreateSubmission` in `dm-agent.ts`:
+
+```typescript
+// In handleCreateSubmission, before any DB/storage calls:
+const hasContent =
+  pendingAttachments.length > 0 ||
+  (studentComment && studentComment.trim().length > 0);
+
+if (!hasContent) {
+  return JSON.stringify({
+    error: 'empty_submission',
+    message: 'Нельзя отправить пустое задание. Добавь текст, файл или ссылку.',
+  });
+}
+```
+
+**Confidence: HIGH** — Pure application logic, no external APIs involved.
+
+---
+
+## What NOT to Add
+
+| Considered | Decision | Reason |
+|------------|----------|--------|
+| New npm library for button collectors | Rejected | `discord.js` 14.16.0 already has `awaitMessageComponent` on `Message` |
+| `discord-collector` or similar | Rejected | Unmaintained third-party wrapper, `discord.js` native API is sufficient |
+| `pg` / `postgres.js` for raw SQL | Rejected | Supabase JS client handles all needed patterns; raw SQL only needed for migrations |
+| `zod` schema for submission state | Not needed | TypeScript interfaces in `packages/core/src/types/index.ts` are sufficient; Zod already used at API boundaries |
+| `bullmq` or similar for accumulation timeout | Rejected | In-memory `setTimeout` with existing `conversations` Map is sufficient; queue infrastructure would be massive overkill |
+| Supabase `upsert` to replace `resubmitExercise` | Rejected | Multi-step re-submission (history append, file cleanup, count increment) cannot be expressed as single upsert |
+
+---
+
+## Summary: What Actually Changes
+
+### New code in `packages/bot-discord/src/`
+
+| File | Change |
+|------|--------|
+| `src/handlers/dm-handler.ts` | Add accumulation phase: collect session number + content over multiple messages, then trigger preview flow |
+| `src/utils/submission-preview.ts` (new) | Build preview embed + confirm/cancel row; `awaitMessageComponent` loop; return confirm/cancel |
+| `src/utils/format.ts` | Add `buildSubmissionPreviewEmbed()` function |
+
+### New code in `packages/core/src/db/formation/`
+
+| File | Change |
+|------|--------|
+| `exercises.ts` | Add `getExerciseByStudentAndSession()` using `.maybeSingle()` |
+
+### New migration in `supabase/migrations/`
+
+| File | Change |
+|------|--------|
+| `017_exercise_unique_per_session.sql` | `CREATE UNIQUE INDEX` on `(student_id, session_id) WHERE session_id IS NOT NULL` |
+
+### No changes needed
+
+| File | Reason |
+|------|--------|
+| `review-buttons.ts` | Thread APIs already correct |
+| `review-thread.ts` | `createReviewThread` already handles re-submissions via `submission_count` |
+| `button-handler.ts` | Prefix dispatch pattern already handles any new button IDs |
+| `admin-handler.ts` | No changes needed for admin review UX improvements |
 
 ---
 
 ## Sources
 
-- Vitest 4.1.1 official documentation: https://vitest.dev/guide/projects
-- Vitest 4.0 release announcement: https://vitest.dev/blog/vitest-4
-- Vitest 3.2 release (workspace deprecation): https://vitest.dev/blog/vitest-3-2.html
-- Vitest pool documentation: https://vitest.dev/config/pool
-- Vitest request mocking guide: https://vitest.dev/guide/mocking/requests
-- MSW official documentation: https://mswjs.io/docs/
-- MSW Node.js integration: https://mswjs.io/docs/integrations/node/
-- Supabase local development: https://supabase.com/docs/guides/local-development
-- Supabase integration testing discussion: https://github.com/orgs/supabase/discussions/16415
-- discord.js mocking community discussion: https://github.com/discordjs/discord.js/discussions/6179
-- Anthropic TypeScript SDK: https://github.com/anthropics/anthropic-sdk-typescript
-- corde E2E library (unmaintained): https://github.com/cordejs/corde
+- discord.js 14.16.3 DMChannel class reference: https://discordjs.dev/docs/packages/discord.js/14.16.3/DMChannel:Class
+- discord.js 14.18.0 Message class (awaitMessageComponent): https://discord.js.org/docs/packages/discord.js/14.18.0/Message:class
+- discord.js collectors guide: https://discordjs.guide/popular-topics/collectors
+- discord.js v14 component interactions guide: https://discordjs.guide/interactive-components/interactions.html
+- Supabase JS upsert reference: https://supabase.com/docs/reference/javascript/upsert
+- Supabase composite unique constraint discussion: https://github.com/orgs/supabase/discussions/28927
+- discord.js v14 ThreadChannel (14.16.3): https://discordjs.dev/docs/packages/discord.js/14.16.3/ThreadChannel:Class
+- Interaction collector issues in v14 (DM context): https://github.com/discordjs/discord.js/issues/9866

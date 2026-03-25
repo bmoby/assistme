@@ -1,17 +1,17 @@
 # Project Research Summary
 
-**Project:** Dev Environment & Automated Tests — Bot Discord
-**Domain:** Testing infrastructure for a TypeScript/ESM Discord.js v14 bot in a pnpm monorepo
-**Researched:** 2026-03-24
-**Confidence:** MEDIUM-HIGH
+**Project:** Exercise Submission Flow — Bot Discord v2.0
+**Domain:** Discord.js v14 interaction patterns, Supabase constraint design, multi-message DM flow hardening
+**Researched:** 2026-03-25
+**Confidence:** HIGH
 
 ## Executive Summary
 
-Building a test suite for the `packages/bot-discord` codebase is a well-defined but non-trivial infrastructure problem. The core challenge is not picking tools — Vitest is the unambiguous choice for ESM/TypeScript monorepos, and MSW is the recommended HTTP mock layer — but rather wiring them correctly for a codebase that has three distinct external dependencies (Discord gateway, Anthropic API, Supabase Postgres) each requiring a different mocking strategy at each test layer. The recommended approach is a strict three-tier pyramid: unit tests with zero external dependencies (all deps mocked via `vi.mock`), integration tests with real local Supabase (Docker) but mocked Claude API, and E2E tests with a real dev Discord bot. Each tier has its own filename convention, run script, and CI gate.
+This milestone is a hardening and UX improvement pass on an already-working exercise submission system. The core architecture (DM agent, multi-message accumulation, review threads, admin buttons) is fully built and in production. The research confirms that no new dependencies or packages are required — all required Discord.js APIs (`awaitMessageComponent`, `ActionRowBuilder`, `ButtonBuilder`, `ThreadChannel.setArchived`) and Supabase patterns (`.maybeSingle()`, partial unique index) exist in the already-installed versions (`discord.js 14.16.0`, `@supabase/supabase-js 2.49.1`). This is a code-addition and schema-hardening milestone, not a dependency-addition milestone.
 
-The most significant risk is that the existing codebase was not written with testability in mind: handlers use module-level singletons (`let discordClient: Client`, in-memory `conversations` Maps), and workspace packages resolve through `dist/` symlinks that can silently provide stale code to tests. These are not blocking problems, but they must be addressed in Phase 1 (Vitest config) and Phase 2 (handler unit tests) before broad coverage can be written. Discord.js v14's private constructors are an industry-wide pain point — the established community pattern of plain object stubs with `vi.fn()` methods is the correct approach; there is no maintained third-party library for this.
+The recommended approach is to address correctness gaps before UX improvements, in strict dependency order: DB migration first (unique index + new columns), then type updates, then DB function additions, then application-layer guards, then review UX improvements. This order ensures every change stands on solid schema foundations and prevents the most dangerous bugs (silent duplicate submissions, non-atomic session linking, empty exercise records) from ever entering the codebase. Tests are mandatory for all changes per project constraints — each phase includes unit test coverage as a completion criterion.
 
-The overall technical risk is manageable. The Vitest + MSW + Supabase CLI stack has high-confidence documentation. The Discord mocking pattern is MEDIUM confidence (community-derived, no official library), but it is the pragmatic consensus. The highest-value investment is building the Claude API fixture factory and the Discord object factories early — these two shared assets unblock every downstream unit test. CI should be tiered from day one: unit tests run on every push with no secrets, integration tests run on PR with Supabase local, E2E tests are manual-only.
+The primary risks are not technical unknowns. They are well-understood gaps in the existing code that have not caused production incidents only because of low student volume. The critical risk cluster is three-way: no DB-level uniqueness constraint (Pitfall 2), non-atomic `session_id` assignment (Pitfall 3), and orphaned attachment state after partial failures (Pitfall 5). All three must be resolved in the migration and core phases before any handler-level changes are made.
 
 ---
 
@@ -19,137 +19,130 @@ The overall technical risk is manageable. The Vitest + MSW + Supabase CLI stack 
 
 ### Recommended Stack
 
-Vitest 4.1.1 with `pool: 'forks'` (ESM-safe default) is the correct test runner. The `projects` API in `vitest.config.ts` orchestrates all packages from the monorepo root — the old `vitest.workspace` file is deprecated since v3.2 and must not be used. Coverage is handled by `@vitest/coverage-v8` (the `c8` provider is dead, last published 3 years ago). MSW v2 handles all HTTP-layer mocking for Anthropic, Supabase REST, and OpenAI Whisper. Discord.js objects are mocked via in-house factory functions using plain objects cast to Discord types — no third-party library exists for discord.js v14 + Vitest. Supabase local (via Supabase CLI + Docker) provides a real Postgres + pgvector instance for integration tests.
+No new dependencies are required. The entire milestone is implemented using existing packages: `discord.js 14.16.0` for all Discord interaction APIs (message component collectors, embed builders, thread management), `@supabase/supabase-js 2.49.1` for DB operations (partial unique index, `.maybeSingle()` queries, targeted updates), and the existing `packages/core` type system. Adding `bullmq`, `discord-collector` wrappers, or raw `pg` client would be active anti-patterns here.
+
+The one design decision with long-term implications: the preview/confirmation flow should use a Discord button (`ActionRowBuilder` + `awaitMessageComponent`) rather than a purely conversational Claude-driven confirmation. The button provides a deterministic `ButtonInteraction` handler that cannot be misinterpreted, while conversational confirmation is LLM-dependent and has a documented failure class (Claude sometimes skips the preview step or misreads a vague student reply as confirmation).
 
 **Core technologies:**
-- **Vitest 4.1.1**: Test runner and assertion library — native ESM support, `projects` monorepo config, 3-5x faster than Jest for this workload
-- **@vitest/coverage-v8**: Coverage reports — V8 provider with AST remapping as of v3.2, replaces dead `c8` package
-- **msw ^2.x**: HTTP-layer mock for Anthropic API, Supabase REST, OpenAI — intercepts `fetch` at network level without module patching
-- **vi.fn() factories**: Discord.js mock objects — plain objects with stubbed methods; the only viable approach for discord.js v14 private constructors
-- **Supabase CLI + Docker**: Local Postgres + pgvector for integration tests — real migrations, real RPC functions, real RLS policies tested
-- **GitHub Actions**: CI runner — tiered job matrix: unit (no secrets), integration (Supabase local), E2E (manual only)
+- `discord.js 14.16.0`: `awaitMessageComponent`, `EmbedBuilder`, `ActionRowBuilder<ButtonBuilder>`, `ThreadChannel.setArchived`, `ButtonInteraction.deferUpdate` — all available, all verified in official docs and existing codebase
+- `@supabase/supabase-js 2.49.1`: partial unique index via migration, `.maybeSingle()` for "find or null" queries, targeted `update` for thread ID storage — no new patterns needed
+- `Vitest` (existing v1.0 infrastructure): mandatory for all changes per project constraints; unit tests per phase, integration tests for full flow verification
 
 ### Expected Features
 
-The test suite must deliver a working safety net for the highest-risk code paths: agent tool-call loops (dm-agent, tsarag, FAQ, exercise-reviewer), Discord handler business logic, and DB query correctness (pgvector hybrid search, RPC functions). The MVP focuses on the infrastructure and shared assets first; broad coverage is a second-milestone concern.
+**Must have (table stakes — correctness blockers):**
+- Empty submission rejected before DB write — currently the agent can create an empty exercise record with no content
+- DB unique constraint `(student_id, session_id)` — uniqueness is application-layer only; race condition risk at DB level
+- `session_id` written atomically in the INSERT, not as a separate UPDATE — currently non-atomic; silent data loss risk on crash
+- Preview confirmation before `create_submission` fires — LLM-only confirmation is unreliable; button gate is the correct fix
+- Re-submission uses upload-before-delete ordering — current order risks an empty-attachment submitted state on crash
 
-**Must have (table stakes):**
-- Vitest configured for ESM + pnpm workspace resolution — without this, nothing runs
-- Discord.js object factories (Message, Interaction, GuildMember) — every handler test depends on these
-- Claude API mock with tool-use sequence fixtures — agents are the highest regression risk; tests are otherwise non-deterministic and expensive
-- Supabase client mock for unit layer — prevents handler tests from requiring real DB credentials
-- Supabase local Docker for integration layer — validates pgvector queries, RLS, RPC functions that mocks cannot cover
-- Handler isolation: pure logic extracted from discord.js Client singleton — prerequisite for meaningful unit tests
-- Test scripts in package.json with distinct modes (`test`, `test:integration`, `test:e2e`)
-- TypeScript type safety in test files via `vitest-mock-extended`
+**Should have (UX differentiators):**
+- Review thread reuse on re-submission (`review_thread_id` column + `setArchived` + reuse logic) — admin loses continuity when a new thread is created each time
+- AI review message live-updated in thread via `ai_review_complete` event — currently the "en cours..." placeholder is never replaced
+- Cancel mid-flow tool that resets `pendingAttachments` — no current escape valve except 30-minute conversation timeout
+- Batch student queries in `handleReviewSession` (single `.in()` call) — currently N+1 sequential DB calls for up to 30 students
 
-**Should have (differentiators):**
-- Agent tool-call fixture system — deterministic multi-turn sequences for dm-agent and tsarag agent tests (highest value for this specific codebase)
-- Shared fixture library at `__tests__/fixtures/` — single source of truth for Discord and domain objects, eliminates per-test drift
-- In-memory conversation state test helpers — `clearConversationState()` or injectable Maps to prevent Map leaks across tests
-- GitHub Actions CI with tiered job matrix — unit always, integration on PR, E2E manual
-- Coverage thresholds on handlers and agents only (not global) — enforces discipline without perverse incentives
-- Separate dev Discord bot token + test server — enables E2E without polluting production channels
-
-**Defer to a second milestone:**
-- GitHub Actions CI setup — add after local tests are green
-- Coverage threshold enforcement — set after baseline is established
-- E2E with dev Discord bot — highest setup cost, lowest automation reliability
-- Snapshot testing for agent return shapes — add incrementally after core tests are stable
-- Performance/load testing — not the current pain point
+**Defer (polish / v2+ pass):**
+- Thread name uniqueness suffix (append `exercise.id.slice(0, 8)`) — low-probability edge case at current student volume
+- Signed URL refresh on thread open (7-day expiry issue) — affects archived reviews only, not active review flows
+- `SELECT ... FOR UPDATE` advisory lock for concurrent admin clicks — unnecessary overhead at single-admin scale
+- Student-facing progress dashboard or slash commands — explicitly out of scope per PROJECT.md
 
 ### Architecture Approach
 
-The architecture is a strict three-tier test pyramid. Each tier has independent run scripts, separate filename conventions (`*.test.ts`, `*.integration.test.ts`, `*.e2e.test.ts`), and a clearly bounded dependency set. The directory layout places `__tests__/` co-located inside each package's `src/` directory, mirroring the source structure. Shared mock infrastructure lives in `packages/core/src/__tests__/mocks/` and is referenced by `bot-discord` tests via workspace aliases. The Vitest root config uses `projects: ['packages/*']` to automatically include new packages.
+All changes are contained within the existing layered architecture. The key boundary to preserve: `dm-agent.ts` must remain a pure function from `dm-handler.ts`'s perspective — it receives context, returns a result, and must not reach into the handler's in-memory state. The only outbound coupling is `DmAgentResponse.submissionId`, which signals the handler to clear `pendingAttachments`. Adding `submissionPhase` state tracking to `ConversationState` is explicitly rejected — it would couple the handler to Claude's language choices. Phase tracking stays in Claude's message context; the handler only enforces structural invariants (lock serialization, pendingAttachments lifecycle, conversation TTL).
 
-**Major components:**
-1. **Vitest Root Config** (`vitest.config.ts`) — orchestrates all packages, defines per-layer include/exclude patterns, manages globalSetup for Docker services
-2. **Discord.js Mock Layer** (`packages/bot-discord/src/__tests__/mocks/discord/`) — plain object stubs for Client, Guild, Message, Interaction, Channel, Member with `vi.fn()` methods
-3. **Claude API Mock Layer** (`packages/core/src/__tests__/mocks/anthropic/`) — `vi.mock('@anthropic-ai/sdk')` with tool-use sequence factories for multi-turn agent loops
-4. **Supabase Mock Layer** (`packages/core/src/__tests__/mocks/supabase/`) — chainable fluent proxy stub for unit tests only
-5. **Fixture Factories** (`packages/core/src/__tests__/fixtures/` + `packages/bot-discord/src/__tests__/fixtures/`) — typed factory functions for Student, Exercise, Submission, Session, and all Discord objects
-6. **Supabase Docker Service** — managed by `supabase CLI`, started via Vitest `globalSetup`, applies all migrations before integration tests run
-7. **Discord Dev Environment** — separate bot token + test guild for E2E, manual only, not in default CI
-8. **GitHub Actions CI Pipeline** (`.github/workflows/test.yml`) — tiered jobs: unit (no services), integration (Docker), E2E (manual trigger)
+**Major components and their change surface:**
+1. `supabase/migrations/0XX_exercise_submission_v2.sql` — new file: `review_thread_id`, `review_thread_ai_message_id` nullable columns + partial unique index on `(student_id, session_id) WHERE status IN ('submitted', 'ai_reviewed')`
+2. `packages/core/src/types/index.ts` — add two new nullable fields to `StudentExercise` interface
+3. `packages/core/src/db/formation/exercises.ts` — add `getExerciseByStudentAndSession()` (`.maybeSingle()` pattern), add `updateExerciseThreadId()`; fold `session_id` into `submitExercise` INSERT (remove separate bare UPDATE)
+4. `packages/core/src/ai/formation/dm-agent.ts` — add empty-submission guard; strengthen system prompt; invert attachment ordering in re-submission path
+5. `packages/bot-discord/src/utils/review-thread.ts` — accept optional `existingThread?: ThreadChannel`; capture and return AI message ID
+6. `packages/bot-discord/src/handlers/review-buttons.ts` — check `review_thread_id` before creating thread; store thread ID after creation; replace dynamic import with static import
+7. `packages/bot-discord/src/cron/event-dispatcher.ts` — add `ai_review_complete` handler to edit thread AI message
 
 ### Critical Pitfalls
 
-1. **`vi.mock('@assistme/core')` silently no-ops in bot-discord tests** — pnpm symlinks cause a module instance split. Fix in Phase 1: add `resolve.alias: { '@assistme/core': path.resolve('../core/src/index.ts') }` in `vitest.config.ts` to import source directly, bypassing `dist/`.
-
-2. **`getSupabase()` singleton throws at import time during unit tests** — any handler that transitively imports a DB function blows up before `it()` runs if `SUPABASE_URL` is absent. Fix in Phase 1: set fake values in `test.env` in `vitest.config.ts` immediately.
-
-3. **discord.js v14 private constructors break mock instantiation** — `new Message(client, data)` is rejected by TypeScript strict mode. Fix in Phase 2: use plain object stubs typed as `Partial<Message>` with `vi.fn()` methods; never attempt to instantiate discord.js classes directly.
-
-4. **Module-level `discordClient` variable bleeds between tests** — ESM module cache means the singleton persists across test files. Fix in Phase 2: call `setupDmHandler(mockClient)` in `beforeEach` and clear mocks; long-term, refactor to function-level dependency injection.
-
-5. **Claude tool-use mock shape must be exact** — a malformed `tool_use` content block causes the agent loop to exit silently, producing false-negative tests. Fix in Phase 2: build a dedicated Anthropic fixture factory with the exact SDK response shape before writing any agent tests.
+1. **Button double-click creates duplicate review threads (Pitfall 1)** — Write `review_thread_id` to DB before `adminChannel.threads.create()`; guard `handleReviewOpen` with early return if `exercise.review_thread_id` is already set
+2. **No DB unique constraint on `(student_id, session_id)` (Pitfall 2)** — Add partial unique index before any handler changes; handle `23505` Postgres error code explicitly in `submitExercise`
+3. **Non-atomic `session_id` assignment — bare UPDATE after INSERT (Pitfall 3)** — Fold `session_id` into the `submitExercise` INSERT parameters; delete the separate UPDATE from `handleCreateSubmission`
+4. **Re-submission deletes old attachments before uploading new ones (Pitfall 4)** — Invert to expand-then-contract: upload new files first, status transition second, delete old records last (fire-and-forget)
+5. **Orphaned `pendingAttachments` on partial failure corrupt next submission (Pitfall 5)** — Clear `pendingAttachments` in the `catch` block, not only on success; currently only the success path resets this state
+6. **`vi.mock('@assistme/core')` silently no-ops in bot-discord tests due to pnpm symlink split (Pitfall 6)** — Already resolved in v1.0 Vitest config via `resolve.alias`; verify new test files respect the same config
 
 ---
 
 ## Implications for Roadmap
 
-Based on the dependency graph discovered in research, the work falls naturally into four sequential phases. Each phase has a clear completion criterion and unblocks the next.
+Based on combined research, the correct phase structure follows strict dependency order. Schema and type foundations must be locked before application logic is touched. All phases require Vitest test coverage as a completion criterion per project constraints.
 
-### Phase 1: Foundation — Vitest Config + ESM Resolution
+### Phase 1: DB Foundation + Types
 
-**Rationale:** Everything else depends on Vitest running correctly in the ESM monorepo. The four Phase-1 pitfalls (module alias split, env var throw, missing test scripts, tsconfig path conflict) must be resolved before any test can be written. This phase has zero test code — it is infrastructure only.
+**Rationale:** Every other change in this milestone depends on the schema being correct. The partial unique index, the two new nullable columns, and the type update are prerequisites for all downstream TypeScript changes. This phase has zero risk of breaking existing behavior — all new columns are nullable with NULL defaults; the partial unique index only applies to active statuses and does not affect existing rows.
 
-**Delivers:** `pnpm test:unit` runs an empty suite without errors. `pnpm typecheck` still passes. Fake env vars are set. `@assistme/core` resolves to source (not dist). `vite-tsconfig-paths` syncs TypeScript paths into Vitest resolver.
+**Delivers:** Migration `0XX_exercise_submission_v2.sql` applied locally (and to production before any other phase ships); `StudentExercise` interface updated with `review_thread_id: string | null` and `review_thread_ai_message_id: string | null`; `pnpm typecheck` passes clean; existing migrations unaffected.
 
-**Addresses:** Vitest config (table stakes), test scripts in package.json (table stakes)
+**Addresses:** Pitfall 2 (unique constraint prerequisite), Pitfall 1 (review_thread_id column prerequisite), admin review UX thread reuse (column prerequisite)
 
-**Avoids:** Pitfalls 1, 2, 8, 10, 11 (all Phase-1 config pitfalls)
+**Avoids:** Working on handler changes before the schema is ready, which would require a second migration pass to add columns
 
-### Phase 2: Shared Mocks + Handler Unit Tests
+### Phase 2: Core DB Module Hardening
 
-**Rationale:** The shared infrastructure (Claude mock, Supabase mock, Discord factories, domain fixtures) must exist before any test can be written. Building these once and reusing them across all handler and agent tests is the highest-leverage investment. Handler unit tests then exercise the highest-traffic code paths (dm-handler, faq, review-buttons) against deterministic mock dependencies.
+**Rationale:** With types locked, the DB functions that all handlers depend on can be hardened atomically. The non-atomic `session_id` assignment (Pitfall 3) must be fixed here before the submission handler changes in Phase 3 add new code paths that might perpetuate the old pattern.
 
-**Delivers:** ~100 unit tests covering dm-handler, admin-handler, faq, review-buttons, agent tool-call routing. All tests run in <5s with no external services. Claude tool-use sequences are deterministic.
+**Delivers:** `getExerciseByStudentAndSession()` with `.maybeSingle()` (targeted query replacing linear scan); `updateExerciseThreadId()` (typed convenience wrapper); `submitExercise()` refactored to accept and write `session_id` in the INSERT in one round-trip; Pitfall 3 eliminated. Unit tests for all new and modified DB functions.
 
-**Addresses:** Claude API mock, Discord.js factories, handler isolation, agent tool-call fixture system, conversation state test helpers (all table-stakes and high-value differentiator features)
+**Uses:** Partial unique index from Phase 1; updated `StudentExercise` type from Phase 1
 
-**Avoids:** Pitfalls 3, 4, 5, 9 (discord.js private constructors, module-level client, Claude non-determinism, Map leak)
+**Avoids:** Pitfall 3 (non-atomic session_id), N+1 student query pattern (Pitfall 9 — batch-fetch with `.in()` added to student module)
 
-**Uses:** Vitest, MSW, `vi.mock`, factory functions
+### Phase 3: Submission Handler Correctness
 
-### Phase 3: Supabase Local + Integration Tests + CI
+**Rationale:** The highest-value, lowest-risk application changes. The empty-submission guard and the re-submission attachment ordering fix are isolated changes with no downstream dependencies. They can be tested with pure unit tests — no Discord gateway, no real DB required. The system prompt hardening completes the correctness layer without adding code complexity.
 
-**Rationale:** With unit tests stable, add the integration layer that validates DB correctness (pgvector hybrid search, RPC functions, RLS policies). These cannot be validated with mocks. CI is added in this phase so integration tests run automatically on PR — gating Docker usage to the integration job only.
+**Delivers:** Empty submission guard at the top of `handleCreateSubmission()` (returns `empty_submission` error before any DB write); re-submission attachment order inverted to upload-first / delete-last (Pitfall 4 eliminated); system prompt strengthened to forbid `create_submission` when `pendingAttachments` is empty; `pendingAttachments` cleared on all error paths in the `catch` block (Pitfall 5 eliminated); `storageIdx` replaced by index-keyed Map to prevent attachment misalignment (Pitfall 11). Unit tests for all new guard paths including error cases.
 
-**Delivers:** ~30 integration tests covering DB modules (students, exercises, submissions, knowledge search) and agent behavior with real DB state. GitHub Actions CI with tiered unit + integration jobs. Coverage thresholds on handlers and agents.
+**Addresses:** FEATURES.md table-stakes items: empty submission validation, attachment ordering safety
 
-**Addresses:** Supabase local Docker, GitHub Actions tiered CI, coverage thresholds, pgvector validation
+**Avoids:** Pitfall 4 (delete-before-upload), Pitfall 5 (orphaned attachments), Pitfall 11 (storageIdx misalignment)
 
-**Avoids:** Pitfalls 6, 7 (Docker pull time in CI, pgvector extension/dimension issues)
+### Phase 4: Admin Review UX — Thread Reuse + AI Message Update
 
-**Implements:** Supabase Docker Service component, GitHub Actions CI Pipeline component
+**Rationale:** These improvements have the most moving parts (thread unarchive, event dispatcher integration, new DB column reads) and build directly on Phase 1 columns and Phase 2 DB functions. Thread reuse and AI message update are separable sub-tasks that can be developed and tested independently within this phase.
 
-### Phase 4: E2E Discord Dev Environment (Optional / On-Release)
+**Delivers:** `createReviewThread()` accepts optional `existingThread?: ThreadChannel`; `handleReviewOpen()` checks `exercise.review_thread_id` before creating a new thread; idempotency guard eliminates double-click duplicate threads (Pitfall 1 eliminated); thread ID stored after creation via `updateExerciseThreadId()`; `ai_review_complete` event dispatched to edit thread AI message using stored `review_thread_ai_message_id`; dynamic import in `review-buttons.ts` replaced with static import (Pitfall 8 eliminated). Unit tests for new-thread and thread-reuse paths; integration test for AI message update flow.
 
-**Rationale:** E2E tests require a second Discord bot token, a dedicated test server, and manual coordination. They are the most expensive to set up and the least reliable for automation. They provide value for smoke-testing critical flows (DM submission, button interactions) before production releases, but must not block PRs.
+**Avoids:** Pitfall 1 (duplicate threads), Pitfall 8 (dynamic import bypasses mock in tests)
 
-**Delivers:** ~10 E2E test scenarios for critical flows. `pnpm test:e2e` connects real dev bot to test Discord server. Separate `vitest.e2e.config.ts` ensures these never run in default CI.
+### Phase 5: Test Coverage Completion + E2E Verification
 
-**Addresses:** Separate dev Discord bot token + test server (differentiator feature), E2E test helpers
+**Rationale:** PROJECT.md mandates tests for all changes. Phases 1-4 include unit tests per step, but integration and E2E coverage for the complete submission state machine (accumulate → preview → confirm → submitted → admin review → revision → re-submit → thread reuse) should be locked down as a dedicated phase to catch any gaps. Also the correct phase to verify `_clearStateForTesting()` covers all new `ConversationState` fields and that no new Vitest configuration issues were introduced.
 
-**Avoids:** Pitfall 12 (E2E secrets in CI, blocking forks/PRs)
+**Delivers:** Full integration test coverage for the submission flow state machine; E2E synthetic event flow covering: happy path, empty submission rejection, re-submission with thread reuse, admin double-click idempotency; all new `ConversationState` fields verified in `_clearStateForTesting()` and test fixtures; CI job split verified (unit fast, integration gated on Docker).
+
+**Addresses:** Pitfall 14 (Map state leaks between tests — verify `beforeEach` `_clearStateForTesting()` calls), Pitfall 15 (Supabase Docker CI job isolation), Pitfall 16 (E2E not silently skipping in CI)
 
 ### Phase Ordering Rationale
 
-- Phase 1 before everything: Vitest config bugs cause silent false passes or import-time crashes that make all subsequent test writing futile.
-- Phase 2 before Phase 3: Unit tests must be green and stable before introducing Docker complexity. Debugging a flaky integration test is much harder if the underlying unit behavior is also uncertain.
-- Phase 3 before Phase 4: Integration tests validate that the real DB layer works before trusting E2E results that depend on it.
-- Phase 4 is decoupled: it can be deferred indefinitely. Unit + integration coverage on the critical paths is the practical safety net.
+- Schema before types: PostgreSQL partial unique index and column additions must exist before TypeScript interfaces reference them
+- Types before DB functions: `StudentExercise` interface must include `review_thread_id` before `updateExerciseThreadId()` can be typed correctly
+- DB functions before handlers: `getExerciseByStudentAndSession()` and `updateExerciseThreadId()` must exist before handler code calls them
+- Correctness fixes before UX: empty guard, atomic session_id, attachment ordering are simpler, independently testable, and lower risk than the multi-file admin UX changes
+- UX improvements last in feature work: thread reuse touches the most files (`review-thread.ts`, `review-buttons.ts`, `event-dispatcher.ts`) and benefits most from the stable foundation
+- Test completion as dedicated phase: integration and E2E tests require all application code to be stable first; bundling them with feature phases risks incomplete coverage under time pressure
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 2:** Handler isolation refactor — current `dm-handler.ts` and `admin-handler.ts` architecture needs analysis before deciding on dependency injection scope (function params vs. module reset vs. full DI)
-- **Phase 3:** Supabase CLI version pinning and pgvector smoke query — verify exact CLI version that bundles pgvector 0.7+, confirm migration ordering for `012_openai_embeddings_1536.sql`
+Phases with standard patterns — no additional research needed:
+- **Phase 1:** PostgreSQL partial unique index — standard, well-documented; `CREATE UNIQUE INDEX ... WHERE` syntax is stable
+- **Phase 2:** `.maybeSingle()` Supabase pattern — verified in official JS client docs; direct replacement for `PGRST116` error handling
+- **Phase 3:** Application-layer guard logic — pure TypeScript; no external API surface
+- **Phase 4:** `awaitMessageComponent`, `setArchived`, `deferUpdate` — verified in discord.js 14.16 official docs and confirmed used in existing codebase
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1:** Vitest ESM + pnpm workspace setup is thoroughly documented with official sources. Well-trodden path.
-- **Phase 4:** Discord dev bot setup is manual configuration work, not a research problem. Follow Pitfall 12 prevention pattern directly.
+Phases requiring careful implementation attention (not research, but deliberate execution):
+- **Phase 4, thread reuse:** `client.channels.fetch(threadId)` can return `null` if the thread was manually deleted from Discord. The fallback to creating a new thread must be implemented and tested explicitly
+- **Phase 4, AI message update:** Re-read `event-dispatcher.ts` before implementing — the existing `ai_review_complete` event lifecycle and dispatch timing matters for correctness
 
 ---
 
@@ -157,49 +150,52 @@ Phases with standard patterns (skip research-phase):
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Vitest 4.1.1, MSW v2, Supabase CLI all verified against official docs. Version constraints (pool: forks, coverage-v8 over c8) confirmed from official release notes and issue tracker. |
-| Features | MEDIUM | Discord.js testing ecosystem is sparse; feature set synthesized from community discussions and official Vitest/Supabase docs. No single authoritative source for "complete Discord bot test setup." |
-| Architecture | MEDIUM-HIGH | Three-tier pyramid and component layout are HIGH confidence (official patterns). Discord mock construction strategy is MEDIUM (community-derived, confirmed in discord.js official discussion #6179). Supabase integration isolation (data prefixing + afterAll cleanup) is MEDIUM (community pattern, no official guide). |
-| Pitfalls | HIGH | All 5 critical pitfalls are verified against specific GitHub issues (vitest-dev/vitest #5633, discord.js #6179, supabase/cli #2724). Phase warnings are grounded in the actual codebase structure. |
+| Stack | HIGH | All required APIs verified in official discord.js 14.16 docs and confirmed present in codebase. No speculative dependencies. No new packages required. |
+| Features | HIGH | Based entirely on direct codebase analysis of existing implementation gaps with file and line references. Not ecosystem guesses. Gap list is exhaustive and maps directly to file changes. |
+| Architecture | HIGH | All architecture research derived from reading production source files. Component boundaries are explicit. Build order has no ambiguities. |
+| Pitfalls | HIGH | All 16 pitfalls verified against actual source code with line references and SQL detection queries. Prevention code provided for all critical pitfalls. |
 
-**Overall confidence:** MEDIUM-HIGH
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Handler isolation scope**: It is unclear from research alone how much refactoring `dm-handler.ts` and `admin-handler.ts` require before meaningful unit tests are possible. The module-level singleton pattern may require a small targeted refactor (pass client as parameter to the main exported function) rather than full DI. Assess during Phase 2 planning.
-- **`@shoginn/discordjs-mock` viability**: The library was flagged as potentially usable for discord.js v14. It was not fully evaluated due to maintenance uncertainty. If manual factory construction proves too burdensome in Phase 2, revisit this dependency.
-- **Supabase CLI version pinning**: The exact minimum CLI version that reliably bundles pgvector 0.7+ needs to be confirmed against the project's `supabase/config.toml`. Validate during Phase 3 setup.
-- **Agent loop test patterns for Tsarag agent**: Research covered dm-agent in detail but Tsarag agent tool-call sequences were not specifically analyzed. The same factory pattern applies, but Tsarag's specific tool set needs to be enumerated during Phase 2 fixture work.
+- **Confirmation button scope decision:** The research recommends a Discord button for preview/confirm UX (more reliable than LLM-driven confirmation). This is not explicitly specified in PROJECT.md (which says "apercu avant confirmation" without specifying the mechanism). The roadmapper should decide whether Phase 3 includes the button flow (medium complexity, best correctness) or a strengthened system prompt only (simpler, LLM-dependent). This decision affects Phase 3 and Phase 4 scope.
+
+- **Interaction token 15-minute expiry (Pitfall 10):** A `Promise.race` timeout guard in `handleReviewDecision` is a production safety measure. Not a blocker at current student volume but should be explicitly assigned to Phase 4 or flagged as a Phase 5 concern during planning.
+
+- **`storageIdx` counter fix (Pitfall 11):** The index-keyed Map fix for attachment index tracking in `handleCreateSubmission` should be folded into Phase 3 but was not called out as a table-stakes feature in FEATURES.md. Confirm during Phase 3 planning whether this needs an explicit test case or is handled implicitly by the empty-submission guard (which reduces the attack surface).
 
 ---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Vitest 4.1.1 official documentation: https://vitest.dev/guide/projects
-- Vitest 4.0 release announcement: https://vitest.dev/blog/vitest-4
-- Vitest 3.2 release (workspace deprecation, v8 AST remapping): https://vitest.dev/blog/vitest-3-2.html
-- Vitest pool documentation: https://vitest.dev/config/pool
-- Vitest request mocking guide: https://vitest.dev/guide/mocking/requests
-- Vitest Global Setup Config: https://vitest.dev/config/globalsetup
-- MSW official documentation: https://mswjs.io/docs/
-- MSW Node.js integration: https://mswjs.io/docs/integrations/node/
-- Supabase local development: https://supabase.com/docs/guides/local-development
-- Vitest issue #5633 — workspace package mock split: https://github.com/vitest-dev/vitest/issues/5633
+
+- `packages/bot-discord/src/handlers/dm-handler.ts` — accumulation state, processing locks, conversation TTL (direct codebase read)
+- `packages/bot-discord/src/handlers/review-buttons.ts` — admin review flow, thread lifecycle, button handling (direct codebase read)
+- `packages/bot-discord/src/utils/review-thread.ts` — thread creation, message formatting (direct codebase read)
+- `packages/core/src/ai/formation/dm-agent.ts` — Claude tool loop, submission logic, re-submission path (direct codebase read)
+- `packages/core/src/db/formation/exercises.ts` — student_exercises CRUD, status machine (direct codebase read)
+- `supabase/migrations/004_students_system.sql`, `005_sessions_system.sql`, `016_exercise_review_system.sql` — schema analysis (direct codebase read)
+- discord.js 14.16.3 DMChannel class reference: https://discordjs.dev/docs/packages/discord.js/14.16.3/DMChannel:Class
+- discord.js 14.18.0 Message class (awaitMessageComponent): https://discord.js.org/docs/packages/discord.js/14.18.0/Message:class
+- discord.js collectors guide: https://discordjs.guide/popular-topics/collectors
+- discord.js v14 component interactions guide: https://discordjs.guide/interactive-components/interactions.html
+- Supabase JS upsert reference: https://supabase.com/docs/reference/javascript/upsert
+- discord.js v14 ThreadChannel (14.16.3): https://discordjs.dev/docs/packages/discord.js/14.16.3/ThreadChannel:Class
 
 ### Secondary (MEDIUM confidence)
-- discord.js Discussion #6179 — Mocking Discord.js for unit testing (private constructors): https://github.com/discordjs/discord.js/discussions/6179
-- Supabase Discussion #16415 — Local integration testing patterns: https://github.com/orgs/supabase/discussions/16415
-- Vitest 3 Monorepo Setup — community article: https://www.thecandidstartup.org/2025/09/08/vitest-3-monorepo-setup.html
-- Testing Supabase RLS with Vitest — practitioner blog: https://index.garden/supabase-vitest/
-- AI SDK Core Testing (Vercel AI SDK patterns, applicable to Anthropic SDK): https://ai-sdk.dev/docs/ai-sdk-core/testing
+
+- Vitest symlink/mock split: https://github.com/vitest-dev/vitest/issues/5633 — confirmed pnpm workspace alias workaround (already applied in v1.0 config)
+- Supabase upsert + unique constraint races: https://github.com/orgs/supabase/discussions/3721 — confirmed partial unique index behavior
+- Supabase composite unique constraint discussion: https://github.com/orgs/supabase/discussions/28927
+- discord-api-docs discussion on modal limitations: https://github.com/discord/discord-api-docs/discussions/5883 — confirms modals are incompatible with file submission UX
 
 ### Tertiary (LOW confidence)
-- jest-discordjs-mocks on npm — rejected; targets Jest + discord.js v12/v13
-- @shoginn/discordjs-mock on npm — deferred; maintenance status unclear
-- Corde E2E library — rejected; unmaintained since Nov 2022, discord.js v13 era
-- Adding Tests to Your Discord Bot — DEV Community: https://dev.to/kevinschildhorn/adding-tests-to-your-discord-bot-discord-bot-series-part-3-513
+
+- Discord interaction token expiry issue: https://github.com/discordjs/discord.js/issues/9052 — 15-minute limit confirmed; exact failure behavior under production load is not fully characterized
+- Interaction collector issues in v14 DM context: https://github.com/discordjs/discord.js/issues/9866 — relevant for `awaitMessageComponent` in DM channels specifically
 
 ---
-*Research completed: 2026-03-24*
+*Research completed: 2026-03-25*
 *Ready for roadmap: yes*

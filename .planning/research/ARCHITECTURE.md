@@ -1,528 +1,563 @@
-# Architecture Patterns: Discord.js Bot Testing Infrastructure
+# Architecture Patterns — Exercise Submission Flow
 
-**Domain:** Testing infrastructure for an existing Discord.js 14 bot in a pnpm monorepo
-**Researched:** 2026-03-24
-**Overall confidence:** MEDIUM-HIGH (Vitest/ESM patterns HIGH; Discord.js mock construction MEDIUM due to v14 private constructor constraints; Supabase integration patterns MEDIUM)
+**Domain:** Exercise submission improvements for Discord bot (v2.0 milestone)
+**Researched:** 2026-03-25
+**Scope:** Integration with existing dm-handler.ts architecture — how new features fit,
+what must change, what is new, and in what order to build.
 
 ---
 
-## Recommended Architecture
+## Current Architecture (Baseline)
 
-A three-tier test pyramid where each layer is independently runnable and has a clearly bounded dependency set. Unit tests have zero external dependencies. Integration tests depend on local Supabase (Docker) but mock all API clients. E2E tests depend on a real Discord dev bot and dev server.
+### Component Map
 
 ```
-┌─────────────────────────────────────────────────┐
-│                  E2E Layer                      │
-│  Real Discord dev bot + dev server + test DB    │
-│  packages/bot-discord/src/**/*.e2e.test.ts      │
-│  ~10 tests, slow (~60s), CI-optional            │
-├─────────────────────────────────────────────────┤
-│              Integration Layer                  │
-│  Supabase local (Docker) + mock Claude API      │
-│  packages/*/src/**/*.integration.test.ts        │
-│  ~30 tests, medium (~30s), CI-required          │
-├─────────────────────────────────────────────────┤
-│                Unit Layer                       │
-│  Pure TypeScript, all externals vi.mock()'d     │
-│  packages/*/src/**/*.test.ts                    │
-│  ~100 tests, fast (<5s), CI-required            │
-└─────────────────────────────────────────────────┘
+Discord Gateway
+      |
+      v
+messageCreate event
+      |
+      v
+dm-handler.ts (setupDmHandler)
+  |  processingLocks map (per-userId Promise chain — serializes concurrent messages)
+  |  conversations map (ConversationState per userId — TTL 30 min)
+  |       |
+  |       v
+  |  processDmMessage()
+  |    +-- attachment validation + buffer download into pendingAttachments
+  |    +-- URL extraction from message.content into pendingAttachments
+  |    +-- user message appended to conv.messages (trimmed to last 20)
+  |    +-- runDmAgent({ discordUserId, messages, pendingAttachments, newAttachmentsInfo })
+  |           |
+  |           v
+  |    packages/core/src/ai/formation/dm-agent.ts
+  |       Claude tool_use loop (max 5 iterations, claude-sonnet-4-6)
+  |       Tools:
+  |         get_student_progress     — DB read, no side effects
+  |         get_session_exercise     — DB read, validates session exists + published
+  |         create_submission        — WRITE: creates/updates exercise record
+  |         get_pending_feedback     — DB read
+  |         search_course_content    — pgvector search, no side effects
+  |           |
+  |           v
+  |    create_submission tool => handleCreateSubmission()
+  |         +-- getSessionByNumber() — validates session in DB
+  |         +-- getExercisesByStudent() — checks for active/revision status
+  |         +-- submitExercise() OR resubmitExercise()
+  |         +-- addAttachment() per file
+  |         +-- triggerAiReview() fire-and-forget (uploadFileToStorage + reviewExercise + setAiReview)
+  |
+  +-- result.submissionId? => notifyAdminChannel() fire-and-forget
+        +-- getExercise() + getStudentByDiscordId() + getSession() + getAttachmentsByExercise()
+        +-- formatSubmissionNotification() embed
+        +-- "Ouvrir la review" button (customId: review_open_{exerciseId})
+        +-- updateExercise(notification_message_id)
+
+buttonInteraction event
+      |
+      v
+review-buttons.ts (registerReviewButtons)
+  +-- review_open_{id}     => handleReviewOpen()
+  |     +-- guard: status must be submitted or ai_reviewed
+  |     +-- createReviewThread(adminChannel, exercise, student, session)
+  |           review-thread.ts:
+  |           +-- thread name: "Review: {name} — Session {N} (#M)"
+  |           +-- message 1: submissionMsg (files, links, signed URLs)
+  |           +-- message 2: aiReviewMsg (score, strengths, improvements) OR "en cours..."
+  |           +-- message 3: historyMsg (previous round context, re-submissions only)
+  |           +-- message 4: action buttons (review_approve_{id}, review_revision_{id})
+  |
+  +-- review_approve_{id}  => handleReviewDecision(approve=true)
+  +-- review_revision_{id} => handleReviewDecision(approve=false)
+  |     +-- guard: status must be submitted or ai_reviewed
+  |     +-- collect non-bot thread messages as feedback text
+  |     +-- updateExerciseStatus(id, approved | revision_needed, feedback)
+  |     +-- DM student via member.createDM() (formatStudentFeedbackDM)
+  |     +-- edit #admin notification embed (remove button, update status)
+  |     +-- archive thread (thread.setArchived(true))
+  |
+  +-- review_session_{n}   => handleReviewSession()
+        +-- getPendingExercisesBySession(n)
+        +-- embed listing pending exercises
+        +-- per-student open buttons (review_open_{id})
 ```
+
+### Key In-Memory State
+
+**ConversationState** (dm-handler.ts, persists across messages for same userId):
+```typescript
+interface ConversationState {
+  studentId: string;          // resolved lazily by the agent
+  discordUserId: string;
+  messages: ConversationMessage[];     // last 20 trimmed
+  pendingAttachments: PendingAttachment[];  // cleared when create_submission succeeds
+  lastActivityAt: Date;                // TTL reference for 30-min cleanup
+}
+```
+
+**processingLocks** (dm-handler.ts): `Map<userId, Promise<void>>` — ensures messages
+from the same user are processed sequentially, not concurrently.
+
+### Key DB Shape (StudentExercise)
+
+```
+status:                   submitted | ai_reviewed | reviewed | approved | revision_needed
+session_id:               FK to sessions (set during create_submission)
+submission_count:         integer, increments on resubmitExercise()
+review_history:           ReviewHistoryEntry[] — previous rounds preserved on re-submit
+notification_message_id:  Discord message ID in #admin — used to edit the notification embed
+```
+
+---
+
+## New Features — Integration Analysis
+
+Each feature below maps to a requirement from PROJECT.md. For each:
+- What already exists
+- What the actual gap is
+- What minimal change is needed
+
+### Feature 1: Accumulation + preview before confirmation
+
+**Current state:** Accumulation is fully implemented.
+`processDmMessage()` pushes each file buffer and detected URL into
+`conv.pendingAttachments` across multiple messages before any submission occurs.
+The system prompt instructs Claude: "Перед отправкой покажи, что будет отправлено,
+и спроси подтверждение."
+
+**Gap:** The preview-confirm flow is entirely conversational (natural language).
+There is no structural guard preventing Claude from calling `create_submission` before
+the student has confirmed. In practice Claude follows the instruction, but the
+system-prompt-only constraint has no enforcement point.
+
+**Required change (minimal):**
+- In `handleCreateSubmission()` in dm-agent.ts: require `student_comment` or non-empty
+  `pendingAttachments` before proceeding (see Feature 5 — empty guard covers this).
+- Strengthen the system prompt wording to be unambiguous: "Никогда не вызывай
+  create_submission до явного подтверждения студента."
+- No structural change to dm-handler.ts is needed. The processing lock already
+  serializes messages, so a student can safely send files across several messages
+  before saying "да, отправляй" — the preview-confirm flow is entirely in Claude's
+  turn management.
+
+**Verdict:** No new files. One system prompt edit. One guard in dm-agent.ts.
+
+---
+
+### Feature 2: Session validation (must exist and be published)
+
+**Current state:** Already enforced at two points:
+- `handleGetSessionExercise()` checks `session.status !== 'published'` and returns
+  `{ error: 'session_not_found' }` or `{ error: 'session_not_published' }`.
+- `handleCreateSubmission()` calls `getSessionByNumber(sessionNumber)` and returns
+  `{ error: 'session_not_found' }` if missing or not published.
+
+**Gap:** None. The tool layer already rejects invalid sessions. The agent propagates
+the error to the student in natural language.
+
+**Required change:** None structural. Verify the system prompt instructs the agent
+to always ask "for which session?" before accumulating attachments — it already does.
+
+---
+
+### Feature 3: Uniqueness — 1 student per session
+
+**Current state:** Application-layer guard in `handleCreateSubmission()`:
+```typescript
+const activeForSession = existingExercises.find(
+  (e) => e.session_id === session.id &&
+         (e.status === 'submitted' || e.status === 'ai_reviewed')
+);
+if (activeForSession) return { error: 'already_submitted' };
+```
+
+The `processingLocks` per userId serializes messages, so a single student cannot
+create two concurrent submissions from rapid successive messages.
+
+**Gap:** No DB-level constraint. A race condition is theoretically possible if two
+separate processes (e.g., a crashed and restarted pod) replay the same event. More
+importantly, the current `getExercisesByStudent()` + in-memory filter is a full
+table scan per student — workable at 30 students, inefficient at scale.
+
+**Required change:**
+- New migration: add a partial unique index on `student_exercises`:
+  ```sql
+  CREATE UNIQUE INDEX uq_student_exercise_active
+  ON student_exercises (student_id, session_id)
+  WHERE status IN ('submitted', 'ai_reviewed');
+  ```
+  This allows multiple historical rows (revision_needed, approved) for the same
+  (student, session) pair but prevents two active submissions.
+- New DB function `getExerciseByStudentAndSession(studentId, sessionId)` in exercises.ts
+  as a targeted alternative to the in-memory filter — used by dm-agent.ts for the
+  uniqueness check.
+
+---
+
+### Feature 4: Re-submission after revision_needed
+
+**Current state:** Fully implemented. `resubmitExercise()` in exercises.ts:
+- Archives the current round into `review_history`
+- Clears ai_review, feedback, reviewed_at
+- Resets status to `submitted`
+- Increments `submission_count`
+- Deletes old attachment DB records and storage files (fire-and-forget)
+
+The agent also detects `revision_needed` in `handleCreateSubmission()` and calls
+`resubmitExercise()` instead of `submitExercise()`.
+
+**Gap:** None for the core flow. UX gap: after receiving `revision_needed` via DM,
+the student must remember they can re-submit. The feedback DM already ends with
+"Исправь указанные моменты и отправь задание заново." — adequate.
+
+**Required change:** None.
+
+---
+
+### Feature 5: Empty submission validation
+
+**Current state:** No guard exists. If `pendingAttachments` is empty, `handleCreateSubmission()`
+proceeds, creates an exercise record with `submission_type: 'text'` and empty
+`submission_url`. The student submits nothing.
+
+**Required change:**
+Add at the top of `handleCreateSubmission()` in dm-agent.ts:
+```typescript
+if (pendingAttachments.length === 0) {
+  return JSON.stringify({
+    error: 'empty_submission',
+    message: 'Нет прикреплённых файлов или ссылок. Прикрепи что-нибудь перед отправкой.',
+  });
+}
+```
+Also update the system prompt: "Не вызывай create_submission если нет прикреплённых
+файлов или ссылок (pendingAttachments пуст)."
+
+This is a single-line guard — the smallest change with the highest correctness value.
+
+---
+
+### Feature 6: Admin review UX improvements
+
+**Current state:** `review-thread.ts` creates a well-structured thread with
+submission content, AI review, history, and action buttons. `handleReviewDecision()`
+collects thread messages as feedback, updates DB, DMs student, edits notification,
+archives thread.
+
+**Gap 1 — Thread is created fresh on every "Ouvrir la review" click:**
+On re-submission, the admin clicks the button and a new thread is created with the
+re-submission. There is no link to the previous review thread. The admin loses
+continuity — they cannot see the previous round's conversation in context.
+
+**Gap 2 — AI review "en cours..." is never updated in the thread:**
+The thread is opened before AI review completes (AI review is fire-and-forget).
+Message 2 in the thread says "🤖 Review IA : en cours...". The
+`ai_review_complete` formation event is fired when AI review completes, but no
+consumer updates the thread message.
+
+**Required changes for Gap 1:**
+- Add `review_thread_id: string | null` column to `student_exercises` (migration).
+- After `createReviewThread()` succeeds, call a new `updateExerciseThreadId(exerciseId, thread.id)` function.
+- In `handleReviewOpen()`: before creating a new thread, check `exercise.review_thread_id`.
+  If set, attempt to unarchive and post a "=== Re-soumission #{N} ===" header in the existing
+  thread rather than creating a new one.
+- Update `createReviewThread()` signature to accept `existingThread?: ThreadChannel`.
+  When provided, skip thread creation and post the messages into the existing thread.
+
+**Required changes for Gap 2:**
+- Add `review_thread_ai_message_id: string | null` column to `student_exercises` (same migration).
+- After posting message 2 ("en cours...") in `createReviewThread()`, store the returned
+  message ID via a new update call.
+- Add a case to the event-dispatcher cron (or a dedicated handler) for
+  `ai_review_complete` events: fetch exercise, fetch the thread, edit the AI message
+  by its stored ID with the real review content.
+
+---
+
+## State Machine Design
+
+### Student-side Submission Flow (conversational)
+
+```
+[IDLE]
+  Student has no pending attachments.
+  conv.pendingAttachments = []
+      |
+      |  Student sends file(s) or URL(s)
+      v
+[ACCUMULATING]
+  conv.pendingAttachments.length > 0
+  Files buffered in memory; no DB write yet.
+      |
+      |  Agent calls get_session_exercise to confirm session
+      |  Agent formats preview: "Ты хочешь сдать для сессии N:
+      |    - file1.pdf
+      |    - https://github.com/...
+      |  Отправить? (да/нет)"
+      v
+[PREVIEW]
+  No structural state needed in dm-handler.ts.
+  This is a conversational state managed by Claude's context.
+  conv.messages contains the preview message as last assistant turn.
+      |
+      |  Student says "да" or equivalent confirmation
+      v
+[CONFIRMED — create_submission called by Claude]
+      |
+      |  handleCreateSubmission() succeeds
+      |  returns { success: true, exercise_id: "..." }
+      v
+[SUBMITTED]
+  conv.pendingAttachments cleared in dm-handler.ts
+  notifyAdminChannel() fires (fire-and-forget)
+  Student receives confirmation text
+
+             ==================
+             DB Exercise Status Machine (admin-side):
+
+  [submitted]
+      |  AI review fires in background (fire-and-forget)
+      v
+  [ai_reviewed]  (score + recommendation stored in ai_review JSONB)
+      |
+      |  Admin clicks "Ouvrir la review" in #admin
+      v
+  [review thread open]
+      |
+      +----------+------------------+
+      |                             |
+  "Approuver"               "Demander revision"
+      |                             |
+      v                             v
+  [approved]               [revision_needed]
+                                    |
+                          Student re-submits via DM
+                                    |
+                                    v
+                          [submitted]  <- cycle restarts
+                          (review_history preserves previous round)
+```
+
+### Why No Explicit Phase Field in ConversationState
+
+Adding `submissionPhase: 'idle' | 'accumulating' | 'preview' | 'confirm'` to
+`ConversationState` would require dm-handler.ts to inspect Claude's response text
+to detect phase transitions — which is fragile and couples the handler to Claude's
+language choices.
+
+The better approach: let Claude manage the conversational phase entirely through
+context (messages array). The only structural invariant dm-handler.ts enforces is:
+- Clear `pendingAttachments` when `result.submissionId` is set.
+- Never allow concurrent processing for the same user (already done via processingLocks).
+
+The critical safety guard lives in `handleCreateSubmission()`: reject if
+`pendingAttachments.length === 0`. Everything else is system prompt discipline.
+
+---
+
+## New vs Modified Components
+
+### Modified Files (existing)
+
+| File | Change | Why |
+|------|--------|-----|
+| `packages/core/src/ai/formation/dm-agent.ts` | Add empty-submission guard in `handleCreateSubmission()`. Strengthen system prompt. | Feature 5 |
+| `packages/core/src/types/index.ts` | Add `review_thread_id: string \| null` and `review_thread_ai_message_id: string \| null` to `StudentExercise`. | Gap 1 + Gap 2 |
+| `packages/core/src/db/formation/exercises.ts` | Add `getExerciseByStudentAndSession()`. Add `updateExerciseThreadId()`. | Feature 3 + Gap 1 |
+| `packages/bot-discord/src/handlers/review-buttons.ts` | In `handleReviewOpen()`: check `exercise.review_thread_id`; unarchive + reuse if present; store thread ID after creation. | Gap 1 |
+| `packages/bot-discord/src/utils/review-thread.ts` | Accept optional `existingThread?: ThreadChannel` param; when present, post into existing thread instead of creating one. | Gap 1 |
+| `packages/bot-discord/src/cron/event-dispatcher.ts` | Add handler for `ai_review_complete` events that edits the thread AI message. | Gap 2 |
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| `supabase/migrations/0XX_exercise_submission_v2.sql` | Add `review_thread_id` and `review_thread_ai_message_id` nullable columns to `student_exercises`. Add partial unique index on `(student_id, session_id) WHERE status IN ('submitted', 'ai_reviewed')`. |
+
+No new packages. No new top-level modules. All changes are contained within existing
+files and one migration.
 
 ---
 
 ## Component Boundaries
 
-### Component 1: Vitest Root Config
+| Component | Owns | Does NOT own |
+|-----------|------|-------------|
+| `dm-handler.ts` | Attachment accumulation, processing lock chain, conversation TTL, clearing pendingAttachments after submit | DB operations, Discord API beyond DM channel, Claude API |
+| `dm-agent.ts` (core) | Claude tool loop, submission logic, AI review trigger, input validation (empty guard) | Discord API, conversation state map in dm-handler.ts |
+| `review-buttons.ts` (bot) | Admin review UX, button interactions, thread lifecycle, feedback collection | Student-side DM flow, submission creation |
+| `review-thread.ts` (utils) | Thread structure and content formatting, message composition | Button registration, DB status updates |
+| `exercises.ts` (core/db) | All student_exercises CRUD, uniqueness enforcement at application layer | Discord API, Claude API |
 
-**Responsibility:** Orchestrate all test projects, register globalSetup/teardown hooks for Docker services, define per-layer include/exclude patterns.
-
-**Location:** `vitest.config.ts` (monorepo root)
-
-**Communicates with:** All package-level configs via `projects:` array
-
-**Key decisions:**
-- Use `projects: ['packages/*']` glob so new packages are automatically included
-- Define `globalSetup` that starts Supabase Docker only for integration runs (`VITEST_MODE=integration`)
-- ESM requires `pool: 'forks'` or `pool: 'vmThreads'` — `'threads'` pool breaks ESM interop with native modules in Node.js 20
-
-**Confidence:** HIGH — Vitest 3.x `projects` config is the documented pattern; `workspace` is deprecated since 3.2
-
----
-
-### Component 2: Discord.js Mock Layer
-
-**Responsibility:** Provide type-safe, reusable mock instances of Discord.js objects (Client, Guild, TextChannel, GuildMember, Message, CommandInteraction, ButtonInteraction) that never touch the Discord gateway.
-
-**Location:** `packages/bot-discord/src/__tests__/mocks/discord/`
-
-**Communicates with:** Unit test files (consumes mocks), fixture factories (uses mock primitives to build scenarios)
-
-**Internal structure:**
-```
-mocks/discord/
-  client.mock.ts          — Mock Client with stubbed .api and .guilds cache
-  guild.mock.ts           — Mock Guild with populated .members and .channels
-  message.mock.ts         — Mock Message with mock author, channel, guild
-  interaction.mock.ts     — Mock CommandInteraction + ButtonInteraction
-  channel.mock.ts         — Mock TextChannel with send() spy
-  member.mock.ts          — Mock GuildMember with role collection
-```
-
-**Construction approach (MEDIUM confidence):**
-Discord.js 14 uses private constructors for most classes. Three strategies exist:
-
-1. Use `Reflect.construct(Discord.Guild, [client, rawData, 0])` to bypass private constructors — works for most classes but requires knowing the raw API payload shape. MEDIUM confidence as this relies on internal class structure.
-
-2. Cast via `as unknown as Discord.Message` after building a plain object with all required fields — fast but loses type safety in the mock itself.
-
-3. Use `@shoginn/discordjs-mock` npm package (v14-compatible) — less maintenance burden but adds a dependency and library may lag behind discord.js releases.
-
-**Recommended strategy:** Build a minimal manual mock class using `Reflect.construct` for the objects used directly in your handlers (`Message`, `ButtonInteraction`, `ChatInputCommandInteraction`), and use plain objects cast to the type for secondary objects (User, Role). This is what the official discord.js discussions recommend. Do NOT use `jest-discordjs-mocks` — it targets Jest, not Vitest.
-
-**Critical gotcha (HIGH confidence from official Discord.js discussion):** After creating a `GuildMember` mock, you MUST manually add it to `guild.members.cache.set(member.id, member)` or any internal collection lookup will trigger a real API call and fail.
+The boundary that matters most: **dm-agent.ts must remain a pure function from
+dm-handler.ts's perspective.** It receives context, returns a result. It must not
+modify dm-handler.ts's in-memory state. Phase or state changes flow only outward
+through `DmAgentResponse` (specifically `submissionId` — the signal that triggers
+`pendingAttachments` cleanup in the handler).
 
 ---
 
-### Component 3: Claude API Mock Layer
+## Build Order
 
-**Responsibility:** Intercept `@anthropic-ai/sdk` calls and return deterministic, controlled responses including tool-use sequences and streaming.
+Build in this sequence to respect type and runtime dependencies:
 
-**Location:** `packages/core/src/__tests__/mocks/anthropic/`
+**Step 1 — DB migration (no code deps, unblocks everything)**
+```sql
+ALTER TABLE student_exercises
+  ADD COLUMN review_thread_id TEXT,
+  ADD COLUMN review_thread_ai_message_id TEXT;
 
-**Communicates with:** Unit test files (agent tests), integration test files (agent-with-real-DB tests)
-
-**Internal structure:**
+CREATE UNIQUE INDEX uq_student_exercise_active
+ON student_exercises (student_id, session_id)
+WHERE status IN ('submitted', 'ai_reviewed');
 ```
-mocks/anthropic/
-  client.mock.ts          — vi.mock('@anthropic-ai/sdk') factory
-  responses/
-    tool-use.ts           — Factory for ToolUseBlock responses
-    text.ts               — Factory for TextBlock responses
-    sequences.ts          — Multi-turn conversation sequences
-```
+Write migration. Apply locally via `supabase db reset`. No code changes yet.
+Verify: migration applies cleanly, existing data unaffected.
 
-**Implementation approach (HIGH confidence):**
-Use `vi.mock('@anthropic-ai/sdk')` at the module level. The SDK's `Anthropic` class needs its `messages.create()` method stubbed to return controlled message objects.
+**Step 2 — Types update (unblocks all TypeScript files)**
+Add `review_thread_id` and `review_thread_ai_message_id` to `StudentExercise`
+interface in `packages/core/src/types/index.ts`.
+No logic change — just typing reflecting the new columns.
+Verify: `pnpm typecheck` passes.
 
-```typescript
-// packages/core/src/__tests__/mocks/anthropic/client.mock.ts
-import { vi } from 'vitest'
+**Step 3 — New DB functions (unblocks review-buttons changes)**
+Add to `packages/core/src/db/formation/exercises.ts`:
+- `getExerciseByStudentAndSession(studentId: string, sessionId: string): Promise<StudentExercise | null>`
+- `updateExerciseThreadId(id: string, threadId: string, aiMessageId?: string): Promise<void>`
 
-export const mockCreate = vi.fn()
+Export both from `packages/core/src/index.ts`.
+Write unit tests for both functions.
+Verify: unit tests pass.
 
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
-  })),
-  Anthropic: vi.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
-  })),
-}))
-```
+**Step 4 — Empty submission guard (isolated, highest value)**
+In `packages/core/src/ai/formation/dm-agent.ts`, in `handleCreateSubmission()`:
+add the empty guard. Strengthen the system prompt.
+Write unit tests: assert that `create_submission` with empty pendingAttachments
+returns the `empty_submission` error and does not call `submitExercise()`.
+Verify: unit tests pass. Manual test: send "сдаю задание 3" with no files, verify
+the bot refuses.
 
-For tool-use agent tests, `mockCreate` returns a sequence: first a `tool_use` stop_reason with tool call blocks, then a `end_turn` stop_reason with the final text. Use `mockCreate.mockResolvedValueOnce()` chains.
+**Step 5 — Review thread reuse (builds on Steps 2 + 3)**
+Update `packages/bot-discord/src/utils/review-thread.ts`:
+- Add optional `existingThread?: ThreadChannel` parameter.
+- If provided: unarchive, post a re-submission header, then post the standard
+  review messages into the existing thread.
+- If not provided: create new thread as before.
 
-For the `runDmAgent` tool loop (max 5 iterations), you need up to 5 sequential `mockResolvedValueOnce()` calls. Build sequence factories so tests do not repeat this boilerplate.
+Update `packages/bot-discord/src/handlers/review-buttons.ts` in `handleReviewOpen()`:
+- After loading exercise, check `exercise.review_thread_id`.
+- If set: fetch the thread via `client.channels.fetch(exercise.review_thread_id)`.
+  If it exists and is a ThreadChannel, pass it as `existingThread`.
+  If not found (deleted), fall through to create a new one.
+- After thread creation (new or reuse): call `updateExerciseThreadId(exerciseId, thread.id)`.
+
+Write unit tests for both `handleReviewOpen()` paths (new thread vs reuse).
+Verify: unit tests pass. Integration test: submit twice, open review twice, verify
+second open reuses the first thread.
+
+**Step 6 — AI review message update via event (builds on Steps 2 + 3 + 5)**
+Update `packages/bot-discord/src/cron/event-dispatcher.ts` to handle
+`ai_review_complete` events:
+- Load exercise (now has `review_thread_ai_message_id`).
+- Fetch the thread and the stored message.
+- Edit the message with the real AI review content from `exercise.ai_review`.
+
+Update `packages/bot-discord/src/utils/review-thread.ts`: after posting message 2
+("en cours..."), return the message ID (or store it immediately via
+`updateExerciseThreadId`).
+
+Write integration test: submit with AI review, open thread, simulate
+`ai_review_complete` event, verify thread message is updated.
+Verify: integration test passes.
+
+**Step 7 — E2E verification**
+Synthetic event flows through the full path:
+- Submit → accumulate → preview → confirm → submitted → admin notified
+- Revision → re-submit → existing thread unarchived and reused
+- Submit with no files → rejected with empty_submission error
 
 ---
 
-### Component 4: Supabase Mock Layer (Unit Tests Only)
+## Integration Points Summary
 
-**Responsibility:** Provide in-memory Supabase client stub for unit tests that need to verify DB calls without real PostgreSQL.
+### dm-handler.ts touch points
 
-**Location:** `packages/core/src/__tests__/mocks/supabase/`
+| Touch point | Current behavior | New behavior |
+|-------------|-----------------|--------------|
+| After `result.submissionId` check | Clears `pendingAttachments`, fires notifyAdminChannel | No change — existing reset is sufficient |
+| `_clearStateForTesting()` | `conversations.clear()` | No change — clearing the map handles all fields |
+| Attachment accumulation | Pushes to `pendingAttachments`, no phase tracking | No change — phase tracking stays in Claude's context |
 
-**Communicates with:** Unit test files for DB modules (`tasks.ts`, `students.ts`, etc.)
+dm-handler.ts requires zero structural changes for this milestone.
 
-**Internal structure:**
-```
-mocks/supabase/
-  client.mock.ts          — vi.mock('@supabase/supabase-js') builder
-  query-builder.ts        — Chainable stub for .from().select().eq()... pattern
-```
+### dm-agent.ts touch points
 
-**Implementation approach (MEDIUM confidence):**
-The Supabase JS client uses a fluent builder: `.from('table').select('*').eq('id', x).single()`. This chain must be stubbed entirely. The cleanest approach is a recursive proxy that records the call chain and resolves to a configurable value at `.single()` / `.execute()`.
+| Touch point | Current behavior | New behavior |
+|-------------|-----------------|--------------|
+| `handleCreateSubmission()` start | No input validation | Add: reject if `pendingAttachments.length === 0` |
+| System prompt | "Перед отправкой покажи что будет отправлено" | Strengthen: forbid `create_submission` when empty |
+| `DmAgentResponse` interface | `{ text, submissionId, isResubmission, submissionCount }` | No new fields needed |
 
-```typescript
-// simplified stub concept
-function createQueryStub(returnValue: unknown) {
-  const stub: Record<string, unknown> = {}
-  const chain = new Proxy(stub, {
-    get: (_target, prop: string) => {
-      if (prop === 'data' || prop === 'error') return returnValue
-      return () => chain  // return self for chaining
-    }
-  })
-  return chain
-}
-```
+### review-buttons.ts touch points
 
-**Note:** Only use the mock Supabase client in unit tests. Integration tests use the real local Supabase instance — this is the project's stated decision and it is correct. Mocking Supabase for integration tests defeats the purpose of testing DB queries.
+| Touch point | Current behavior | New behavior |
+|-------------|-----------------|--------------|
+| `handleReviewOpen()` | Always calls `createReviewThread(adminChannel, exercise, student, session)` | Before creating: check `exercise.review_thread_id`; if found, fetch thread and pass as `existingThread` |
+| After `createReviewThread()` | No thread ID stored | Call `updateExerciseThreadId(exerciseId, thread.id, aiMessageId)` |
+| Imports from `@assistme/core` | Existing imports | Add: `updateExerciseThreadId` |
 
----
+### review-thread.ts touch points
 
-### Component 5: Fixture Factories
+| Touch point | Current behavior | New behavior |
+|-------------|-----------------|--------------|
+| `createReviewThread(adminChannel, exercise, student, session)` | Creates new thread unconditionally | Add optional `existingThread?: ThreadChannel`; if provided, unarchive and post into it; return thread + AI message ID |
+| Message 2 ("en cours...") | No ID stored | Capture `const aiMsg = await thread.send(...)`, return `aiMsg.id` |
 
-**Responsibility:** Generate valid, typed test data for all domain objects used across tests. Single source of truth for "what does a valid Student look like in tests."
+### exercises.ts touch points
 
-**Location:** `packages/core/src/__tests__/fixtures/` (shared) and `packages/bot-discord/src/__tests__/fixtures/` (Discord-specific)
+| Touch point | Current behavior | New behavior |
+|-------------|-----------------|--------------|
+| No `getExerciseByStudentAndSession` | Caller uses `getExercisesByStudent()` + in-memory filter | New targeted query function |
+| No `updateExerciseThreadId` | Caller uses generic `updateExercise()` | Convenience wrapper — enforces type safety |
 
-**Communicates with:** All test files (consumes fixtures), mock layers (passes fixture data into mocks)
+### Migration touch points
 
-**Internal structure:**
-```
-fixtures/
-  core/
-    student.factory.ts    — createStudent(overrides?)
-    exercise.factory.ts   — createExercise(overrides?)
-    session.factory.ts    — createSession(overrides?)
-    submission.factory.ts — createSubmission(overrides?)
-    faq.factory.ts        — createFaqEntry(overrides?)
-  discord/
-    message.factory.ts    — createDiscordMessage(overrides?) → uses Discord mock layer
-    interaction.factory.ts
-    member.factory.ts
-```
-
-**Pattern (HIGH confidence — standard TypeScript fixture pattern):**
-Use a plain factory function that merges defaults with overrides. No library needed.
-
-```typescript
-// packages/core/src/__tests__/fixtures/core/student.factory.ts
-import type { Student } from '@assistme/core'
-
-let seq = 0
-
-export function createStudent(overrides: Partial<Student> = {}): Student {
-  seq++
-  return {
-    id: `student-${seq}`,
-    discord_id: `discord-${seq}`,
-    name: `Test Student ${seq}`,
-    session_id: 'session-1',
-    status: 'active',
-    created_at: new Date().toISOString(),
-    ...overrides,
-  }
-}
-```
-
-**Why factory functions over static objects:** Tests that share a static object can accidentally mutate it across test cases. Factory functions ensure isolation by construction.
+| Column | Default | Nullability | Impact on existing code |
+|--------|---------|-------------|------------------------|
+| `review_thread_id` | NULL | nullable | No breakage — new optional field |
+| `review_thread_ai_message_id` | NULL | nullable | No breakage — new optional field |
+| Partial unique index | — | — | No breakage — filtered to active statuses only |
 
 ---
 
-### Component 6: Supabase Docker Service (Integration Tests)
-
-**Responsibility:** Run a real PostgreSQL + Supabase stack locally for integration tests. Apply all production migrations. Provide isolated test schema.
-
-**Location:** Managed by `supabase/` CLI config, seeded via `supabase/seed.sql` + test-specific seed
-
-**Communicates with:** Integration test files (via real `@supabase/supabase-js` client pointing to `localhost:54321`), Vitest `globalSetup` (lifecycle management)
-
-**Lifecycle:**
-```
-vitest globalSetup:
-  setup()   → spawn: supabase start (idempotent)
-             → run: supabase db reset (apply migrations + seed)
-  teardown() → (optionally) supabase stop
-```
-
-**Test isolation strategy (MEDIUM confidence — based on Supabase community discussion):**
-The cleanest approach for this codebase is data prefixing + afterEach cleanup, not transaction rollback. Reason: the Supabase JS client does not expose raw transaction handles, and rolling back transactions across HTTP REST calls is not straightforward.
-
-Recommended pattern:
-1. In integration test `beforeAll`, seed test data with a unique `test_run_id` prefix
-2. In `afterAll`, delete all rows where `metadata->>'test_run_id' = testRunId`
-3. Use a service-role client (with `persistSession: false`) for fixture insertion and cleanup to bypass RLS
-
-**Critical pitfall (HIGH confidence from verified community source):** Initialize the service-role client for test fixtures with `persistSession: false`. Without this, when a regular test client authenticates as a test user, the service-role client silently adopts that session and loses admin privileges, causing fixture cleanup to fail with RLS violations.
-
----
-
-### Component 7: Discord Dev Environment (E2E Tests)
-
-**Responsibility:** Provide a real Discord bot token + test server (guild) + channel IDs for running end-to-end scenarios against the actual Discord gateway.
-
-**Location:** Environment variables in `.env.test` (not committed), referenced in `vitest.config.ts` E2E project config
-
-**Communicates with:** E2E test files (real `discord.js` Client), test Discord server (real guild with test channels)
-
-**Setup requirements:**
-1. Create a second Discord application in the Developer Portal with bot enabled
-2. Create a dedicated test Discord server (guild)
-3. Invite the dev bot with required permissions (Send Messages, Manage Messages, Read Message History, Use Slash Commands)
-4. Store `DISCORD_BOT_TOKEN_DEV`, `DISCORD_TEST_GUILD_ID`, `DISCORD_TEST_CHANNEL_ID`, `DISCORD_TEST_ADMIN_CHANNEL_ID` in `.env.test`
-
-**E2E test structure:**
-- Bot connects in `beforeAll`, disconnects in `afterAll`
-- Send a real message to the test channel, wait for bot response (with timeout assertion)
-- Verify response content matches expected pattern
-- Cleanup: delete test messages after assertion
-
-**Note:** E2E tests requiring real Discord connection CANNOT run in CI without storing `DISCORD_BOT_TOKEN_DEV` as a GitHub Actions secret. Unit and integration tests must be runnable without any Discord credentials.
-
----
-
-### Component 8: GitHub Actions CI Pipeline
-
-**Responsibility:** Run unit and integration tests automatically on push/PR. Report failures before merge.
-
-**Location:** `.github/workflows/test.yml`
-
-**Communicates with:** Vitest runner (via `pnpm test:unit` and `pnpm test:integration`), GitHub (reports, PR checks)
-
-**Structure:**
-```yaml
-jobs:
-  unit-tests:
-    runs-on: ubuntu-latest
-    # No services needed — all external deps mocked
-    steps: checkout, pnpm install, typecheck, pnpm test:unit
-
-  integration-tests:
-    runs-on: ubuntu-latest
-    # Needs Docker for Supabase local
-    services:
-      docker: { image: docker:dind }
-    steps: checkout, install supabase CLI, pnpm install, supabase start, pnpm test:integration
-```
-
-E2E tests: triggered manually or on specific branch patterns only. Requires `DISCORD_BOT_TOKEN_DEV` secret and is explicitly excluded from default CI to avoid blocking PRs on external Discord API availability.
-
----
-
-## Data Flow
-
-### Unit Test Flow
-
-```
-Test file
-  → vi.mock('@anthropic-ai/sdk')         — Claude API intercepted
-  → vi.mock('@supabase/supabase-js')     — DB calls intercepted
-  → import handler under test (e.g. dm-handler.ts)
-  → createDiscordMessage(fixture)        — build mock Discord event
-  → call handler(mockMessage)            — execute handler code path
-  → assert mockCreate.toHaveBeenCalledWith(expectedPrompt)
-  → assert mockSupabase.insert.toHaveBeenCalledWith(expectedRecord)
-  → assert mockMessage.channel.send.toHaveBeenCalledWith(expectedReply)
-```
-
-No network calls. No filesystem. Runs in milliseconds per test.
-
-### Integration Test Flow
-
-```
-globalSetup:
-  supabase start (Docker)
-  supabase db reset (apply all migrations)
-  seed test base data
-
-Integration test file:
-  → import real DB module (packages/core/src/db/students.ts)
-  → connect real supabase client to localhost:54321
-  → vi.mock('@anthropic-ai/sdk')         — Claude API still mocked
-  → call DB function: createStudent(fixture)
-  → assert: getStudent(id) returns expected record
-  → call agent with real DB + mock Claude
-  → assert: DB state mutated correctly
-  → afterAll: cleanup prefixed test data
-
-globalTeardown:
-  supabase stop (optional — keep running for dev speed)
-```
-
-Database state is real. Only AI calls are mocked. Exercises real SQL, migrations, RPC functions.
-
-### E2E Test Flow
-
-```
-beforeAll:
-  connect Discord dev bot (real token)
-  wait for 'ready' event
-
-E2E test:
-  → send message to #test-dm as test student user (via bot API)
-  → wait for bot reply (poll with timeout, max 10s)
-  → assert reply content matches scenario expectation
-  → record message IDs for cleanup
-
-afterAll:
-  → delete test messages
-  → destroy Discord client
-```
-
-Only for critical flows: DM submission, button interactions, slash command responses.
-
----
-
-## Suggested Build Order
-
-Dependencies between components dictate this order. Each layer depends on the previous being functional.
-
-```
-Phase 1 (Foundation — no dependencies)
-  1a. Vitest root config + ESM resolution
-  1b. Package-level tsconfig for tests
-  Verify: `pnpm test:unit` runs empty suite without errors
-
-Phase 2 (Shared mocks — depends on Phase 1)
-  2a. Claude API mock layer (packages/core/src/__tests__/mocks/anthropic/)
-  2b. Supabase mock layer (packages/core/src/__tests__/mocks/supabase/)
-  2c. Core fixture factories (packages/core/src/__tests__/fixtures/)
-  Verify: factories produce type-valid objects
-
-Phase 3 (Discord mock layer — depends on Phase 2)
-  3a. Discord.js mock objects (Client, Message, Interaction, Guild, Member)
-  3b. Discord fixture factories
-  Verify: can construct mock Discord.Message without errors
-
-Phase 4 (First unit tests — depends on Phases 2 + 3)
-  4a. Unit tests for pure logic (agent tool parsers, context builders, utils)
-  4b. Unit tests for handlers (dm-handler, admin-handler, faq)
-  4c. Unit tests for cron jobs (digest formatters, deadline calculators)
-  Verify: `pnpm test:unit` runs and passes
-
-Phase 5 (Supabase Docker — depends on Phase 4)
-  5a. Supabase local config (supabase/config.toml test settings)
-  5b. Vitest globalSetup with supabase start/reset
-  5c. Integration tests for DB modules (students, exercises, submissions)
-  5d. Integration tests for agents (real DB + mock Claude)
-  Verify: `pnpm test:integration` starts Docker, runs, all pass
-
-Phase 6 (Discord E2E — depends on Phase 5, optional for CI)
-  6a. Discord dev bot and test server setup
-  6b. E2E test helpers (sendAndWait, cleanup)
-  6c. E2E scenarios for critical flows
-  Verify: `pnpm test:e2e` connects to real Discord and exercises bot
-```
-
-**Why this order:**
-- You cannot build Discord mocks without the Vitest config in place (Phase 1 first)
-- Fixture factories must exist before any test can be written (Phase 2+3 before 4)
-- Unit tests must be stable before adding the complexity of Docker services (Phase 4 before 5)
-- E2E is last because it has the most external dependencies and is the least valuable for day-to-day development feedback
-
----
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Mocking Supabase in Integration Tests
-
-**What:** Using `vi.mock('@supabase/supabase-js')` in files named `*.integration.test.ts`
-**Why bad:** Integration tests exist specifically to validate that DB queries, migrations, and RPC functions work. Mocking the DB in an "integration" test makes it a unit test with extra steps.
-**Instead:** Use the local Supabase Docker instance for all integration tests. Use the mock only in `*.test.ts` unit tests.
-
-### Anti-Pattern 2: Sharing Mock State Between Tests
-
-**What:** Declaring `const mockCreate = vi.fn()` outside of `beforeEach` and not calling `mockCreate.mockReset()` between tests
-**Why bad:** The 5th test in a file inherits mock call history from the previous 4 tests. `toHaveBeenCalledWith()` assertions become unreliable.
-**Instead:** Always call `vi.clearAllMocks()` in `beforeEach` at the test suite level, or use `clearMocks: true` in Vitest config.
-
-### Anti-Pattern 3: Testing Discord.js Internals
-
-**What:** Writing tests that verify the bot registers event listeners on the Client, or that internal Collection caches are populated correctly
-**Why bad:** These are Discord.js implementation details. They change with library updates and add zero value — you're testing the library, not your code.
-**Instead:** Test behavior: given a message event fires, does the handler return the expected response? Mock at the handler input/output boundary.
-
-### Anti-Pattern 4: Full Bot Start in Unit Tests
-
-**What:** Calling `main()` from `packages/bot-discord/src/index.ts` in a test, then testing behavior
-**Why bad:** `main()` connects to the Discord gateway, registers slash commands via REST API, starts cron jobs. This makes tests slow, flaky (network-dependent), and breaks test isolation.
-**Instead:** Test handlers and agents in isolation by importing them directly. The entry point `index.ts` should have near-zero test coverage — it is composition code.
-
-### Anti-Pattern 5: One Big Mock Object
-
-**What:** A single `discordMocks.ts` file that exports all mock objects as a shared singleton
-**Why bad:** Tests that share mock objects can mutate each other's state (e.g., one test sets `mockMessage.content = 'test'`, the next test inherits that mutation).
-**Instead:** Factory functions that produce fresh objects per test call. Each test call to `createDiscordMessage()` returns a new independent object.
-
----
-
-## Directory Layout for Test Infrastructure
-
-The proposed layout preserves the existing `src/` structure and adds `__tests__/` alongside source code in each package:
-
-```
-packages/
-  core/
-    src/
-      __tests__/
-        mocks/
-          anthropic/
-            client.mock.ts
-            responses/
-              tool-use.ts
-              text.ts
-          supabase/
-            client.mock.ts
-            query-builder.ts
-        fixtures/
-          core/
-            student.factory.ts
-            exercise.factory.ts
-            session.factory.ts
-            submission.factory.ts
-        integration/
-          db/
-            students.integration.test.ts
-            exercises.integration.test.ts
-            knowledge.integration.test.ts
-          agents/
-            dm-agent.integration.test.ts
-            tsarag-agent.integration.test.ts
-        setup/
-          globalSetup.ts         — supabase start/reset/stop
-          testEnv.ts             — shared env + client initialization
-
-  bot-discord/
-    src/
-      __tests__/
-        mocks/
-          discord/
-            client.mock.ts
-            guild.mock.ts
-            message.mock.ts
-            interaction.mock.ts
-            channel.mock.ts
-            member.mock.ts
-        fixtures/
-          discord/
-            message.factory.ts
-            interaction.factory.ts
-            member.factory.ts
-        unit/
-          handlers/
-            dm-handler.test.ts
-            admin-handler.test.ts
-            faq.test.ts
-            review-buttons.test.ts
-          commands/
-            session.test.ts
-          cron/
-            deadline-reminders.test.ts
-            exercise-digest.test.ts
-            dropout-detector.test.ts
-        e2e/
-          dm-flow.e2e.test.ts
-          slash-commands.e2e.test.ts
-
-vitest.config.ts              — root, projects: ['packages/*']
-vitest.workspace.ts           — (unused, deprecated in Vitest 3.2)
-```
-
-**Why co-located `__tests__/`:** Tests live near the code they test. Navigating between source and test is faster. This is the pattern Vitest documentation recommends. A top-level `tests/` folder would require duplicating the package directory structure.
+## Scalability Considerations
+
+| Concern | At 30 students (current) | At 300 students |
+|---------|--------------------------|-----------------|
+| In-memory conversation state | Negligible — 30 Map entries | Fine — 300 entries, < 1 MB |
+| Processing lock chain per user | Fine — per-user serialization, independent | Fine — locks are independent |
+| DB uniqueness check | Application-layer filter over ~30 rows | Partial unique index enforces at DB level |
+| Thread unarchive API call | 1 Discord API call per review open | 1 call — not a hot path |
+| `ai_review_complete` event dispatch | 1 message edit per submission | 1 edit — fire-and-forget, fine at scale |
+
+The partial unique index is a correctness requirement even at 30 students. All other
+changes are O(1) per submission — no fan-out, no batch operations.
 
 ---
 
 ## Sources
 
-- [Mocking Discord.js for Unit Testing — discord.js Discussion #6179](https://github.com/discordjs/discord.js/discussions/6179) — MEDIUM confidence, community discussion on official repo
-- [Vitest Test Projects Guide](https://vitest.dev/guide/projects) — HIGH confidence, official documentation
-- [Vitest Global Setup Config](https://vitest.dev/config/globalsetup) — HIGH confidence, official documentation
-- [Supabase Local Development & CLI](https://supabase.com/docs/guides/local-development) — HIGH confidence, official documentation
-- [Local Integration Testing — Supabase Discussion #16415](https://github.com/orgs/supabase/discussions/16415) — MEDIUM confidence, community patterns (no official solution)
-- [Testing Supabase RLS with Vitest — index.garden](https://index.garden/supabase-vitest/) — MEDIUM confidence, practitioner blog with specific pitfalls verified
-- [Vitest 3 Monorepo Setup — thecandidstartup.org](https://www.thecandidstartup.org/2025/09/08/vitest-3-monorepo-setup.html) — MEDIUM confidence, community article post-Vitest 3 release
-- [AI SDK Core Testing — ai-sdk.dev](https://ai-sdk.dev/docs/ai-sdk-core/testing) — MEDIUM confidence (Vercel AI SDK mock patterns, not Anthropic SDK directly, but pattern applies)
+All findings derived directly from reading working codebase source files (HIGH confidence).
+No external sources consulted — this is integration analysis of existing code, not
+ecosystem research.
+
+Files read:
+- `/packages/bot-discord/src/handlers/dm-handler.ts`
+- `/packages/bot-discord/src/handlers/review-buttons.ts`
+- `/packages/bot-discord/src/utils/review-thread.ts`
+- `/packages/bot-discord/src/utils/format.ts`
+- `/packages/bot-discord/src/config.ts`
+- `/packages/core/src/ai/formation/dm-agent.ts`
+- `/packages/core/src/db/formation/exercises.ts`
+- `/packages/core/src/types/index.ts`
+- `/.planning/PROJECT.md`
