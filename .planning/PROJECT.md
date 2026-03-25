@@ -76,6 +76,8 @@ Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), 
 | Supabase local Docker | Integration tests avec vraie DB | Validated v1.0 |
 | 3 couches de tests | Unit + Integration + E2E | Validated v1.0 |
 | Pre-push hook obligatoire | Tests impossible a contourner | Validated v1.0 |
+| Partial unique index (not full constraint) | Scope to active statuses only — allows resubmission after approval | Validated Phase 5 |
+| Atomic session_id in single INSERT | No NULL window, no separate UPDATE race condition | Validated Phase 5 |
 
 ## Evolution
 
@@ -95,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 — Milestone v2.0 started*
+*Last updated: 2026-03-25 — Phase 5 complete (DB foundation + core hardening)*
