@@ -117,9 +117,11 @@ describe('FAQ flow', () => {
 
     const channelNames = Object.values(CHANNELS);
     // All 6 required channels: объявления, сессии, чат, faq, победы, админ
+    // Type 0 = GuildText, 15 = GuildForum (сессии is a Forum channel)
+    const allowedTypes = new Set([0, 15]);
     for (const name of channelNames) {
       const found = guild!.channels.cache.find(
-        (ch) => ch.type === 0 && ch.name === name
+        (ch) => allowedTypes.has(ch.type) && ch.name === name
       );
       expect(found, `Channel #${name} missing in test guild`).toBeDefined();
     }

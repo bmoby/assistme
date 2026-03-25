@@ -85,6 +85,11 @@ beforeAll(async () => {
     );
   }
 
+  // Debug: print actual channel names so we can compare with config
+  const textChannels = guild.channels.cache
+    .filter((ch) => ch.type === 0 || ch.type === 15)
+    .map((ch) => `${ch.name}(${ch.type === 15 ? 'forum' : 'text'})`);
+  console.log(`[e2e] Guild channels: ${JSON.stringify([...textChannels])}`);
   console.log(`[e2e] Both bots connected. Dev: ${devBot.user?.tag}, Test user: ${testUserBot.user?.tag}`);
 }, 60_000);
 
