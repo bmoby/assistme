@@ -19,11 +19,11 @@ Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca ca
 
 ### Active
 
-- [ ] Environnement de dev Discord (serveur de test + bot de dev separe)
+- [x] Environnement de dev Discord (serveur de test + bot de dev separe) — Validated in Phase 4: E2E Discord Dev
 - [x] Framework de test (Vitest) configure pour le monorepo ESM — Validated in Phase 1: Foundation
 - [x] Tests unitaires: handlers, agents, commandes, utils en isolation — Validated in Phase 2: Mocks + Unit Tests
 - [x] Tests d'integration: Supabase local (Docker) + mock Claude API — Validated in Phase 3: Integration + CI
-- [ ] Tests E2E: vrai bot de dev sur serveur Discord de test, scenarios complets
+- [x] Tests E2E: vrai bot de dev sur serveur Discord de test, scenarios complets — Validated in Phase 4: E2E Discord Dev
 - [x] CI GitHub Actions: tests auto sur push/PR — Validated in Phase 3: Integration + CI
 - [x] Mocks/fixtures reutilisables pour Discord.js, Supabase, Claude API — Validated in Phase 2: Mocks + Unit Tests
 
@@ -37,6 +37,7 @@ Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca ca
 ## Context
 
 - **Codebase existante:** ~15K+ lignes de code TypeScript strict, ESM modules
+- **Phase 4 complete:** E2E tests with real Discord dev bot (14 tests: DM student flow, exercise submission, FAQ), two-bot architecture, `pnpm test:e2e`, CI workflow_dispatch job
 - **Phase 3 complete:** Integration tests against real Supabase Docker (students CRUD, pgvector search, agent+DB), GitHub Actions CI pipeline (unit on push, integration on PR), MSW v2, coverage thresholds
 - **Douleur principale:** Pas de feedback local -- obliger de deployer en prod pour tester (Phase 2+ addressera)
 - **Bot Discord:** discord.js 14.16, handlers (DM, admin, FAQ, review), slash commands, crons
@@ -57,9 +58,9 @@ Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca ca
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Vitest over Jest | Meilleur support ESM natif, plus rapide, meme API | Validated Phase 1 |
-| Bot Discord de dev separe | Zero risque sur la prod, token dedie | -- Pending |
-| Supabase local Docker | Tests d'integration avec vraie DB, pas de mocks DB | -- Pending |
-| 3 couches de tests | Unit (rapide) + Integration (DB reelle) + E2E (vrai Discord) | -- Pending |
+| Bot Discord de dev separe | Zero risque sur la prod, token dedie | Validated Phase 4 |
+| Supabase local Docker | Tests d'integration avec vraie DB, pas de mocks DB | Validated Phase 3 |
+| 3 couches de tests | Unit (rapide) + Integration (DB reelle) + E2E (vrai Discord) | Validated Phase 4 |
 
 ## Evolution
 
