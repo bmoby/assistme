@@ -393,19 +393,15 @@ async function handleCreateSubmission(
       'Exercise re-submitted via DM agent'
     );
   } else {
-    // FIRST SUBMISSION: create new record
+    // FIRST SUBMISSION: create new record with session_id atomically
     exercise = await submitExercise({
       student_id: student.id,
+      session_id: session.id,
       module: session.module,
       exercise_number: session.session_number,
       submission_url: submissionUrl,
       submission_type: submissionType,
     });
-
-    // Set session_id
-    const { getSupabase } = await import('../../db/client.js');
-    const db = getSupabase();
-    await db.from('student_exercises').update({ session_id: session.id }).eq('id', exercise.id);
 
     logger.info(
       { studentId: student.id, sessionNumber, exerciseId: exercise.id, attachments: pendingAttachments.length },

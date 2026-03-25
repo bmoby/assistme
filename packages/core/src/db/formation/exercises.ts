@@ -6,6 +6,7 @@ const TABLE = 'student_exercises';
 
 export async function submitExercise(params: {
   student_id: string;
+  session_id: string;
   module: number;
   exercise_number: number;
   submission_url: string;
@@ -16,6 +17,7 @@ export async function submitExercise(params: {
     .from(TABLE)
     .insert({
       student_id: params.student_id,
+      session_id: params.session_id,
       module: params.module,
       exercise_number: params.exercise_number,
       submission_url: params.submission_url,
@@ -26,6 +28,9 @@ export async function submitExercise(params: {
     .single();
 
   if (error) {
+    if (error.code === '23505') {
+      throw new Error('Duplicate submission: student already has an active submission for this session');
+    }
     logger.error({ error, studentId: params.student_id }, 'Failed to submit exercise');
     throw error;
   }
@@ -193,10 +198,28 @@ export async function getExerciseSummary(): Promise<{
 
 export async function getPendingExercisesBySession(sessionNumber: number): Promise<StudentExercise[]> {
   const db = getSupabase();
+
+  // Step 1: Resolve session UUID from session number
+  const { data: session, error: sessionError } = await db
+    .from('sessions')
+    .select('id')
+    .eq('session_number', sessionNumber)
+    .maybeSingle();
+
+  if (sessionError) {
+    logger.error({ error: sessionError, sessionNumber }, 'Failed to resolve session for pending exercises');
+    throw sessionError;
+  }
+
+  if (!session) {
+    return [];
+  }
+
+  // Step 2: Query exercises by session_id (uses indexed column)
   const { data, error } = await db
     .from(TABLE)
     .select()
-    .eq('exercise_number', sessionNumber)
+    .eq('session_id', session.id)
     .in('status', ['submitted', 'ai_reviewed'])
     .order('submitted_at', { ascending: true });
 
@@ -221,6 +244,26 @@ export async function getExerciseWithSession(exerciseId: string): Promise<Studen
     throw error;
   }
   return data as StudentExercise;
+}
+
+export async function getExerciseByStudentAndSession(
+  studentId: string,
+  sessionId: string
+): Promise<StudentExercise | null> {
+  const db = getSupabase();
+  const { data, error } = await db
+    .from(TABLE)
+    .select()
+    .eq('student_id', studentId)
+    .eq('session_id', sessionId)
+    .in('status', ['submitted', 'ai_reviewed'])
+    .maybeSingle();
+
+  if (error) {
+    logger.error({ error, studentId, sessionId }, 'Failed to get exercise by student and session');
+    throw error;
+  }
+  return data as StudentExercise | null;
 }
 
 export async function resubmitExercise(

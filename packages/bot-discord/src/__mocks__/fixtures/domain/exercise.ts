@@ -25,6 +25,8 @@ export function createExercise(overrides: Partial<StudentExercise> = {}): Studen
     submission_count: 1,
     review_history: [],
     notification_message_id: null,
+    review_thread_id: null,
+    review_thread_ai_message_id: null,
     created_at: new Date().toISOString(),
     ...overrides,
   };
