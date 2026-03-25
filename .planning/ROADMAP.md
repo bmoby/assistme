@@ -118,7 +118,7 @@ Plans:
 
 Plans:
 - [x] 06-01-PLAN.md — DM agent submission intent return + handler preview-confirm flow with buttons
-- [ ] 06-02-PLAN.md — Unit tests for all Phase 6 submission handler behaviors
+- [x] 06-02-PLAN.md — Unit tests for all Phase 6 submission handler behaviors
 
 ### Phase 7: Admin Review UX + Test Coverage
 **Goal**: Admins review re-submissions in the same thread without duplicates, and the full submission state machine is covered by integration and E2E tests
