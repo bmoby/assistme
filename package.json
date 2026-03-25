@@ -13,9 +13,9 @@
     "seed:knowledge": "pnpm exec tsx scripts/seed-formation-knowledge.ts",
     "test": "vitest run",
     "test:unit": "vitest run",
-    "test:integration": "vitest run --project core-integration --project bot-discord-integration || exit 0",
+    "test:integration": "vitest run --project core-integration --project bot-discord-integration",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --project core --project bot-discord --coverage"
   },
   "engines": {
     "node": ">=20.0.0",
