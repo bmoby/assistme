@@ -7,7 +7,7 @@ import {
   createTestClient,
   createTestRunId,
   cleanupTestData,
-} from '../../../../test/integration-helpers.js';
+} from '../../../../../test/integration-helpers.js';
 
 const TEST_RUN_ID = createTestRunId();
 const adminDb = createTestClient();

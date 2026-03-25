@@ -11,7 +11,7 @@
  */
 
 import { vi, describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { createTestClient, createTestRunId, cleanupTestData } from '../../../../test/integration-helpers.js';
+import { createTestClient, createTestRunId, cleanupTestData } from '../../../../../test/integration-helpers.js';
 
 // ============================================
 // Mocks — must be hoisted before any import
@@ -20,11 +20,13 @@ import { createTestClient, createTestRunId, cleanupTestData } from '../../../../
 
 const mockCreate = vi.fn();
 
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
-  })),
-}));
+vi.mock('@anthropic-ai/sdk', () => {
+  return {
+    default: class MockAnthropic {
+      messages = { create: mockCreate };
+    },
+  };
+});
 
 // Mock embeddings — DM agent calls getEmbedding for search_course_content
 // which requires a running embedding server; return null for tests.
