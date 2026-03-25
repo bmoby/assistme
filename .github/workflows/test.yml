@@ -74,5 +74,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Placeholder
-        run: echo "E2E tests require Discord dev bot token. Configure in Phase 4."
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start Supabase local
+        run: supabase start
+
+      - name: Write .env.test from secrets
+        run: |
+          cat > .env.test << 'ENVEOF'
+          DISCORD_DEV_BOT_TOKEN=${{ secrets.DISCORD_DEV_BOT_TOKEN }}
+          DISCORD_DEV_CLIENT_ID=${{ secrets.DISCORD_DEV_CLIENT_ID }}
+          DISCORD_TEST_USER_BOT_TOKEN=${{ secrets.DISCORD_TEST_USER_BOT_TOKEN }}
+          DISCORD_TEST_GUILD_ID=${{ secrets.DISCORD_TEST_GUILD_ID }}
+          SUPABASE_URL=http://127.0.0.1:54321
+          SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+          ANTHROPIC_API_KEY=test-placeholder
+          OPENAI_API_KEY=test-placeholder
+          NODE_ENV=test
+          LOG_LEVEL=silent
+          ENVEOF
+
+      - name: Run E2E tests
+        run: pnpm test:e2e

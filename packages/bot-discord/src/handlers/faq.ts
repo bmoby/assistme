@@ -7,8 +7,8 @@ import { CHANNELS } from '../config.js';
 
 export function setupFaqHandler(client: Client): void {
   client.on('messageCreate', async (message: Message) => {
-    // Ignore bots
-    if (message.author.bot) return;
+    // Ignore bots (bypass in test mode so E2E tests can exercise the full path)
+    if (message.author.bot && process.env['NODE_ENV'] !== 'test') return;
 
     // Only in FAQ channel
     if (!(message.channel instanceof TextChannel)) return;
