@@ -44,6 +44,14 @@ import {
   getSession,
   getAttachmentsByExercise,
   updateExercise,
+  getSessionByNumber,
+  getExercisesByStudent,
+  submitExercise,
+  resubmitExercise,
+  getExerciseByStudentAndSession,
+  addAttachment,
+  getSupabase,
+  deleteAttachmentsByExercise,
 } from '@assistme/core';
 import { MessageBuilder, resetSeq } from '../__mocks__/discord/builders.js';
 import { createStudent, createExercise, createSession } from '../__mocks__/fixtures/domain/index.js';
@@ -104,6 +112,16 @@ const mockGetSession = vi.mocked(getSession);
 const mockGetAttachmentsByExercise = vi.mocked(getAttachmentsByExercise);
 const mockUpdateExercise = vi.mocked(updateExercise);
 
+// Phase 6 — submission flow mocks
+const mockGetSessionByNumber = vi.mocked(getSessionByNumber);
+const mockGetExercisesByStudent = vi.mocked(getExercisesByStudent);
+const mockSubmitExercise = vi.mocked(submitExercise);
+const mockResubmitExercise = vi.mocked(resubmitExercise);
+const mockGetExerciseByStudentAndSession = vi.mocked(getExerciseByStudentAndSession);
+const mockAddAttachment = vi.mocked(addAttachment);
+const mockGetSupabase = vi.mocked(getSupabase);
+const mockDeleteAttachmentsByExercise = vi.mocked(deleteAttachmentsByExercise);
+
 let client: ReturnType<typeof makeClient>;
 
 // ============================================
@@ -130,6 +148,23 @@ describe('dm-handler', () => {
     mockGetSession.mockResolvedValue(createSession());
     mockGetAttachmentsByExercise.mockResolvedValue([]);
     mockUpdateExercise.mockResolvedValue(undefined as never);
+
+    // Phase 6 defaults
+    mockGetSessionByNumber.mockResolvedValue(createSession({ id: 'default-session', session_number: 1, status: 'published' }));
+    mockGetExercisesByStudent.mockResolvedValue([]);
+    mockGetExerciseByStudentAndSession.mockResolvedValue(null);
+    mockSubmitExercise.mockResolvedValue(createExercise({ id: 'new-ex-1', status: 'submitted' }));
+    mockResubmitExercise.mockResolvedValue(createExercise({ id: 'resub-ex-1', status: 'submitted', submission_count: 2 }));
+    mockAddAttachment.mockResolvedValue(undefined as never);
+    mockDeleteAttachmentsByExercise.mockResolvedValue([]);
+    // Mock getSupabase for uploadFileToStorage: return object with storage.from().upload() returning { error: null }
+    mockGetSupabase.mockReturnValue({
+      storage: {
+        from: vi.fn().mockReturnValue({
+          upload: vi.fn().mockResolvedValue({ error: null }),
+        }),
+      },
+    } as never);
 
     client = makeClient();
     setupDmHandler(client as unknown as Client);
@@ -528,5 +563,343 @@ describe('dm-handler', () => {
     expect(message.reply).toHaveBeenCalledWith(
       expect.stringContaining('❌')
     );
+  });
+
+  // ============================================
+  // Phase 6 submission handler tests (Tests 13-20)
+  // ============================================
+
+  /**
+   * Helper: create a mock reply message that supports awaitMessageComponent.
+   * Pass a customId to simulate a button press, or null to simulate a timeout.
+   */
+  function makeReplyMessageMock(buttonCustomId: string | null) {
+    const editFn = vi.fn().mockResolvedValue(undefined);
+    const awaitFn = buttonCustomId
+      ? vi.fn().mockResolvedValue({
+          customId: buttonCustomId,
+          user: { id: 'test-user-id' },
+          deferUpdate: vi.fn().mockResolvedValue(undefined),
+        })
+      : vi.fn().mockRejectedValue(new Error('Collector timeout'));
+
+    return {
+      awaitMessageComponent: awaitFn,
+      edit: editFn,
+      __awaitFn: awaitFn,
+      __editFn: editFn,
+    };
+  }
+
+  // ============================================
+  // Test 13: Empty submission rejected (SUB-02)
+  // ============================================
+
+  it('rejects empty submission — no attachments and no student_comment', async () => {
+    // Student must exist so we reach the empty check (not the student-not-found check)
+    const student = createStudent({ discord_id: 'discord-empty' });
+    mockGetStudentByDiscordId.mockResolvedValue(student);
+
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Отправляю задание.',
+      submissionIntent: { session_number: 3 }, // no student_comment
+    });
+
+    const message = new MessageBuilder()
+      .asDM().withContent('Сдай задание').withAuthorId('discord-empty').build();
+
+    await client.__emit('messageCreate', message);
+    await drainProcessing();
+
+    // No pendingAttachments in fresh conversation, no student_comment
+    expect(message.reply).toHaveBeenCalledWith(
+      expect.stringContaining('Нечего отправлять')
+    );
+    expect(mockSubmitExercise).not.toHaveBeenCalled();
+  });
+
+  // ============================================
+  // Test 14: Invalid session rejected (UX-02)
+  // ============================================
+
+  it('rejects submission when session does not exist', async () => {
+    // Student must exist so we reach the session check (not the student-not-found check)
+    const student = createStudent({ discord_id: 'discord-bad-session' });
+    mockGetStudentByDiscordId.mockResolvedValue(student);
+    mockGetSessionByNumber.mockResolvedValue(null);
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+    } as Response);
+
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Сдаю задание.',
+      submissionIntent: { session_number: 99 },
+    });
+
+    const message = new MessageBuilder()
+      .asDM().withContent('Задание').withAuthorId('discord-bad-session')
+      .withAttachment('att-1', { url: 'https://cdn.discord.com/f.png', name: 'f.png', contentType: 'image/png', size: 100 })
+      .build();
+
+    await client.__emit('messageCreate', message);
+    await drainProcessing();
+
+    expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('99'));
+    expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('не найдена'));
+    expect(mockSubmitExercise).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  // ============================================
+  // Test 15: Preview embed shown with buttons (UX-01)
+  // ============================================
+
+  it('shows preview embed with Soumettre and Annuler buttons', async () => {
+    // Student must exist to reach the preview embed logic
+    const student = createStudent({ discord_id: 'discord-preview' });
+    mockGetStudentByDiscordId.mockResolvedValue(student);
+    mockGetSessionByNumber.mockResolvedValue(
+      createSession({ id: 'sess-1', session_number: 3, title: 'CSS Basics', module: 1, status: 'published' })
+    );
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+    } as Response);
+
+    const replyMock = makeReplyMessageMock('submission_confirm');
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Задание готово к отправке.',
+      submissionIntent: { session_number: 3 },
+    });
+
+    const message = new MessageBuilder()
+      .asDM().withContent('Вот моё задание').withAuthorId('discord-preview')
+      .withAttachment('att-1', { url: 'https://cdn.discord.com/f.png', name: 'screenshot.png', contentType: 'image/png', size: 2048 })
+      .build();
+    (message.reply as ReturnType<typeof vi.fn>).mockResolvedValueOnce(replyMock);
+
+    await client.__emit('messageCreate', message);
+    await drainProcessing(150);
+
+    // Verify reply was called with embeds and components
+    expect(message.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.arrayContaining([expect.any(Object)]),
+        components: expect.arrayContaining([expect.any(Object)]),
+      })
+    );
+    fetchSpy.mockRestore();
+  });
+
+  // ============================================
+  // Test 16: Soumettre button triggers DB write (UX-01)
+  // ============================================
+
+  it('executes submission when Soumettre button is clicked', async () => {
+    const student = createStudent({ discord_id: 'discord-confirm' });
+    mockGetStudentByDiscordId.mockResolvedValue(student);
+    mockGetSessionByNumber.mockResolvedValue(
+      createSession({ id: 'sess-c', session_number: 5, status: 'published' })
+    );
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+    } as Response);
+
+    const replyMock = makeReplyMessageMock('submission_confirm');
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Задание подготовлено.',
+      submissionIntent: { session_number: 5, student_comment: 'Мой ответ' },
+    });
+
+    const message = new MessageBuilder()
+      .asDM().withContent('Вот работа').withAuthorId('discord-confirm')
+      .withAttachment('att-1', { url: 'https://cdn.discord.com/f.pdf', name: 'work.pdf', contentType: 'application/pdf', size: 5000 })
+      .build();
+    (message.reply as ReturnType<typeof vi.fn>).mockResolvedValueOnce(replyMock);
+
+    await client.__emit('messageCreate', message);
+    await drainProcessing(200);
+
+    expect(mockSubmitExercise).toHaveBeenCalledWith(
+      expect.objectContaining({ student_id: student.id, session_id: 'sess-c' })
+    );
+    fetchSpy.mockRestore();
+  });
+
+  // ============================================
+  // Test 17: Annuler button clears state (UX-04)
+  // ============================================
+
+  it('clears pendingAttachments when Annuler button is clicked', async () => {
+    // Student must exist to reach the cancel button logic
+    const student = createStudent({ discord_id: 'discord-cancel' });
+    mockGetStudentByDiscordId.mockResolvedValue(student);
+    mockGetSessionByNumber.mockResolvedValue(
+      createSession({ id: 'sess-a', session_number: 2, status: 'published' })
+    );
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+    } as Response);
+
+    const replyMock = makeReplyMessageMock('submission_cancel');
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Задание готово.',
+      submissionIntent: { session_number: 2 },
+    });
+
+    const message = new MessageBuilder()
+      .asDM().withContent('Задание').withAuthorId('discord-cancel')
+      .withAttachment('att-1', { url: 'https://cdn.discord.com/f.png', name: 'f.png', contentType: 'image/png', size: 100 })
+      .build();
+    (message.reply as ReturnType<typeof vi.fn>).mockResolvedValueOnce(replyMock);
+
+    await client.__emit('messageCreate', message);
+    await drainProcessing(150);
+
+    // Should NOT call submitExercise
+    expect(mockSubmitExercise).not.toHaveBeenCalled();
+    // Should reply with cancellation message
+    expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('отменена'));
+    fetchSpy.mockRestore();
+  });
+
+  // ============================================
+  // Test 18: Button timeout disables buttons, preserves attachments (D-02)
+  // ============================================
+
+  it('disables buttons on timeout and preserves pendingAttachments', async () => {
+    // Student must exist to reach the awaitMessageComponent timeout logic
+    const student = createStudent({ discord_id: 'discord-timeout' });
+    mockGetStudentByDiscordId.mockResolvedValue(student);
+    mockGetSessionByNumber.mockResolvedValue(
+      createSession({ id: 'sess-t', session_number: 1, status: 'published' })
+    );
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+    } as Response);
+
+    // null = timeout: awaitMessageComponent rejects
+    const replyMock = makeReplyMessageMock(null);
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Задание готово.',
+      submissionIntent: { session_number: 1 },
+    });
+
+    const message = new MessageBuilder()
+      .asDM().withContent('Задание').withAuthorId('discord-timeout')
+      .withAttachment('att-1', { url: 'https://cdn.discord.com/f.png', name: 'f.png', contentType: 'image/png', size: 100 })
+      .build();
+    (message.reply as ReturnType<typeof vi.fn>).mockResolvedValueOnce(replyMock);
+
+    await client.__emit('messageCreate', message);
+    await drainProcessing(150);
+
+    // Buttons should be disabled via previewMsg.edit
+    expect(replyMock.__editFn).toHaveBeenCalled();
+    // submitExercise NOT called on timeout
+    expect(mockSubmitExercise).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  // ============================================
+  // Test 19: Error cleanup clears pendingAttachments (SUB-04)
+  // ============================================
+
+  it('clears pendingAttachments when runDmAgent throws (SUB-04)', async () => {
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+    } as Response);
+
+    mockRunDmAgent.mockRejectedValue(new Error('Claude API failed'));
+
+    // First message WITH attachment — pendingAttachments becomes non-empty before agent call
+    const msg1 = new MessageBuilder()
+      .asDM().withContent('Вот файл').withAuthorId('discord-err-cleanup')
+      .withAttachment('att-1', { url: 'https://cdn.discord.com/f.png', name: 'f.png', contentType: 'image/png', size: 100 })
+      .build();
+
+    await client.__emit('messageCreate', msg1);
+    await drainProcessing();
+
+    // Agent threw — pendingAttachments should have been cleared by the catch block
+    // On second message, pendingAttachments should be empty (state was cleared)
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Ответ.',
+      submissionIntent: { session_number: 1 },
+    });
+
+    const msg2 = new MessageBuilder()
+      .asDM().withContent('Попробую снова').withAuthorId('discord-err-cleanup')
+      .build();
+
+    await client.__emit('messageCreate', msg2);
+    await drainProcessing();
+
+    // Second call should have empty pendingAttachments (cleared by error handler)
+    const secondCallArgs = mockRunDmAgent.mock.calls[1]?.[0];
+    expect(secondCallArgs?.pendingAttachments).toHaveLength(0);
+    fetchSpy.mockRestore();
+  });
+
+  // ============================================
+  // Test 20: Re-submission path calls resubmitExercise (UX-03)
+  // ============================================
+
+  it('calls resubmitExercise for re-submission when existing exercise has revision_needed status', async () => {
+    const student = createStudent({ discord_id: 'discord-resub' });
+    mockGetStudentByDiscordId.mockResolvedValue(student);
+
+    const existingExercise = createExercise({
+      id: 'ex-resub-1',
+      student_id: student.id,
+      session_id: 'sess-r',
+      status: 'revision_needed',
+      submission_count: 1,
+    });
+    mockGetExercisesByStudent.mockResolvedValue([existingExercise]);
+    mockGetExerciseByStudentAndSession.mockResolvedValue(null);
+    mockGetSessionByNumber.mockResolvedValue(
+      createSession({ id: 'sess-r', session_number: 4, status: 'published' })
+    );
+    mockResubmitExercise.mockResolvedValue(
+      createExercise({ id: 'ex-resub-1', status: 'submitted', submission_count: 2 })
+    );
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+    } as Response);
+
+    const replyMock = makeReplyMessageMock('submission_confirm');
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Переотправляю.',
+      submissionIntent: { session_number: 4 },
+    });
+
+    const message = new MessageBuilder()
+      .asDM().withContent('Исправил задание').withAuthorId('discord-resub')
+      .withAttachment('att-1', { url: 'https://cdn.discord.com/f.png', name: 'fix.png', contentType: 'image/png', size: 100 })
+      .build();
+    (message.reply as ReturnType<typeof vi.fn>).mockResolvedValueOnce(replyMock);
+
+    await client.__emit('messageCreate', message);
+    await drainProcessing(200);
+
+    expect(mockResubmitExercise).toHaveBeenCalledWith(
+      'ex-resub-1',
+      expect.objectContaining({ submission_type: expect.any(String) })
+    );
+    expect(mockSubmitExercise).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });
