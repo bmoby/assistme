@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Exercise Submission Flow
-status: Ready to execute
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-25T10:58:07.937Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-03-25T11:07:15.673Z"
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -49,6 +49,7 @@ Plan: 2 of 2
 | Phase 05 P01 | 5min | 2 tasks | 6 files |
 | Phase 05 P02 | 5min | 1 tasks | 1 files |
 | Phase 06 P01 | 7min | 2 tasks | 4 files |
+| Phase 06 P02 | 6min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 05]: Verify unique index via 23505 error behavior (Supabase JS cannot query pg_indexes)
 - [Phase 06]: DM agent returns SubmissionIntent instead of executing DB write — handler owns full submission lifecycle
 - [Phase 06]: uploadFileToStorage and triggerAiReview moved from dm-agent.ts to dm-handler.ts — submission logic belongs in handler layer
+- [Phase 06]: Need to set student mock in every submission flow test — handleSubmissionIntent calls getStudentByDiscordId before empty/session checks
+- [Phase 06]: makeReplyMessageMock(null) triggers timeout path, makeReplyMessageMock(customId) simulates button click
 
 ### Pending Todos
 
@@ -79,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T10:58:07.932Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-03-25T11:07:15.667Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
