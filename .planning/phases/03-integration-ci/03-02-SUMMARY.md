@@ -111,6 +111,15 @@ None - no external service configuration required beyond what was set up in Phas
 
 None - both test files are complete with no stubs or placeholder assertions.
 
+## Self-Check: PASSED
+
+- FOUND: packages/core/src/db/formation/students.integration.test.ts
+- FOUND: packages/core/src/db/formation/knowledge.integration.test.ts
+- FOUND: .planning/phases/03-integration-ci/03-02-SUMMARY.md
+- FOUND commit: fdfdfea (feat(03-02): add students DB integration tests)
+- FOUND commit: ce67b51 (feat(03-02): add knowledge DB integration tests)
+- FOUND commit: 05d2f9e (docs(03-02): complete integration tests plan)
+
 ---
 *Phase: 03-integration-ci*
 *Completed: 2026-03-25*

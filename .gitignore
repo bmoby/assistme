@@ -7,3 +7,13 @@ dist/
 .DS_Store
 .turbo
 .claude/settings.local.json
+.claude/agents/
+.claude/commands/
+.claude/get-shit-done/
+.claude/hooks/
+.claude/package.json
+.claude/gsd-file-manifest.json
+
+# Supabase local state
+supabase/.branches/
+supabase/.temp/

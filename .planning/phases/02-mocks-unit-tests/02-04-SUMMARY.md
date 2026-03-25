@@ -108,3 +108,12 @@ None — tests wire real mock responses and verify real return values.
 ---
 *Phase: 02-mocks-unit-tests*
 *Completed: 2026-03-25*
+
+## Self-Check: PASSED
+
+- FOUND: packages/core/src/ai/formation/faq-agent.test.ts
+- FOUND: packages/core/src/ai/formation/tsarag-agent.test.ts
+- FOUND: .planning/phases/02-mocks-unit-tests/02-04-SUMMARY.md
+- FOUND commit: 8b7efc7 (Task 1 — DM Agent tests)
+- FOUND commit: 0a413ed (Task 2 — FAQ + Tsarag Agent tests)
+- FOUND commit: fb6694a (metadata)
