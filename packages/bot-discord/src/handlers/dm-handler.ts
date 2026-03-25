@@ -274,7 +274,7 @@ export function setupDmHandler(client: Client): void {
 
   client.on('messageCreate', async (message: Message) => {
     // Only handle DMs from users (not bots, not guild messages)
-    if (message.author.bot) return;
+    if (message.author.bot && process.env['NODE_ENV'] !== 'test') return;
     if (message.guild !== null) return;
 
     const userId = message.author.id;

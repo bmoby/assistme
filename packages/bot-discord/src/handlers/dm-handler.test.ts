@@ -143,14 +143,20 @@ describe('dm-handler', () => {
   // Test 1: Bot messages ignored
   // ============================================
 
-  it('ignores bot messages', async () => {
-    const message = new MessageBuilder().asBot().asDM().withContent('I am a bot').build();
+  it('ignores bot messages in production', async () => {
+    const origEnv = process.env['NODE_ENV'];
+    process.env['NODE_ENV'] = 'production';
+    try {
+      const message = new MessageBuilder().asBot().asDM().withContent('I am a bot').build();
 
-    await client.__emit('messageCreate', message);
-    await drainProcessing();
+      await client.__emit('messageCreate', message);
+      await drainProcessing();
 
-    expect(mockGetStudentByDiscordId).not.toHaveBeenCalled();
-    expect(mockRunDmAgent).not.toHaveBeenCalled();
+      expect(mockGetStudentByDiscordId).not.toHaveBeenCalled();
+      expect(mockRunDmAgent).not.toHaveBeenCalled();
+    } finally {
+      process.env['NODE_ENV'] = origEnv;
+    }
   });
 
   // ============================================

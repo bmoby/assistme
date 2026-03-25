@@ -9,11 +9,11 @@ export async function seedTestStudent(discordUserId: string): Promise<SeedResult
   const db = createTestClient();
   const runId = createTestRunId();
 
-  const { data, error } = await db.from('students').insert({
+  const { data, error } = await db.from('students').upsert({
     name: `E2E Student ${runId}`,
     discord_id: discordUserId,
     pod_id: 1,
-  }).select('id').single();
+  }, { onConflict: 'discord_id' }).select('id').single();
 
   if (error) throw new Error(`E2E student seed failed: ${error.message}`);
   return { runId, studentId: data.id };
