@@ -8,9 +8,18 @@ importers:
 
   .:
     devDependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.99.0
+        version: 2.99.0
       '@vitest/coverage-v8':
         specifier: ^4.1.1
         version: 4.1.1(vitest@4.1.1(@types/node@22.19.15)(msw@2.12.14(@types/node@22.19.15)(typescript@5.9.3))(vite@8.0.2(@types/node@22.19.15)(esbuild@0.27.3)(tsx@4.21.0)))
+      discord.js:
+        specifier: ^14.25.1
+        version: 14.25.1
+      dotenv:
+        specifier: ^17.3.1
+        version: 17.3.1
       msw:
         specifier: ^2.12.14
         version: 2.12.14(@types/node@22.19.15)(typescript@5.9.3)
