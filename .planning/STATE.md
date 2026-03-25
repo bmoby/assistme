@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-stopped_at: Completed 04-e2e-discord-dev 04-01-PLAN.md
-last_updated: "2026-03-25T04:35:21.372Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 04-e2e-discord-dev 04-02-PLAN.md
+last_updated: "2026-03-25T04:41:04.375Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -57,6 +57,7 @@ Plan: 2 of 2
 | Phase 03-integration-ci P02 | 2 | 2 tasks | 2 files |
 | Phase 03-integration-ci P03 | 15 | 2 tasks | 2 files |
 | Phase 04-e2e-discord-dev P01 | 3 | 2 tasks | 10 files |
+| Phase 04-e2e-discord-dev PP02 | 20 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,9 @@ Recent decisions affecting current work:
 - [Phase 04-e2e-discord-dev]: singleFork: true — all e2e test files share one fork process, bots connect once and remain connected for all tests
 - [Phase 04-e2e-discord-dev]: clients.ts mutable let exports populated by setters — avoids circular imports, stable import path for test files
 - [Phase 04-e2e-discord-dev]: loadE2eEnv() maps DISCORD_DEV_BOT_TOKEN to DISCORD_BOT_TOKEN — handlers read standard env names without modification
+- [Phase 04-e2e-discord-dev]: faq.ts bot-check bypass uses NODE_ENV=test only — production behavior unchanged, unit tests unaffected
+- [Phase 04-e2e-discord-dev]: In-memory Buffer fixtures for PDF/PNG attachments avoid disk I/O and make E2E tests self-contained
+- [Phase 04-e2e-discord-dev]: CI e2e job writes .env.test from GitHub secrets via heredoc, runs only on workflow_dispatch
 
 ### Pending Todos
 
@@ -110,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T04:35:21.367Z
-Stopped at: Completed 04-e2e-discord-dev 04-01-PLAN.md
+Last session: 2026-03-25T04:41:04.370Z
+Stopped at: Completed 04-e2e-discord-dev 04-02-PLAN.md
 Resume file: None

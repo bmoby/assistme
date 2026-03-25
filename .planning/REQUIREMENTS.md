@@ -42,11 +42,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### E2E Tests
 
-- [ ] **E2E-01**: Bot Discord de dev cree (token separe, application Discord dediee)
-- [ ] **E2E-02**: Serveur Discord de test cree avec channels miroir de la prod
-- [ ] **E2E-03**: Scenario E2E: flux DM etudiant complet (message -> DM Agent -> reponse)
-- [ ] **E2E-04**: Scenario E2E: soumission exercice (upload -> review -> feedback)
-- [ ] **E2E-05**: Scenario E2E: FAQ (question -> detection pattern -> reponse)
+- [x] **E2E-01**: Bot Discord de dev cree (token separe, application Discord dediee)
+- [x] **E2E-02**: Serveur Discord de test cree avec channels miroir de la prod
+- [x] **E2E-03**: Scenario E2E: flux DM etudiant complet (message -> DM Agent -> reponse)
+- [x] **E2E-04**: Scenario E2E: soumission exercice (upload -> review -> feedback)
+- [x] **E2E-05**: Scenario E2E: FAQ (question -> detection pattern -> reponse)
 
 ### CI Pipeline
 
@@ -110,8 +110,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CI-02 | Phase 3 | Complete |
 | CI-03 | Phase 3 | Complete |
 | CI-04 | Phase 3 | Complete |
-| E2E-01 | Phase 4 | Pending |
-| E2E-02 | Phase 4 | Pending |
-| E2E-03 | Phase 4 | Pending |
-| E2E-04 | Phase 4 | Pending |
-| E2E-05 | Phase 4 | Pending |
+| E2E-01 | Phase 4 | Complete |
+| E2E-02 | Phase 4 | Complete |
+| E2E-03 | Phase 4 | Complete |
+| E2E-04 | Phase 4 | Complete |
+| E2E-05 | Phase 4 | Complete |
