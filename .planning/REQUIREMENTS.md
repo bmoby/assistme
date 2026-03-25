@@ -19,7 +19,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **MOCK-01**: Factories Discord.js (Message, Guild, GuildMember, Interaction) via plain objects + `vi.fn()`
 - [x] **MOCK-02**: Fixtures Claude API avec sequences tool-use multi-turn (DM Agent, Tsarag, FAQ)
-- [ ] **MOCK-03**: MSW v2 handlers pour intercepter Supabase REST et Claude API HTTP (deferred from Phase 2 to Phase 3 per D-04: vi.mock() only in Phase 2)
+- [x] **MOCK-03**: MSW v2 handlers pour intercepter Supabase REST et Claude API HTTP (deferred from Phase 2 to Phase 3 per D-04: vi.mock() only in Phase 2)
 - [x] **MOCK-04**: Fixtures domaine partagees (students, sessions, exercises, formation knowledge)
 
 ### Unit Tests
@@ -34,11 +34,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Integration Tests
 
-- [ ] **INTG-01**: Supabase local Docker setup (`supabase start` / `supabase db reset` dans le test lifecycle)
+- [x] **INTG-01**: Supabase local Docker setup (`supabase start` / `supabase db reset` dans le test lifecycle)
 - [ ] **INTG-02**: Tests DB layer (queries, RPC functions type `search_formation_knowledge`)
 - [ ] **INTG-03**: Tests pgvector (hybrid search vector cosine + BM25)
 - [ ] **INTG-04**: Tests agent + DB integration (vraies queries Supabase, Claude API mocke)
-- [ ] **INTG-05**: Test isolation par prefixage de donnees + cleanup `afterAll`
+- [x] **INTG-05**: Test isolation par prefixage de donnees + cleanup `afterAll`
 
 ### E2E Tests
 
@@ -101,11 +101,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UNIT-05 | Phase 2 | Complete |
 | UNIT-06 | Phase 2 | Complete |
 | UNIT-07 | Phase 2 | Complete |
-| INTG-01 | Phase 3 | Pending |
+| INTG-01 | Phase 3 | Complete |
 | INTG-02 | Phase 3 | Pending |
 | INTG-03 | Phase 3 | Pending |
 | INTG-04 | Phase 3 | Pending |
-| INTG-05 | Phase 3 | Pending |
+| INTG-05 | Phase 3 | Complete |
 | CI-01 | Phase 3 | Complete |
 | CI-02 | Phase 3 | Complete |
 | CI-03 | Phase 3 | Complete |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-stopped_at: Completed 03-integration-ci/03-04-PLAN.md
-last_updated: "2026-03-25T02:36:17.587Z"
+stopped_at: Completed 03-integration-ci/03-01-PLAN.md
+last_updated: "2026-03-25T02:37:29.400Z"
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 10
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-24)
 ## Current Position
 
 Phase: 03 (integration-ci) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Plan: 2 of 4
 | Phase 02-mocks-unit-tests P04 | 15 | 2 tasks | 2 files |
 | Phase 02-mocks-unit-tests P03 | 10 | 3 tasks | 3 files |
 | Phase 03-integration-ci P04 | 3 | 1 tasks | 1 files |
+| Phase 03-integration-ci P01 | 2 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,9 @@ Recent decisions affecting current work:
 - [Phase 02-mocks-unit-tests]: Approach A (mock button-handler to capture handlers) for review-buttons: handler functions not exported
 - [Phase 03-integration-ci]: Three-tier CI: unit on push, integration on PR, E2E on workflow_dispatch only — no Discord secrets in automated jobs
 - [Phase 03-integration-ci]: Supabase Docker cache keyed on migrations/** hash — auto-invalidates on schema changes in CI
+- [Phase 03-integration-ci]: Integration projects use real Supabase local service role key committed to vitest.config.ts — safe for localhost-only key
+- [Phase 03-integration-ci]: globalSetup teardown is no-op: keep Supabase running for dev speed, stop manually with supabase stop
+- [Phase 03-integration-ci]: test:integration script no longer needs || exit 0 — integration projects now defined in vitest config
 
 ### Pending Todos
 
@@ -94,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T02:36:17.581Z
-Stopped at: Completed 03-integration-ci/03-04-PLAN.md
+Last session: 2026-03-25T02:37:29.394Z
+Stopped at: Completed 03-integration-ci/03-01-PLAN.md
 Resume file: None
