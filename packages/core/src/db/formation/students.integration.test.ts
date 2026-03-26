@@ -62,6 +62,6 @@ describe('students DB integration', () => {
   it('searchStudentByName finds students by partial name match', async () => {
     const results = await searchStudentByName(TEST_RUN_ID);
     expect(results.length).toBeGreaterThanOrEqual(1);
-    expect(results[0].name).toContain(TEST_RUN_ID);
+    expect(results[0]!.name).toContain(TEST_RUN_ID);
   });
 });

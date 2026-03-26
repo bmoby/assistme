@@ -235,7 +235,7 @@ describe('admin-handler', () => {
       })
     );
     // Response sent via channel.send() (not message.reply())
-    expect(message.channel.send).toHaveBeenCalledWith('Bien recu.');
+    expect((message.channel as unknown as { send: unknown }).send).toHaveBeenCalledWith('Bien recu.');
   });
 
   // ============================================
