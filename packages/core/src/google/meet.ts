@@ -30,6 +30,15 @@ export async function createMeetEvent(
   startTime: string,
   durationMinutes = 120
 ): Promise<MeetEventResult> {
+  // Dev/test: return a fictitious link when Google credentials are not configured
+  const hasGoogleCreds = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN;
+  if (!hasGoogleCreds) {
+    const fakeId = `dev-${Date.now()}`;
+    const fakeUrl = `https://meet.google.com/dev-fake-${fakeId.slice(-8)}`;
+    logger.info({ meetUrl: fakeUrl, title }, 'Google Meet credentials not set — returning fictitious link');
+    return { meetUrl: fakeUrl, eventId: fakeId };
+  }
+
   const auth = getAuthClient();
   const calendar = google.calendar({ version: 'v3', auth });
 
