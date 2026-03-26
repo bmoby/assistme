@@ -54,7 +54,7 @@ describe('handleCreate', () => {
 
   it('happy path: invokes agent and replies with confirmation', async () => {
     mockedAgentsResolveRole.mockReturnValue('formateur' as never);
-    mockedAgentsInvoke.mockResolvedValue(undefined);
+    mockedAgentsInvoke.mockResolvedValue(undefined as never);
     mockedAgentsGetAgent.mockReturnValue({ displayName: 'Artisan (PPTX)' } as never);
 
     const interaction = new CommandInteractionBuilder()
@@ -79,7 +79,7 @@ describe('handleCreate', () => {
   it('handles agent invoke error and replies with error message', async () => {
     mockedAgentsResolveRole.mockReturnValue('formateur' as never);
     mockedAgentsInvoke.mockRejectedValue(new Error('Agent failed'));
-    mockedAgentsGetAgent.mockReturnValue(null);
+    mockedAgentsGetAgent.mockReturnValue(undefined);
 
     const interaction = new CommandInteractionBuilder()
       .withMember(makeAdminMember())
@@ -96,7 +96,7 @@ describe('handleCreate', () => {
 
   it('invokes agent with details when provided', async () => {
     mockedAgentsResolveRole.mockReturnValue('formateur' as never);
-    mockedAgentsInvoke.mockResolvedValue(undefined);
+    mockedAgentsInvoke.mockResolvedValue(undefined as never);
     mockedAgentsGetAgent.mockReturnValue({ displayName: 'Chercheur' } as never);
 
     const interaction = new CommandInteractionBuilder()

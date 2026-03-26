@@ -140,7 +140,7 @@ describe('dm-handler', () => {
     // Default agent response
     mockRunDmAgent.mockResolvedValue({
       text: 'Привет! Я DM агент.',
-      submissionId: null,
+      submissionId: undefined,
     });
 
     // Setup attachment/exercise mocks for notification tests
@@ -219,7 +219,7 @@ describe('dm-handler', () => {
   it('handles DM from user not found in DB', async () => {
     mockGetStudentByDiscordId.mockResolvedValue(null);
     // dm-handler doesn't pre-check student — runDmAgent handles that internally
-    mockRunDmAgent.mockResolvedValue({ text: 'Ты не зарегистрирован.', submissionId: null });
+    mockRunDmAgent.mockResolvedValue({ text: 'Ты не зарегистрирован.', submissionId: undefined });
 
     const message = new MessageBuilder()
       .asDM()
@@ -245,7 +245,7 @@ describe('dm-handler', () => {
   it('routes student DM to runDmAgent', async () => {
     const student = createStudent({ discord_id: 'discord-123' });
     mockGetStudentByDiscordId.mockResolvedValue(student);
-    mockRunDmAgent.mockResolvedValue({ text: 'Привет! Вот твой прогресс.', submissionId: null });
+    mockRunDmAgent.mockResolvedValue({ text: 'Привет! Вот твой прогресс.', submissionId: undefined });
 
     const message = new MessageBuilder()
       .asDM()
@@ -278,7 +278,7 @@ describe('dm-handler', () => {
     mockGetStudentByDiscordId.mockResolvedValue(student);
 
     // First message
-    mockRunDmAgent.mockResolvedValueOnce({ text: 'Первый ответ агента.', submissionId: null });
+    mockRunDmAgent.mockResolvedValueOnce({ text: 'Первый ответ агента.', submissionId: undefined });
     const msg1 = new MessageBuilder()
       .asDM()
       .withContent('Первое сообщение')
@@ -288,7 +288,7 @@ describe('dm-handler', () => {
     await drainProcessing();
 
     // Second message (state should accumulate)
-    mockRunDmAgent.mockResolvedValueOnce({ text: 'Второй ответ агента.', submissionId: null });
+    mockRunDmAgent.mockResolvedValueOnce({ text: 'Второй ответ агента.', submissionId: undefined });
     const msg2 = new MessageBuilder()
       .asDM()
       .withContent('Второе сообщение')
@@ -325,11 +325,11 @@ describe('dm-handler', () => {
     mockRunDmAgent.mockImplementationOnce(async () => {
       order.push(1);
       await new Promise((r) => setTimeout(r, 20));
-      return { text: 'Ответ 1', submissionId: null };
+      return { text: 'Ответ 1', submissionId: undefined };
     });
     mockRunDmAgent.mockImplementationOnce(async () => {
       order.push(2);
-      return { text: 'Ответ 2', submissionId: null };
+      return { text: 'Ответ 2', submissionId: undefined };
     });
 
     const msg1 = new MessageBuilder().asDM().withContent('Сообщение 1').withAuthorId('discord-789').build();
@@ -355,7 +355,7 @@ describe('dm-handler', () => {
   it('handles messages with image attachments', async () => {
     const student = createStudent({ discord_id: 'discord-att' });
     mockGetStudentByDiscordId.mockResolvedValue(student);
-    mockRunDmAgent.mockResolvedValue({ text: 'Получил твой файл.', submissionId: null });
+    mockRunDmAgent.mockResolvedValue({ text: 'Получил твой файл.', submissionId: undefined });
 
     // Mock fetch for attachment download
     const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
@@ -458,7 +458,7 @@ describe('dm-handler', () => {
   it('state is isolated between tests via _clearStateForTesting', async () => {
     const student = createStudent({ discord_id: 'discord-iso' });
     mockGetStudentByDiscordId.mockResolvedValue(student);
-    mockRunDmAgent.mockResolvedValue({ text: 'Ответ 1', submissionId: null });
+    mockRunDmAgent.mockResolvedValue({ text: 'Ответ 1', submissionId: undefined });
 
     // First message
     const msg1 = new MessageBuilder()
@@ -473,7 +473,7 @@ describe('dm-handler', () => {
     _clearStateForTesting();
 
     // Second message should start a fresh conversation
-    mockRunDmAgent.mockResolvedValue({ text: 'Ответ свежий', submissionId: null });
+    mockRunDmAgent.mockResolvedValue({ text: 'Ответ свежий', submissionId: undefined });
     const msg2 = new MessageBuilder()
       .asDM()
       .withContent('Новое сообщение после сброса')
@@ -514,7 +514,7 @@ describe('dm-handler', () => {
   it('extracts URLs from message content and adds to pending attachments', async () => {
     const student = createStudent({ discord_id: 'discord-url' });
     mockGetStudentByDiscordId.mockResolvedValue(student);
-    mockRunDmAgent.mockResolvedValue({ text: 'Ссылка получена.', submissionId: null });
+    mockRunDmAgent.mockResolvedValue({ text: 'Ссылка получена.', submissionId: undefined });
 
     const message = new MessageBuilder()
       .asDM()

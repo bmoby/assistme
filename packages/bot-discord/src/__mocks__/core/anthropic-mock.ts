@@ -26,7 +26,8 @@ import { vi } from 'vitest';
  * Configure it with `mockResolvedValue` / `mockResolvedValueOnce` in your tests.
  * Reset in `beforeEach` with `mockAnthropicCreate.mockReset()`.
  */
-export const mockAnthropicCreate = vi.fn();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const mockAnthropicCreate: any = vi.fn();
 
 // ============================================
 // Sequence helpers
