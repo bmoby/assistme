@@ -131,10 +131,14 @@ async function uploadFileToStorage(
   const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
   const storagePath = `${studentId}/session-${sessionNumber}/${timestamp}-${safeName}`;
 
+  // Add charset=utf-8 for text-based files so browsers display Cyrillic correctly
+  const isTextBased = mimeType.startsWith('text/') || mimeType === 'application/json';
+  const finalContentType = isTextBased ? `${mimeType}; charset=utf-8` : mimeType;
+
   const { error } = await db.storage
     .from('exercise-submissions')
     .upload(storagePath, buffer, {
-      contentType: mimeType,
+      contentType: finalContentType,
       upsert: false,
     });
 
