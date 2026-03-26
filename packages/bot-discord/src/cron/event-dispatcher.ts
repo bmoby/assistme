@@ -1,5 +1,5 @@
 import { Client, TextChannel, AttachmentBuilder } from 'discord.js';
-import { getUnprocessedEvents, markEventProcessed, agents, getExercise, getSession, getAttachmentsByExercise } from '@assistme/core';
+import { getUnprocessedEvents, markEventProcessed, agents, getExercise, getSession, getSignedUrlsForExercise } from '@assistme/core';
 import { logger } from '@assistme/core';
 import { CHANNELS } from '../config.js';
 import { formatSubmissionNotification } from '../utils/format.js';
@@ -90,14 +90,14 @@ export async function dispatchDiscordEvents(client: Client, guildId: string): Pr
 
               // Rebuild the embed with AI score
               const session = exercise.session_id ? await getSession(exercise.session_id) : null;
-              const attachments = await getAttachmentsByExercise(exerciseId);
+              const attachmentsWithUrls = await getSignedUrlsForExercise(exerciseId);
 
               // Find student name from the existing embed
               const existingStudentField = msg.embeds[0]?.fields?.find((f) => f.name === '👤 Etudiant');
               const studentName = existingStudentField?.value ?? 'Etudiant';
 
               const isResubmission = exercise.submission_count > 1;
-              const updatedEmbed = formatSubmissionNotification(exercise, session, studentName, attachments, isResubmission);
+              const updatedEmbed = formatSubmissionNotification(exercise, session, studentName, attachmentsWithUrls, isResubmission);
 
               await msg.edit({ embeds: [updatedEmbed], components: msg.components });
               logger.info({ exerciseId, score: (exercise.ai_review as Record<string, unknown>)?.score }, 'Admin notification updated with AI score');

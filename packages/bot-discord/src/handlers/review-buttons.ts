@@ -160,12 +160,12 @@ async function handleReviewDecision(interaction: ButtonInteraction): Promise<voi
           // Reload exercise to get updated status
           const updatedExercise = await getExercise(exerciseId);
           if (updatedExercise && student) {
-            const attachments = await import('@assistme/core').then((m) => m.getAttachmentsByExercise(exerciseId));
+            const attachmentsWithUrls = await import('@assistme/core').then((m) => m.getSignedUrlsForExercise(exerciseId));
             const updatedEmbed = formatSubmissionNotification(
               updatedExercise,
               session,
               student.name,
-              attachments,
+              attachmentsWithUrls,
               updatedExercise.submission_count > 1
             );
             // Remove the button (exercise is processed)
