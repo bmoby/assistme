@@ -26,6 +26,7 @@ import {
   deleteAttachmentsByExercise,
   deleteStorageFiles,
   getSignedUrl,
+  getSignedUrlsForExercise,
   createFormationEvent,
   reviewExercise,
 } from '@assistme/core';
@@ -74,11 +75,37 @@ const ACCEPTED_MIME_EXACT = [
 ];
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB
 
+function normalizeMimeType(mimeType: string): string {
+  // Strip parameters like "; charset=utf-8"
+  const base = mimeType.split(';')[0] ?? mimeType;
+  return base.trim().toLowerCase();
+}
+
+const EXTENSION_MIME_MAP: Record<string, string> = {
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.zip': 'application/zip',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+};
+
+function guessMimeFromFilename(filename: string): string {
+  const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+  return EXTENSION_MIME_MAP[ext] ?? 'application/octet-stream';
+}
+
 function isAcceptedMimeType(mimeType: string | null): boolean {
   if (!mimeType) return false;
+  const normalized = normalizeMimeType(mimeType);
   return (
-    ACCEPTED_MIME_PREFIXES.some((p) => mimeType.startsWith(p)) ||
-    ACCEPTED_MIME_EXACT.includes(mimeType)
+    ACCEPTED_MIME_PREFIXES.some((p) => normalized.startsWith(p)) ||
+    ACCEPTED_MIME_EXACT.includes(normalized)
   );
 }
 
@@ -497,7 +524,8 @@ async function processDmMessage(message: Message): Promise<void> {
   // Handle file attachments — download to buffer (upload deferred to submission)
   const attachmentInfoParts: string[] = [];
   for (const attachment of message.attachments.values()) {
-    const mimeType = attachment.contentType ?? 'application/octet-stream';
+    const rawMime = attachment.contentType ?? guessMimeFromFilename(attachment.name ?? 'file');
+    const mimeType = normalizeMimeType(rawMime);
     const fileSize = attachment.size;
     const filename = attachment.name ?? 'file';
 
@@ -645,7 +673,7 @@ async function notifyAdminChannel(exerciseId: string, discordUserId: string): Pr
   if (!student) return;
 
   const session = exercise.session_id ? await getSession(exercise.session_id) : null;
-  const attachments = await getAttachmentsByExercise(exerciseId);
+  const attachmentsWithUrls = await getSignedUrlsForExercise(exerciseId);
 
   const isResubmission = exercise.submission_count > 1;
 
@@ -660,7 +688,7 @@ async function notifyAdminChannel(exerciseId: string, discordUserId: string): Pr
   }
 
   // Build embed + button
-  const embed = formatSubmissionNotification(exercise, session, student.name, attachments, isResubmission);
+  const embed = formatSubmissionNotification(exercise, session, student.name, attachmentsWithUrls, isResubmission);
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`review_open_${exerciseId}`)

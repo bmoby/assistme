@@ -94,7 +94,7 @@ export function formatSubmissionNotification(
   exercise: StudentExercise,
   session: Session | null,
   studentName: string,
-  attachments: SubmissionAttachment[],
+  attachmentsWithUrls: Array<{ attachment: SubmissionAttachment; signedUrl: string | null }>,
   isResubmission: boolean
 ): EmbedBuilder {
   const aiReview = exercise.ai_review as Record<string, unknown> | null;
@@ -114,12 +114,30 @@ export function formatSubmissionNotification(
     .setColor(isResubmission ? 0xff9900 : 0x5865f2)
     .setTimestamp();
 
-  // Files
-  if (attachments.length > 0) {
-    const fileList = attachments
-      .map((a) => a.original_filename ?? a.type)
-      .join(', ');
-    embed.addFields({ name: '📁 Fichiers', value: `${attachments.length} (${fileList})`.slice(0, 1024) });
+  // Files with clickable links and inline image
+  if (attachmentsWithUrls.length > 0) {
+    const lines: string[] = [];
+    let firstImageUrl: string | null = null;
+
+    for (const { attachment: a, signedUrl } of attachmentsWithUrls) {
+      if (a.type === 'url') {
+        lines.push(`🔗 [${a.original_filename ?? 'Lien'}](${a.url})`);
+      } else if (a.type === 'image' && signedUrl) {
+        lines.push(`🖼️ [${a.original_filename ?? 'Image'}](${signedUrl})`);
+        if (!firstImageUrl) firstImageUrl = signedUrl;
+      } else if (signedUrl) {
+        lines.push(`📎 [${a.original_filename ?? 'Fichier'}](${signedUrl})`);
+      } else {
+        lines.push(`📎 ${a.original_filename ?? 'Fichier'}`);
+      }
+    }
+
+    embed.addFields({ name: `📁 Fichiers (${attachmentsWithUrls.length})`, value: lines.join('\n').slice(0, 1024) });
+
+    // Show first image inline in the embed
+    if (firstImageUrl) {
+      embed.setImage(firstImageUrl);
+    }
   }
 
   // AI score
