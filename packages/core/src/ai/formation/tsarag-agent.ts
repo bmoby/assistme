@@ -477,23 +477,43 @@ async function handleCreateSession(
   const module = input.module as number;
   const title = input.title as string;
   const status = (input.status as string) ?? 'published';
+  const warnings: string[] = [];
 
-  let session = await createSession({
-    session_number: sessionNumber,
-    module,
-    title,
-    description: input.description as string | undefined,
-    exercise_description: input.exercise_description as string | undefined,
-    expected_deliverables: input.expected_deliverables as string | undefined,
-    exercise_tips: input.exercise_tips as string | undefined,
-    deadline: input.deadline ? parseAdminDate(input.deadline as string) ?? undefined : undefined,
-    live_at: input.live_at ? parseAdminDate(input.live_at as string) ?? undefined : undefined,
-    live_url: input.live_url as string | undefined,
-    status: status as 'draft' | 'published',
-  });
+  // --- Step 1: Create or recover session (idempotent) ---
+  let session = await getSessionByNumber(sessionNumber);
+  if (session) {
+    // Session exists from a previous partial attempt — update with latest params
+    logger.info({ sessionNumber }, 'Session already exists — recovering and updating');
+    session = await updateSession(session.id, {
+      title,
+      module,
+      description: (input.description as string | undefined) ?? session.description,
+      exercise_description: (input.exercise_description as string | undefined) ?? session.exercise_description,
+      expected_deliverables: (input.expected_deliverables as string | undefined) ?? session.expected_deliverables,
+      exercise_tips: (input.exercise_tips as string | undefined) ?? session.exercise_tips,
+      deadline: input.deadline ? parseAdminDate(input.deadline as string) ?? session.deadline : session.deadline,
+      live_at: input.live_at ? parseAdminDate(input.live_at as string) ?? session.live_at : session.live_at,
+      status: status as 'draft' | 'published',
+    });
+    warnings.push('Session existait deja en DB — mise a jour appliquee');
+  } else {
+    session = await createSession({
+      session_number: sessionNumber,
+      module,
+      title,
+      description: input.description as string | undefined,
+      exercise_description: input.exercise_description as string | undefined,
+      expected_deliverables: input.expected_deliverables as string | undefined,
+      exercise_tips: input.exercise_tips as string | undefined,
+      deadline: input.deadline ? parseAdminDate(input.deadline as string) ?? undefined : undefined,
+      live_at: input.live_at ? parseAdminDate(input.live_at as string) ?? undefined : undefined,
+      live_url: input.live_url as string | undefined,
+      status: status as 'draft' | 'published',
+    });
+  }
 
-  // Auto-generate Google Meet link if live_at is provided
-  if (input.live_at && session.live_at) {
+  // --- Step 2: Google Meet link (only if not already set) ---
+  if (input.live_at && session.live_at && !session.live_url) {
     try {
       const { meetUrl } = await createMeetEvent(
         `Session ${sessionNumber} — ${title}`,
@@ -503,31 +523,46 @@ async function handleCreateSession(
       session = { ...session, live_url: meetUrl };
     } catch (meetError) {
       logger.warn({ error: meetError }, 'Failed to create Google Meet link for new session');
+      warnings.push('Google Meet non genere');
     }
   }
 
-  // Update video URL if provided
+  // --- Step 3: Video URL ---
   if (input.video_url) {
     await updateSession(session.id, { pre_session_video_url: input.video_url as string });
   }
 
-  let threadId: string | null = null;
+  // --- Step 4: Discord operations (forum + announcement) — wrapped in try/catch ---
+  let threadId: string | null = session.discord_thread_id ?? null;
 
-  // Post to forum
   if (status === 'published') {
     // Refresh session from DB to get all updates (meet link, video, etc.)
     const freshSession = await getSessionByNumber(sessionNumber);
     const sessionForForum = freshSession ?? session;
 
-    const forumContent = buildSessionForumContent(sessionForForum);
-    threadId = await context.discordActions.sendToSessionsForum(sessionNumber, title, forumContent, module);
-
-    if (threadId) {
-      await updateSession(sessionForForum.id, { discord_thread_id: threadId });
+    // Create forum thread only if not already done
+    if (!sessionForForum.discord_thread_id) {
+      try {
+        const forumContent = buildSessionForumContent(sessionForForum);
+        threadId = await context.discordActions.sendToSessionsForum(sessionNumber, title, forumContent, module);
+        if (threadId) {
+          await updateSession(sessionForForum.id, { discord_thread_id: threadId });
+        }
+      } catch (forumError) {
+        logger.error({ error: forumError, sessionNumber }, 'Failed to create forum thread for session');
+        warnings.push(`Forum: ${forumError instanceof Error ? forumError.message : String(forumError)}`);
+      }
+    } else {
+      threadId = sessionForForum.discord_thread_id;
     }
 
     // Announce
-    await context.discordActions.sendAnnouncement(buildSessionAnnouncement(sessionForForum), true);
+    try {
+      await context.discordActions.sendAnnouncement(buildSessionAnnouncement(sessionForForum), true);
+    } catch (announceError) {
+      logger.error({ error: announceError, sessionNumber }, 'Failed to send session announcement');
+      warnings.push(`Annonce: ${announceError instanceof Error ? announceError.message : String(announceError)}`);
+    }
   }
 
   return JSON.stringify({
@@ -536,6 +571,7 @@ async function handleCreateSession(
     session_number: sessionNumber,
     thread_id: threadId,
     status,
+    ...(warnings.length > 0 && { warnings }),
   });
 }
 
