@@ -2,9 +2,12 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
 
-// Load .env BEFORE any other imports that need env vars
+// Load .env.dev first (overrides), then .env (defaults)
+// dotenv does NOT overwrite existing vars, so first-loaded wins
 const __dirname = dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: resolve(__dirname, '../../../.env') });
+const root = resolve(__dirname, '../../..');
+dotenv.config({ path: resolve(root, '.env.dev') });
+dotenv.config({ path: resolve(root, '.env') });
 
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import { logger, agents } from '@assistme/core';
@@ -42,7 +45,11 @@ async function main(): Promise<void> {
   agents.registerChercheur();
 
   // Register slash commands via REST API (guild-level for instant updates)
-  await registerSlashCommands(token, clientId, guildId);
+  try {
+    await registerSlashCommands(token, clientId, guildId);
+  } catch (err) {
+    logger.warn({ err }, 'Slash commands registration failed — bot continues without them');
+  }
 
   // Register button handlers
   registerReviewButtons();
