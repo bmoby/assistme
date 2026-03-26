@@ -108,6 +108,8 @@ export interface StudentExercise {
   submission_count: number;
   review_history: ReviewHistoryEntry[];
   notification_message_id: string | null;
+  review_thread_id: string | null;
+  review_thread_ai_message_id: string | null;
   created_at: string;
 }
 

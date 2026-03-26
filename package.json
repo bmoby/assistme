@@ -9,7 +9,7 @@
     "lint": "eslint packages/*/src/**/*.ts",
     "lint:fix": "eslint packages/*/src/**/*.ts --fix",
     "format": "prettier --write 'packages/*/src/**/*.ts'",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm -F @assistme/core build && pnpm -r run typecheck",
     "seed:knowledge": "pnpm exec tsx scripts/seed-formation-knowledge.ts",
     "test": "vitest run --project core --project bot-discord",
     "test:unit": "vitest run --project core --project bot-discord",
@@ -28,6 +28,7 @@
     "discord.js": "^14.25.1",
     "dotenv": "^17.3.1",
     "msw": "^2.12.14",
+    "puppeteer": "^24.40.0",
     "tsx": "^4.21.0",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.1"

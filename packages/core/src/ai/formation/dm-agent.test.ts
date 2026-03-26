@@ -17,24 +17,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 // Mock all DB functions the agent calls
 vi.mock('../../db/formation/index.js');
-vi.mock('../../db/formation/exercises.js');
-vi.mock('../../db/formation/attachments.js');
-vi.mock('./exercise-reviewer.js');
 vi.mock('../embeddings.js');
-vi.mock('../../db/client.js', () => ({
-  getSupabase: vi.fn().mockReturnValue({
-    storage: {
-      from: vi.fn().mockReturnValue({
-        upload: vi.fn().mockResolvedValue({ error: null }),
-      }),
-    },
-    from: vi.fn().mockReturnValue({
-      update: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      }),
-    }),
-  }),
-}));
 vi.mock('../../logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() },
 }));
@@ -47,7 +30,6 @@ import {
   getPublishedSessions,
   searchFormationKnowledge,
 } from '../../db/formation/index.js';
-import { submitExercise } from '../../db/formation/exercises.js';
 import { getEmbedding } from '../embeddings.js';
 
 // ============================================
@@ -116,6 +98,7 @@ const MOCK_SESSIONS = [
     expected_deliverables: null,
     exercise_tips: null,
     video_url: null,
+    replay_url: null,
     live_at: null,
     live_url: null,
     discord_thread_id: null,
@@ -184,43 +167,22 @@ describe('DM Agent', () => {
     expect(result.text).toBe('Вот твой прогресс: 0 из 1 заданий сдано.');
   });
 
-  it('routes create_submission tool call and returns submissionId', async () => {
-    const mockExercise = {
-      id: 'exercise-1',
-      student_id: 'student-1',
-      module: 1,
-      exercise_number: 1,
-      submission_url: null,
-      submission_type: 'text',
-      submitted_at: '2024-01-01T00:00:00Z',
-      ai_review: null,
-      manual_review: null,
-      status: 'submitted' as const,
-      reviewed_at: null,
-      feedback: null,
-      session_id: 'session-1',
-      submission_count: 1,
-      review_history: [],
-      notification_message_id: null,
-      created_at: '2024-01-01T00:00:00Z',
-    };
-
-    vi.mocked(submitExercise).mockResolvedValue(mockExercise);
-
-    // Mock getSessionByNumber through index mock
-    const { getSessionByNumber } = await import('../../db/formation/index.js');
-    vi.mocked(getSessionByNumber).mockResolvedValue(MOCK_SESSIONS[0]!);
-
+  it('routes create_submission tool call and returns submissionIntent (no DB write)', async () => {
     mockCreate
       .mockResolvedValueOnce(makeToolUseResponse('create_submission', { session_number: 1, student_comment: 'Готово' }))
-      .mockResolvedValueOnce(makeTextResponse('Задание принято!'));
+      .mockResolvedValueOnce(makeTextResponse('Задание подготовлено к отправке!'));
 
     const result = await runDmAgent(BASE_CONTEXT);
 
-    expect(submitExercise).toHaveBeenCalled();
-    expect(result.submissionId).toBe('exercise-1');
+    // Agent should NOT write to DB — it returns intent for handler to process
+    expect(result.submissionId).toBeUndefined();
+    // submissionIntent should be returned with correct session_number
+    expect(result.submissionIntent).toEqual({
+      session_number: 1,
+      student_comment: 'Готово',
+    });
     expect(mockCreate).toHaveBeenCalledTimes(2);
-    expect(result.text).toBe('Задание принято!');
+    expect(result.text).toBe('Задание подготовлено к отправке!');
   });
 
   it('routes search_course_content tool call to searchFormationKnowledge', async () => {
@@ -232,6 +194,10 @@ describe('DM Agent', () => {
         module: 1,
         session_number: 1,
         content_type: 'lesson',
+        tags: [],
+        source_file: 'module-1/lesson.md',
+        similarity: 0.85,
+        text_rank: 0.75,
         final_score: 0.85,
       },
     ]);
@@ -343,6 +309,8 @@ describe('DM Agent', () => {
         submission_count: 1,
         review_history: [],
         notification_message_id: null,
+        review_thread_id: null,
+        review_thread_ai_message_id: null,
         created_at: '2024-01-01T00:00:00Z',
       },
     ]);

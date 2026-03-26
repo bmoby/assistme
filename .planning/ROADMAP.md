@@ -82,7 +82,7 @@ Plans:
 
 </details>
 
-### 🚧 v2.0 Exercise Submission Flow (In Progress)
+### v2.0 Exercise Submission Flow (In Progress)
 
 **Milestone Goal:** Solidifier le flow complet de soumission d'exercices — unicite par session garantie en DB, guards d'etat dans les handlers, apercu-confirmation fiable, et UX formateur sans doublons de threads.
 
@@ -97,7 +97,11 @@ Plans:
   2. A submitted exercise record always contains `session_id` immediately after insertion — no window where it is NULL
   3. `getExerciseByStudentAndSession()` returns the exercise or null using a single targeted query, not a linear scan
   4. `pnpm typecheck` passes clean with `review_thread_id` and `review_thread_ai_message_id` as `string | null` on `StudentExercise`
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [x] 05-01-PLAN.md — Migration 017 + types + exercises.ts functions + dm-agent.ts caller update
+- [x] 05-02-PLAN.md — Integration tests for exercise DB layer (23505, atomic session_id, lookups)
 
 ### Phase 6: Submission Handler Correctness + Student UX
 **Goal**: Students can submit exercises with confidence — empty submissions are blocked, sessions are validated, re-submission works cleanly, and the preview-then-confirm flow is reliable
@@ -110,8 +114,11 @@ Plans:
   4. Typing "annuler" or clicking Cancel at any point clears all accumulated content and confirms cancellation to the student
   5. After receiving feedback, a student can re-submit and the new submission replaces the old one via the same flow
   6. An error during submission clears `pendingAttachments` so the next submission attempt starts from a clean state
-**Plans**: TBD
-**UI hint**: yes
+**Plans:** 1/2 plans executed
+
+Plans:
+- [x] 06-01-PLAN.md — DM agent submission intent return + handler preview-confirm flow with buttons
+- [x] 06-02-PLAN.md — Unit tests for all Phase 6 submission handler behaviors
 
 ### Phase 7: Admin Review UX + Test Coverage
 **Goal**: Admins review re-submissions in the same thread without duplicates, and the full submission state machine is covered by integration and E2E tests
@@ -135,6 +142,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 2. Mocks + Unit Tests | v1.0 | 5/5 | Complete | 2026-03-25 |
 | 3. Integration + CI | v1.0 | 4/4 | Complete | 2026-03-25 |
 | 4. E2E Discord Dev | v1.0 | 2/2 | Complete | 2026-03-25 |
-| 5. DB Foundation + Core Hardening | v2.0 | 0/? | Not started | - |
-| 6. Submission Handler Correctness + Student UX | v2.0 | 0/? | Not started | - |
+| 5. DB Foundation + Core Hardening | v2.0 | 2/2 | Complete | 2026-03-25 |
+| 6. Submission Handler Correctness + Student UX | v2.0 | 1/2 | In Progress|  |
 | 7. Admin Review UX + Test Coverage | v2.0 | 0/? | Not started | - |

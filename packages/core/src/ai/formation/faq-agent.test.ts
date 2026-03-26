@@ -31,6 +31,8 @@ const SAMPLE_FAQ_ENTRIES = [
     question: 'Что такое ИИ-агент?',
     answer: 'ИИ-агент — это автономная система, способная выполнять задачи с помощью ИИ.',
     category: 'concepts',
+    times_used: 5,
+    created_by: 'admin',
     created_at: '2024-01-01T00:00:00Z',
   },
   {
@@ -38,6 +40,8 @@ const SAMPLE_FAQ_ENTRIES = [
     question: 'Как сдать задание?',
     answer: 'Прикрепи файл в Discord в личном чате с ботом.',
     category: 'process',
+    times_used: 3,
+    created_by: 'admin',
     created_at: '2024-01-01T00:00:00Z',
   },
 ];
@@ -168,10 +172,11 @@ describe('answerFaqQuestion', () => {
         content_type: 'concept',
         module: 1,
         session_number: null,
-        keywords: [],
+        tags: [],
+        source_file: 'module-1/session-1.md',
+        similarity: 0.85,
+        text_rank: 0.8,
         final_score: 0.9,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
       },
     ]);
 

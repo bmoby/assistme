@@ -1,7 +1,44 @@
-import { Client, Message, DMChannel, TextChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
-import { logger, getExercise, getSession, getStudentByDiscordId, getAttachmentsByExercise, updateExercise } from '@assistme/core';
+import {
+  Client,
+  Message,
+  DMChannel,
+  TextChannel,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  ComponentType,
+} from 'discord.js';
+import {
+  logger,
+  getExercise,
+  getSession,
+  getStudentByDiscordId,
+  getAttachmentsByExercise,
+  updateExercise,
+  getSupabase,
+  getSessionByNumber,
+  getExercisesByStudent,
+  submitExercise,
+  resubmitExercise,
+  getExerciseByStudentAndSession,
+  addAttachment,
+  deleteAttachmentsByExercise,
+  deleteStorageFiles,
+  getSignedUrl,
+  createFormationEvent,
+  reviewExercise,
+} from '@assistme/core';
 import { runDmAgent } from '@assistme/core';
-import type { ConversationMessage, PendingAttachment } from '@assistme/core';
+import type {
+  ConversationMessage,
+  PendingAttachment,
+  SubmissionIntent,
+  Student,
+  Session,
+  StudentExercise,
+  AttachmentType,
+} from '@assistme/core';
 import { formatSubmissionNotification } from '../utils/format.js';
 import { CHANNELS } from '../config.js';
 
@@ -48,6 +85,392 @@ function isAcceptedMimeType(mimeType: string | null): boolean {
 function getAttachmentType(mimeType: string): PendingAttachment['type'] {
   if (mimeType.startsWith('image/')) return 'image';
   return 'file';
+}
+
+// ============================================
+// Storage upload (moved from dm-agent)
+// ============================================
+
+async function uploadFileToStorage(
+  buffer: Buffer,
+  studentId: string,
+  sessionNumber: number,
+  filename: string,
+  mimeType: string
+): Promise<string> {
+  const db = getSupabase();
+
+  const timestamp = Date.now();
+  const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storagePath = `${studentId}/session-${sessionNumber}/${timestamp}-${safeName}`;
+
+  const { error } = await db.storage
+    .from('exercise-submissions')
+    .upload(storagePath, buffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (error) {
+    logger.error({ error, storagePath }, 'Failed to upload to Supabase Storage');
+    throw error;
+  }
+
+  logger.info({ storagePath, size: buffer.length }, 'File uploaded to Supabase Storage');
+  return storagePath;
+}
+
+// ============================================
+// AI review trigger (moved from dm-agent)
+// ============================================
+
+async function triggerAiReview(
+  exerciseId: string,
+  student: Student,
+  session: Session,
+  storagePaths: string[]
+): Promise<void> {
+  const attachments: Array<{ signedUrl: string; type: AttachmentType; filename: string; mimeType: string }> = [];
+
+  for (const path of storagePaths) {
+    const signedUrl = await getSignedUrl(path, 3600);
+    const filename = path.split('/').pop() ?? 'file';
+    const isImage = /\.(png|jpe?g|webp|gif)$/i.test(filename);
+    attachments.push({
+      signedUrl,
+      type: isImage ? 'image' : 'file',
+      filename,
+      mimeType: isImage ? `image/${filename.split('.').pop()}` : 'application/octet-stream',
+    });
+  }
+
+  const result = await reviewExercise({
+    module: session.module,
+    exerciseNumber: session.session_number,
+    exerciseDescription: session.exercise_description ?? undefined,
+    studentName: student.name,
+    sessionNumber: session.session_number,
+    attachments,
+  });
+
+  // setAiReview is not exported from core, use updateExercise directly
+  await updateExercise(exerciseId, {
+    ai_review: result as unknown as Record<string, unknown>,
+    status: 'ai_reviewed',
+  });
+  logger.info({ exerciseId, score: result.score }, 'AI review completed and saved');
+
+  // Notify Discord to update the admin notification with AI score
+  try {
+    await createFormationEvent({
+      type: 'ai_review_complete',
+      source: 'discord',
+      target: 'discord',
+      data: { exercise_id: exerciseId },
+    });
+  } catch {
+    // Non-blocking — notification edit is best-effort
+  }
+}
+
+// ============================================
+// Execute submission after confirm
+// ============================================
+
+async function executeSubmission(
+  message: Message,
+  conv: ConversationState,
+  intent: SubmissionIntent,
+  student: Student,
+  session: Session,
+  isResubmission: boolean,
+  revisionExercise: StudentExercise | null
+): Promise<void> {
+  // Upload new files to storage
+  const storagePaths: string[] = [];
+  for (const attachment of conv.pendingAttachments) {
+    if (attachment.buffer && attachment.type !== 'url') {
+      const path = await uploadFileToStorage(
+        attachment.buffer,
+        student.id,
+        intent.session_number,
+        attachment.originalFilename,
+        attachment.mimeType
+      );
+      storagePaths.push(path);
+    }
+  }
+
+  const submissionType = conv.pendingAttachments.length > 0
+    ? conv.pendingAttachments.map((a) => a.type).join('+')
+    : 'text';
+  const submissionUrl = conv.pendingAttachments.find((a) => a.type === 'url')?.url ?? '';
+
+  let exercise: StudentExercise;
+
+  if (isResubmission && revisionExercise) {
+    // RE-SUBMISSION: delete old attachments, update existing record
+    const oldStoragePaths = await deleteAttachmentsByExercise(revisionExercise.id);
+
+    exercise = await resubmitExercise(revisionExercise.id, {
+      submission_url: submissionUrl || null,
+      submission_type: submissionType,
+    });
+
+    // Delete old files from storage (fire-and-forget)
+    void deleteStorageFiles(oldStoragePaths).catch((err) => {
+      logger.warn({ err, exerciseId: exercise.id }, 'Failed to delete old storage files');
+    });
+
+    logger.info(
+      { studentId: student.id, sessionNumber: intent.session_number, exerciseId: exercise.id, submissionCount: exercise.submission_count },
+      'Exercise re-submitted via DM handler'
+    );
+  } else {
+    // FIRST SUBMISSION: create new record with session_id atomically
+    exercise = await submitExercise({
+      student_id: student.id,
+      session_id: session.id,
+      module: session.module,
+      exercise_number: session.session_number,
+      submission_url: submissionUrl,
+      submission_type: submissionType,
+    });
+
+    logger.info(
+      { studentId: student.id, sessionNumber: intent.session_number, exerciseId: exercise.id, attachments: conv.pendingAttachments.length },
+      'Exercise submitted via DM handler'
+    );
+  }
+
+  // Create attachment records for new files
+  let storageIdx = 0;
+  for (const attachment of conv.pendingAttachments) {
+    if (attachment.type === 'url') {
+      await addAttachment({
+        exercise_id: exercise.id,
+        type: 'url',
+        url: attachment.url ?? undefined,
+        original_filename: attachment.originalFilename,
+        mime_type: attachment.mimeType,
+        file_size: attachment.fileSize,
+      });
+    } else if (attachment.type === 'text') {
+      await addAttachment({
+        exercise_id: exercise.id,
+        type: 'text',
+        storage_path: storagePaths[storageIdx],
+        original_filename: attachment.originalFilename,
+        mime_type: attachment.mimeType,
+        file_size: attachment.fileSize,
+        text_content: attachment.buffer?.toString('utf-8'),
+      });
+      storageIdx++;
+    } else {
+      await addAttachment({
+        exercise_id: exercise.id,
+        type: attachment.type,
+        storage_path: storagePaths[storageIdx],
+        original_filename: attachment.originalFilename,
+        mime_type: attachment.mimeType,
+        file_size: attachment.fileSize,
+      });
+      storageIdx++;
+    }
+  }
+
+  // Fire-and-forget AI review
+  if (storagePaths.length > 0) {
+    void triggerAiReview(exercise.id, student, session, storagePaths).catch(async (err) => {
+      logger.error({ err, exerciseId: exercise.id }, 'AI review failed (non-blocking)');
+      try {
+        await createFormationEvent({
+          type: 'student_alert',
+          source: 'discord',
+          target: 'telegram-admin',
+          data: {
+            alert_type: 'ai_review_failed',
+            student_name: student.name,
+            session_number: intent.session_number,
+            exercise_id: exercise.id,
+          },
+        });
+      } catch {
+        // Non-blocking
+      }
+    });
+  }
+
+  // Clear pending attachments
+  conv.pendingAttachments = [];
+
+  // Send confirmation to student
+  const confirmMsg = isResubmission
+    ? '✅ Исправленное задание отправлено на проверку!'
+    : '✅ Задание отправлено на проверку!';
+  await message.reply(confirmMsg);
+
+  // Fire admin notification (fire-and-forget)
+  void notifyAdminChannel(exercise.id, conv.discordUserId).catch((err) => {
+    logger.error({ err, exerciseId: exercise.id }, 'Failed to send admin notification');
+  });
+}
+
+// ============================================
+// Handle submission intent: preview-confirm flow
+// ============================================
+
+async function handleSubmissionIntent(
+  message: Message,
+  conv: ConversationState,
+  intent: SubmissionIntent,
+  _agentText: string
+): Promise<void> {
+  // Step 1: Resolve student
+  const student = await getStudentByDiscordId(conv.discordUserId);
+  if (!student) {
+    await message.reply('❌ Не удалось найти твой профиль студента. Свяжись с тренером.');
+    return;
+  }
+
+  // Step 2: Empty submission check (SUB-02, D-07)
+  const hasAttachments = conv.pendingAttachments.length > 0;
+  const hasComment = (intent.student_comment ?? '').trim().length > 0;
+  if (!hasAttachments && !hasComment) {
+    await message.reply('❌ Нечего отправлять. Прикрепи файл, ссылку или напиши текст ответа.');
+    return;
+  }
+
+  // Step 3: Session validation (D-04, UX-02)
+  const session = await getSessionByNumber(intent.session_number);
+  if (!session || session.status !== 'published') {
+    await message.reply(
+      `❌ Сессия ${intent.session_number} не найдена или ещё не опубликована. Проверь номер и попробуй снова.`
+    );
+    return; // Attachments preserved for retry
+  }
+
+  // Step 4: Check for active submission (D-06)
+  const activeSubmission = await getExerciseByStudentAndSession(student.id, session.id);
+  if (activeSubmission) {
+    await message.reply('⏳ Задание по этой сессии уже на проверке. Дождись результата.');
+    return;
+  }
+
+  // Step 5: Check for re-submission eligibility (D-05, D-06, UX-03)
+  const allExercises = await getExercisesByStudent(student.id);
+  const revisionExercise = allExercises.find(
+    (e) =>
+      e.session_id === session.id &&
+      (e.status === 'revision_needed' || e.status === 'approved')
+  ) ?? null;
+  const isResubmission = revisionExercise !== null;
+
+  // Step 6: Build preview embed (D-01, UX-01)
+  const embed = new EmbedBuilder()
+    .setTitle(`📝 Сдача задания — Сессия ${intent.session_number}`)
+    .setColor(0x5865F2);
+
+  embed.addFields({
+    name: 'Сессия',
+    value: `${session.title} (Модуль ${session.module})`,
+    inline: true,
+  });
+
+  if (intent.student_comment) {
+    const excerpt =
+      intent.student_comment.length > 200
+        ? intent.student_comment.slice(0, 200) + '...'
+        : intent.student_comment;
+    embed.addFields({ name: 'Комментарий', value: excerpt });
+  }
+
+  const files = conv.pendingAttachments.filter((a) => a.type !== 'url');
+  if (files.length > 0) {
+    const fileList = files
+      .map((f) => {
+        const sizeKB = Math.round(f.fileSize / 1024);
+        return `• ${f.originalFilename} (${sizeKB} КБ)`;
+      })
+      .join('\n');
+    embed.addFields({ name: `Файлы (${files.length})`, value: fileList });
+  }
+
+  const links = conv.pendingAttachments.filter((a) => a.type === 'url');
+  if (links.length > 0) {
+    const linkList = links.map((l) => `• ${l.url}`).join('\n');
+    embed.addFields({ name: `Ссылки (${links.length})`, value: linkList });
+  }
+
+  if (isResubmission && revisionExercise) {
+    embed.setFooter({
+      text: `Повторная сдача (попытка ${(revisionExercise.submission_count ?? 0) + 1})`,
+    });
+  }
+
+  // Step 7: Build buttons (D-01)
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('submission_confirm')
+      .setLabel('Soumettre')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('✅'),
+    new ButtonBuilder()
+      .setCustomId('submission_cancel')
+      .setLabel('Annuler')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('❌')
+  );
+
+  // Step 8: Send preview and wait for interaction (D-02)
+  const previewMsg = await message.reply({ embeds: [embed], components: [row] });
+
+  const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('submission_confirm')
+      .setLabel('Soumettre')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('✅')
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId('submission_cancel')
+      .setLabel('Annuler')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('❌')
+      .setDisabled(true)
+  );
+
+  try {
+    const interaction = await previewMsg.awaitMessageComponent({
+      componentType: ComponentType.Button,
+      filter: (i) => i.user.id === message.author.id,
+      time: 120_000, // 2 minutes per D-02
+    });
+
+    if (interaction.customId === 'submission_confirm') {
+      await interaction.deferUpdate();
+      // Execute submission (writes to DB)
+      await executeSubmission(message, conv, intent, student, session, isResubmission, revisionExercise);
+      // Disable buttons after confirm
+      await previewMsg.edit({ components: [disabledRow] });
+    } else {
+      // Cancel (D-03, UX-04)
+      await interaction.deferUpdate();
+      conv.pendingAttachments = [];
+      await previewMsg.edit({
+        embeds: [embed.setColor(0xed4245).setTitle('❌ Сдача отменена')],
+        components: [disabledRow],
+      });
+      await message.reply('Сдача отменена. Данные очищены.');
+    }
+  } catch {
+    // Timeout (D-02) — buttons disable, attachments stay for retry
+    await previewMsg.edit({
+      embeds: [embed.setColor(0x95a5a6).setTitle('⏱ Время истекло')],
+      components: [disabledRow],
+    });
+    // Per D-02: pendingAttachments stay so student can retry
+  }
 }
 
 // ============================================
@@ -155,20 +578,27 @@ async function processDmMessage(message: Message): Promise<void> {
     // Add assistant response to conversation
     conv.messages.push({ role: 'assistant', content: result.text });
 
-    // Clear pending attachments if a submission was made
-    if (result.submissionId) {
+    if (result.submissionIntent) {
+      // New flow: show preview-confirm flow (handles all submission logic)
+      await handleSubmissionIntent(message, conv, result.submissionIntent, result.text);
+    } else if (result.submissionId) {
+      // Legacy path (safety fallback — should not happen with new agent)
       conv.pendingAttachments = [];
-
-      // Send notification to #админ (fire-and-forget, don't block student response)
       void notifyAdminChannel(result.submissionId, userId).catch((err) => {
         logger.error({ err, submissionId: result.submissionId }, 'Failed to send admin notification');
       });
+      // Send agent text response
+      await sendLongMessage(message, result.text);
+    } else {
+      // Normal response — send agent text
+      await sendLongMessage(message, result.text);
     }
-
-    // Send response (split if > 2000 chars)
-    await sendLongMessage(message, result.text);
   } catch (err) {
     logger.error({ err, userId }, 'DM agent error');
+    // SUB-04: Clear pendingAttachments on error to prevent stale leakage
+    if (conv) {
+      conv.pendingAttachments = [];
+    }
     await message.reply('❌ Произошла ошибка. Попробуй ещё раз через минуту.');
   }
 }

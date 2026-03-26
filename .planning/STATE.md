@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v2.0
-milestone_name: exercise-submission-flow
+milestone_name: Exercise Submission Flow
 status: Ready to plan
-stopped_at: Roadmap created — Phase 5 ready to plan
-last_updated: "2026-03-25T00:00:00.000Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-03-25T11:16:07.563Z"
 progress:
   total_phases: 3
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  completed_phases: 2
+  total_plans: 4
+  completed_plans: 4
 ---
 
 # Project State
@@ -19,20 +19,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
-**Current focus:** Phase 5 — DB Foundation + Core Hardening
+**Current focus:** Phase 06 — submission-handler-correctness-student-ux
 
 ## Current Position
 
-Phase: 5 of 7 (DB Foundation + Core Hardening)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-25 — Roadmap v2.0 created
-
-Progress: [░░░░░░░░░░] 0% (v2.0 phases only)
+Phase: 7
+Plan: Not started
 
 ## Performance Metrics
 
 **Velocity (v2.0):**
+
 - Total plans completed: 0
 - Average duration: -
 - Total execution time: 0 hours
@@ -44,10 +41,15 @@ Progress: [░░░░░░░░░░] 0% (v2.0 phases only)
 | - | - | - | - |
 
 **Recent Trend:**
+
 - Last 5 plans: none yet
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 05 P01 | 5min | 2 tasks | 6 files |
+| Phase 05 P02 | 5min | 1 tasks | 1 files |
+| Phase 06 P01 | 7min | 2 tasks | 4 files |
+| Phase 06 P02 | 6min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -60,6 +62,14 @@ Recent decisions affecting current work:
 - Button-based preview/confirm (ActionRowBuilder + awaitMessageComponent) preferred over LLM-driven confirmation — deterministic handler, no Claude misinterpretation risk
 - Partial unique index on `(student_id, session_id) WHERE status IN ('submitted', 'ai_reviewed')` — not a full unique constraint, intentionally scoped to active statuses
 - Re-submission uses expand-then-contract ordering: upload new files first, delete old records last (fire-and-forget) — never leaves a zero-attachment submitted state
+- [Phase 05]: DO block with duplicate detection before index creation for safe production migration
+- [Phase 05]: Keep getPendingExercisesBySession(sessionNumber) signature to avoid breaking callers; resolve UUID internally
+- [Phase 05]: Use DB-generated UUIDs for student test fixtures (students.id is UUID column)
+- [Phase 05]: Verify unique index via 23505 error behavior (Supabase JS cannot query pg_indexes)
+- [Phase 06]: DM agent returns SubmissionIntent instead of executing DB write — handler owns full submission lifecycle
+- [Phase 06]: uploadFileToStorage and triggerAiReview moved from dm-agent.ts to dm-handler.ts — submission logic belongs in handler layer
+- [Phase 06]: Need to set student mock in every submission flow test — handleSubmissionIntent calls getStudentByDiscordId before empty/session checks
+- [Phase 06]: makeReplyMessageMock(null) triggers timeout path, makeReplyMessageMock(customId) simulates button click
 
 ### Pending Todos
 
@@ -72,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25
-Stopped at: Roadmap v2.0 created — ready to plan Phase 5
+Last session: 2026-03-25T11:07:15.667Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
