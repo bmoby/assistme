@@ -9,7 +9,7 @@
     "lint": "eslint packages/*/src/**/*.ts",
     "lint:fix": "eslint packages/*/src/**/*.ts --fix",
     "format": "prettier --write 'packages/*/src/**/*.ts'",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm -F @assistme/core build && pnpm -r run typecheck",
     "seed:knowledge": "pnpm exec tsx scripts/seed-formation-knowledge.ts",
     "test": "vitest run --project core --project bot-discord",
     "test:unit": "vitest run --project core --project bot-discord",
