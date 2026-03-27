@@ -34,52 +34,56 @@ export async function createReviewThread(
       .catch(() => null);
 
     if (existing?.isThread()) {
-      // Try to unarchive the thread — if it fails, fall through to new thread
+      // Try to unarchive the thread — if it fails, fall through to new thread creation
+      let unarchiveSucceeded = false;
       try {
         await existing.setArchived(false);
+        unarchiveSucceeded = true;
       } catch (unarchiveErr) {
         logger.warn(
           { err: unarchiveErr, threadId: exercise.review_thread_id, exerciseId: exercise.id },
           'Could not unarchive existing thread — creating new thread instead',
         );
-        // Fall through to new thread creation below
       }
 
-      // Only continue the reuse path if we successfully unarchived (no throw above)
-      const attachmentsWithUrls = await getSignedUrlsForExercise(exercise.id);
-      const { submissionMsg, imageUrl } = formatReviewThreadMessages(
-        exercise,
-        session,
-        student.name,
-        attachmentsWithUrls,
-      );
+      if (unarchiveSucceeded) {
+        // Only continue the reuse path if we successfully unarchived
+        const attachmentsWithUrls = await getSignedUrlsForExercise(exercise.id);
+        const { submissionMsg, imageUrl } = formatReviewThreadMessages(
+          exercise,
+          session,
+          student.name,
+          attachmentsWithUrls,
+        );
 
-      // Separator
-      const now = new Date().toLocaleString('fr-FR', { timeZone: 'Asia/Bangkok' });
-      await existing.send(`--- Re-soumission #${exercise.submission_count} --- ${now} ---`);
+        // Separator
+        const now = new Date().toLocaleString('fr-FR', { timeZone: 'Asia/Bangkok' });
+        await existing.send(`--- Re-soumission #${exercise.submission_count} --- ${now} ---`);
 
-      // New submission content
-      if (imageUrl) {
-        const imageEmbed = new EmbedBuilder().setImage(imageUrl);
-        await existing.send({ content: submissionMsg, embeds: [imageEmbed] });
-      } else {
-        await existing.send(submissionMsg);
+        // New submission content
+        if (imageUrl) {
+          const imageEmbed = new EmbedBuilder().setImage(imageUrl);
+          await existing.send({ content: submissionMsg, embeds: [imageEmbed] });
+        } else {
+          await existing.send(submissionMsg);
+        }
+
+        // AI placeholder
+        const aiMsg = await existing.send('🤖 **Review IA :** en cours...');
+
+        // Persist new AI message ID (thread_id already correct)
+        await updateExercise(exercise.id, { review_thread_ai_message_id: aiMsg.id });
+
+        logger.info(
+          { threadId: existing.id, aiMessageId: aiMsg.id, exerciseId: exercise.id },
+          'Review thread reused for re-submission',
+        );
+
+        return { threadId: existing.id, aiMessageId: aiMsg.id };
       }
-
-      // AI placeholder
-      const aiMsg = await existing.send('🤖 **Review IA :** en cours...');
-
-      // Persist new AI message ID (thread_id already correct)
-      await updateExercise(exercise.id, { review_thread_ai_message_id: aiMsg.id });
-
-      logger.info(
-        { threadId: existing.id, aiMessageId: aiMsg.id, exerciseId: exercise.id },
-        'Review thread reused for re-submission',
-      );
-
-      return { threadId: existing.id, aiMessageId: aiMsg.id };
+      // setArchived failed — fall through to new thread creation below
     }
-    // Thread was deleted (D-02) — fall through to create a new one
+    // Thread was deleted or unarchive failed (D-02) — fall through to create a new one
   }
 
   // ── NEW THREAD PATH ──────────────────────────────────────────────────────

@@ -224,7 +224,7 @@ describe('review-buttons', () => {
   it('review_open_ button defers, fetches exercise and creates review thread', async () => {
     const guild = makeGuildWithAdminChannel();
     const student = createStudent({ id: 'student-1' });
-    const exercise = createExercise({ id: 'exercise-1', status: 'submitted', student_id: 'student-1' });
+    const exercise = createExercise({ id: 'exercise-1', status: 'submitted', student_id: 'student-1', review_thread_id: null });
     const session = createSession();
 
     mockGetExercise.mockResolvedValue(exercise);
@@ -235,6 +235,10 @@ describe('review-buttons', () => {
       .withCustomId('review_open_exercise-1')
       .withGuild(guild)
       .build();
+    // Add channels.fetch to interaction.client (needed by handleReviewOpen idempotency guard)
+    (interaction.client as unknown as Record<string, unknown>).channels = {
+      fetch: vi.fn().mockResolvedValue(null),
+    };
 
     await invokeButton('review_open_', interaction);
 
@@ -242,6 +246,105 @@ describe('review-buttons', () => {
     expect(mockGetExercise).toHaveBeenCalledWith('exercise-1');
     expect(mockGetStudent).toHaveBeenCalledWith('student-1');
     expect(mockCreateReviewThread).toHaveBeenCalledOnce();
+    expect(mockCreateReviewThread).toHaveBeenCalledWith(
+      expect.anything(), // adminChannel
+      expect.anything(), // exercise
+      expect.anything(), // student
+      expect.anything(), // session
+      expect.anything(), // client
+    );
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Thread') })
+    );
+  });
+
+  // ============================================
+  // Test 2b: review_open_ returns existing thread link on second click (idempotency, ADM-02)
+  // ============================================
+
+  it('review_open_ returns existing thread link when review_thread_id is set and thread exists (idempotency)', async () => {
+    const guild = makeGuildWithAdminChannel();
+    const exercise = createExercise({ id: 'ex-idempotent', status: 'submitted', review_thread_id: 'existing-thread-1' });
+    mockGetExercise.mockResolvedValue(exercise);
+
+    const interaction = new ButtonInteractionBuilder()
+      .withCustomId('review_open_ex-idempotent')
+      .withGuild(guild)
+      .build();
+    // Mock channels.fetch to return an existing thread
+    (interaction.client as unknown as Record<string, unknown>).channels = {
+      fetch: vi.fn().mockResolvedValue({ id: 'existing-thread-1', isThread: () => true }),
+    };
+
+    await invokeButton('review_open_', interaction);
+
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('existing-thread-1') })
+    );
+    expect(mockCreateReviewThread).not.toHaveBeenCalled();
+  });
+
+  // ============================================
+  // Test 2c: review_open_ creates new thread when stored thread is deleted (ADM-02 edge case)
+  // ============================================
+
+  it('review_open_ creates new thread when stored thread ID points to deleted thread', async () => {
+    const guild = makeGuildWithAdminChannel();
+    const exercise = createExercise({ id: 'ex-deleted', status: 'submitted', review_thread_id: 'deleted-thread', student_id: 'student-1' });
+    const student = createStudent({ id: 'student-1' });
+    const session = createSession();
+
+    mockGetExercise.mockResolvedValue(exercise);
+    mockGetStudent.mockResolvedValue(student);
+    mockGetSession.mockResolvedValue(session);
+
+    const interaction = new ButtonInteractionBuilder()
+      .withCustomId('review_open_ex-deleted')
+      .withGuild(guild)
+      .build();
+    // Simulate deleted thread: channels.fetch rejects (DiscordAPIError)
+    (interaction.client as unknown as Record<string, unknown>).channels = {
+      fetch: vi.fn().mockRejectedValue(new Error('Unknown Channel')),
+    };
+
+    await invokeButton('review_open_', interaction);
+
+    // Falls through to new thread creation since thread was deleted
+    expect(mockCreateReviewThread).toHaveBeenCalledOnce();
+  });
+
+  // ============================================
+  // Test 2d: review_open_ creates new thread when review_thread_id is null (first submission)
+  // ============================================
+
+  it('review_open_ creates new thread when review_thread_id is null (first submission)', async () => {
+    const guild = makeGuildWithAdminChannel();
+    const exercise = createExercise({ id: 'ex-first', status: 'submitted', review_thread_id: null, student_id: 'student-1' });
+    const student = createStudent({ id: 'student-1' });
+    const session = createSession();
+
+    mockGetExercise.mockResolvedValue(exercise);
+    mockGetStudent.mockResolvedValue(student);
+    mockGetSession.mockResolvedValue(session);
+
+    const interaction = new ButtonInteractionBuilder()
+      .withCustomId('review_open_ex-first')
+      .withGuild(guild)
+      .build();
+    // No channels.fetch needed since review_thread_id is null — guard is skipped
+    (interaction.client as unknown as Record<string, unknown>).channels = {
+      fetch: vi.fn().mockResolvedValue(null),
+    };
+
+    await invokeButton('review_open_', interaction);
+
+    expect(mockCreateReviewThread).toHaveBeenCalledWith(
+      expect.anything(), // adminChannel
+      expect.anything(), // exercise
+      expect.anything(), // student
+      expect.anything(), // session
+      expect.anything(), // client (5th argument)
+    );
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Thread') })
     );
