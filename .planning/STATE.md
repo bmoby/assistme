@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Exercise Submission Flow
-status: In progress
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-27T10:42:00Z"
+status: Checkpoint — awaiting human action
+stopped_at: 08-02-PLAN.md Task 3 (Discord bot creation — checkpoint:human-action)
+last_updated: "2026-03-27T10:51:13Z"
 progress:
   total_phases: 4
   completed_phases: 3
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-25)
 ## Current Position
 
 Phase: 8
-Plan: 1 complete (of 2)
+Plan: 2 in progress (of 2) — Tasks 1-2 done, Task 3 awaiting human action (Discord bot creation)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Plan: 1 complete (of 2)
 | Phase 06 P01 | 7min | 2 tasks | 4 files |
 | Phase 06 P02 | 6min | 1 tasks | 1 files |
 | Phase 08 P01 | 5min | 2 tasks | 7 files |
+| Phase 08 P02 | 4min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,10 @@ Recent decisions affecting current work:
 - [Phase 08-01]: original_txt TEXT column on quizzes provides DATA-06 baseline storage — Supabase Storage deferred if file sizes require it
 - [Phase 08-01]: getQuizBySession returns latest quiz for session_number (DESC created_at) to allow quiz replacement per session
 - [Phase 08-01]: closeExpiredQuizSessions loops per quiz to correctly calculate partial score per individual session
+- [Phase 08-02]: DISCORD_QUIZ_BOT_TOKEN and DISCORD_QUIZ_CLIENT_ID are separate from Formateur bot vars — TeacherBot is a fully independent Discord application
+- [Phase 08-02]: bot-discord-quiz has zero runtime dependency on @assistme/bot-discord — clean package isolation
+- [Phase 08-02]: Only GatewayIntentBits.Guilds + DirectMessages for Phase 8 scaffold (minimal footprint)
+- [Phase 08-02]: quiz-close-expired cron every 30min (not real-time) — adequate for 48h expiry threshold
 
 ### Pending Todos
 
@@ -87,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27T10:42:00Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-27T10:51:13Z
+Stopped at: 08-02-PLAN.md Task 3 checkpoint:human-action (Discord TeacherBot creation)
 Resume file: None
