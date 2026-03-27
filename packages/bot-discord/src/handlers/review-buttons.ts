@@ -53,6 +53,18 @@ async function handleReviewOpen(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
+  // Idempotency guard (D-03, D-08): if thread already exists, return link — do NOT create a duplicate
+  if (exercise.review_thread_id) {
+    const existing = await interaction.client.channels
+      .fetch(exercise.review_thread_id)
+      .catch(() => null);
+    if (existing) {
+      await interaction.editReply({ content: `📝 Thread de review existant : <#${existing.id}>` });
+      return;
+    }
+    // Thread was deleted — fall through to create a new one
+  }
+
   const student = await getStudent(exercise.student_id);
   if (!student) {
     await interaction.editReply({ content: 'Etudiant non trouve.' });
@@ -70,7 +82,7 @@ async function handleReviewOpen(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
-  await createReviewThread(adminChannel, exercise, student, session);
+  await createReviewThread(adminChannel, exercise, student, session, interaction.client);
 
   await interaction.editReply({ content: '📝 Thread de review cree.' });
 }

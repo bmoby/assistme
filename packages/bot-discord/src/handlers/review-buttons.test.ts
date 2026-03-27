@@ -30,7 +30,7 @@ vi.mock('./button-handler.js', () => ({
 
 // Mock local utils
 vi.mock('../utils/review-thread.js', () => ({
-  createReviewThread: vi.fn().mockResolvedValue(undefined),
+  createReviewThread: vi.fn().mockResolvedValue({ threadId: 'thread-1', aiMessageId: 'ai-msg-1' }),
 }));
 vi.mock('../utils/format.js', () => ({
   formatStudentFeedbackDM: vi.fn().mockReturnValue('DM feedback text'),
@@ -198,7 +198,7 @@ describe('review-buttons', () => {
     mockGetSessionByNumber.mockResolvedValue(createSession());
     mockGetPendingExercisesBySession.mockResolvedValue([]);
     mockUpdateExerciseStatus.mockResolvedValue(undefined as never);
-    mockCreateReviewThread.mockResolvedValue(undefined);
+    mockCreateReviewThread.mockResolvedValue({ threadId: 'thread-1', aiMessageId: 'ai-msg-1' });
   });
 
   afterEach(() => {

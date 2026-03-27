@@ -1,4 +1,5 @@
 import {
+  Client,
   TextChannel,
   EmbedBuilder,
   ActionRowBuilder,
@@ -8,22 +9,80 @@ import {
 } from 'discord.js';
 import {
   logger,
-  getExercise,
-  getSession,
   getSignedUrlsForExercise,
+  updateExercise,
 } from '@assistme/core';
 import type { StudentExercise, Session, Student } from '@assistme/core';
 import { formatReviewThreadMessages } from './format.js';
 
 /**
- * Creates a review thread in #админ with full submission content.
+ * Creates (or reuses) a review thread in #админ with full submission content.
+ * Owns ALL DB persistence for review_thread_id and review_thread_ai_message_id.
+ * Returns { threadId, aiMessageId } in both new-thread and reuse paths.
  */
 export async function createReviewThread(
   adminChannel: TextChannel,
   exercise: StudentExercise,
   student: Student,
   session: Session | null,
-): Promise<void> {
+  client: Client,
+): Promise<{ threadId: string; aiMessageId: string }> {
+  // ── THREAD REUSE PATH (D-01, D-02, D-04, D-05) ──────────────────────────
+  if (exercise.review_thread_id) {
+    const existing = await client.channels
+      .fetch(exercise.review_thread_id)
+      .catch(() => null);
+
+    if (existing?.isThread()) {
+      // Try to unarchive the thread — if it fails, fall through to new thread
+      try {
+        await existing.setArchived(false);
+      } catch (unarchiveErr) {
+        logger.warn(
+          { err: unarchiveErr, threadId: exercise.review_thread_id, exerciseId: exercise.id },
+          'Could not unarchive existing thread — creating new thread instead',
+        );
+        // Fall through to new thread creation below
+      }
+
+      // Only continue the reuse path if we successfully unarchived (no throw above)
+      const attachmentsWithUrls = await getSignedUrlsForExercise(exercise.id);
+      const { submissionMsg, imageUrl } = formatReviewThreadMessages(
+        exercise,
+        session,
+        student.name,
+        attachmentsWithUrls,
+      );
+
+      // Separator
+      const now = new Date().toLocaleString('fr-FR', { timeZone: 'Asia/Bangkok' });
+      await existing.send(`--- Re-soumission #${exercise.submission_count} --- ${now} ---`);
+
+      // New submission content
+      if (imageUrl) {
+        const imageEmbed = new EmbedBuilder().setImage(imageUrl);
+        await existing.send({ content: submissionMsg, embeds: [imageEmbed] });
+      } else {
+        await existing.send(submissionMsg);
+      }
+
+      // AI placeholder
+      const aiMsg = await existing.send('🤖 **Review IA :** en cours...');
+
+      // Persist new AI message ID (thread_id already correct)
+      await updateExercise(exercise.id, { review_thread_ai_message_id: aiMsg.id });
+
+      logger.info(
+        { threadId: existing.id, aiMessageId: aiMsg.id, exerciseId: exercise.id },
+        'Review thread reused for re-submission',
+      );
+
+      return { threadId: existing.id, aiMessageId: aiMsg.id };
+    }
+    // Thread was deleted (D-02) — fall through to create a new one
+  }
+
+  // ── NEW THREAD PATH ──────────────────────────────────────────────────────
   const sessionLabel = session
     ? `Session ${session.session_number}`
     : `S${exercise.exercise_number}`;
@@ -55,12 +114,8 @@ export async function createReviewThread(
     await thread.send(submissionMsg);
   }
 
-  // Message 2: AI review (if available)
-  if (aiReviewMsg) {
-    await thread.send(aiReviewMsg);
-  } else {
-    await thread.send('🤖 **Review IA :** en cours...');
-  }
+  // Message 2: AI review placeholder (or real review if already available)
+  const aiMsg = await thread.send(aiReviewMsg ?? '🤖 **Review IA :** en cours...');
 
   // Message 3: History (if re-submission)
   if (historyMsg) {
@@ -86,8 +141,16 @@ export async function createReviewThread(
     components: [row],
   });
 
+  // Persist BOTH IDs (single ownership — no caller should call updateExercise for these)
+  await updateExercise(exercise.id, {
+    review_thread_id: thread.id,
+    review_thread_ai_message_id: aiMsg.id,
+  });
+
   logger.info(
-    { threadId: thread.id, exerciseId: exercise.id, studentName: student.name },
+    { threadId: thread.id, aiMessageId: aiMsg.id, exerciseId: exercise.id, studentName: student.name },
     'Review thread created',
   );
+
+  return { threadId: thread.id, aiMessageId: aiMsg.id };
 }
