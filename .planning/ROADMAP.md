@@ -148,7 +148,7 @@ Plans:
 
 Plans:
 - [x] 08-01-PLAN.md — Migration 018 + quiz types + core DB CRUD module
-- [ ] 08-02-PLAN.md — bot-discord-quiz package scaffold
+- [x] 08-02-PLAN.md — bot-discord-quiz package scaffold (Tasks 1-2 done; Task 3 awaiting Discord bot creation)
 
 ## Progress
 
@@ -164,4 +164,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8
 | 5. DB Foundation + Core Hardening | v2.0 | 2/2 | Complete | 2026-03-25 |
 | 6. Submission Handler Correctness + Student UX | v2.0 | 2/2 | Complete | 2026-03-25 |
 | 7. Admin Review UX + Test Coverage | v2.0 | 2/2 | Complete | 2026-03-25 |
-| 8. Infrastructure (Quiz System) | v3.0 | 1/2 | In Progress | - |
+| 8. Infrastructure (Quiz System) | v3.0 | 2/2 | Checkpoint (human-action) | - |
