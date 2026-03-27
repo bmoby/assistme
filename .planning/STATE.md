@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Exercise Submission Flow
-status: Ready to plan
-stopped_at: Phase 7 plans verified
-last_updated: "2026-03-27T07:17:08.205Z"
+status: Ready to execute
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-27T07:27:13.748Z"
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
-**Current focus:** Phase 06 — submission-handler-correctness-student-ux
+**Current focus:** Phase 07 — admin-review-ux-test-coverage
 
 ## Current Position
 
-Phase: 7
-Plan: Not started
+Phase: 07 (admin-review-ux-test-coverage) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Plan: Not started
 | Phase 05 P02 | 5min | 1 tasks | 1 files |
 | Phase 06 P01 | 7min | 2 tasks | 4 files |
 | Phase 06 P02 | 6min | 1 tasks | 1 files |
+| Phase 07 P01 | 15min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,9 @@ Recent decisions affecting current work:
 - [Phase 06]: uploadFileToStorage and triggerAiReview moved from dm-agent.ts to dm-handler.ts — submission logic belongs in handler layer
 - [Phase 06]: Need to set student mock in every submission flow test — handleSubmissionIntent calls getStudentByDiscordId before empty/session checks
 - [Phase 06]: makeReplyMessageMock(null) triggers timeout path, makeReplyMessageMock(customId) simulates button click
+- [Phase 07]: createReviewThread owns all DB persistence for review_thread_id + review_thread_ai_message_id — callers must not call updateExercise for these IDs
+- [Phase 07]: resubmitExercise clears review_thread_ai_message_id but preserves review_thread_id — thread persists for reuse across re-submissions
+- [Phase 07]: AI message edit in triggerAiReview uses formatReviewThreadMessages with [] attachments — safe because aiReviewMsg does not depend on attachments
 
 ### Pending Todos
 
@@ -82,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27T07:17:08.199Z
-Stopped at: Phase 7 plans verified
-Resume file: .planning/phases/07-admin-review-ux-test-coverage/07-01-PLAN.md
+Last session: 2026-03-27T07:27:13.742Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None

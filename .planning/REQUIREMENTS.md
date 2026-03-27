@@ -28,9 +28,9 @@ Requirements for exercise submission flow milestone. Each maps to roadmap phases
 
 ### Admin Review UX
 
-- [ ] **ADM-01**: Re-soumission reutilise le thread de review existant au lieu d'en creer un nouveau
-- [ ] **ADM-02**: Bouton "Ouvrir review" est idempotent — double-clic ne cree pas de thread doublon
-- [ ] **ADM-03**: Message AI dans le thread se met a jour en place quand la review AI est terminee
+- [x] **ADM-01**: Re-soumission reutilise le thread de review existant au lieu d'en creer un nouveau
+- [x] **ADM-02**: Bouton "Ouvrir review" est idempotent — double-clic ne cree pas de thread doublon
+- [x] **ADM-03**: Message AI dans le thread se met a jour en place quand la review AI est terminee
 
 ### Tests
 
@@ -70,7 +70,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UX-02 | Phase 6 | Complete |
 | UX-03 | Phase 6 | Complete |
 | UX-04 | Phase 6 | Complete |
-| ADM-01 | Phase 7 | Pending |
-| ADM-02 | Phase 7 | Pending |
-| ADM-03 | Phase 7 | Pending |
+| ADM-01 | Phase 7 | Complete |
+| ADM-02 | Phase 7 | Complete |
+| ADM-03 | Phase 7 | Complete |
 | TST-01 | Phase 7 | Pending |

@@ -129,10 +129,10 @@ Plans:
   2. Double-clicking "Ouvrir review" creates exactly one thread — the second click is a no-op
   3. The AI review message in the thread updates in place when the review is complete — the "en cours..." placeholder is replaced, not appended
   4. `pnpm test:unit` and `pnpm test:integration` pass covering the full state machine: accumulate → preview → confirm → submitted → review → revision → re-submit → thread reuse
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
-- [ ] 07-01-PLAN.md — Thread reuse, button idempotency, AI message in-place edit (handler changes)
+- [x] 07-01-PLAN.md — Thread reuse, button idempotency, AI message in-place edit (handler changes)
 - [ ] 07-02-PLAN.md — Unit and integration tests for all new admin review behaviors
 
 ## Progress
@@ -148,4 +148,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 4. E2E Discord Dev | v1.0 | 2/2 | Complete | 2026-03-25 |
 | 5. DB Foundation + Core Hardening | v2.0 | 2/2 | Complete | 2026-03-25 |
 | 6. Submission Handler Correctness + Student UX | v2.0 | 2/2 | Complete |  |
-| 7. Admin Review UX + Test Coverage | v2.0 | 0/2 | Not started | - |
+| 7. Admin Review UX + Test Coverage | v2.0 | 1/2 | In Progress|  |
