@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Exercise Submission Flow
-status: Milestone complete
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-03-27T07:45:57.374Z"
+status: Checkpoint — awaiting human action
+stopped_at: 08-02-PLAN.md Task 3 (Discord bot creation — checkpoint:human-action)
+last_updated: "2026-03-27T10:51:13Z"
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
   total_plans: 6
-  completed_plans: 6
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
-**Current focus:** Phase 07 — admin-review-ux-test-coverage
+**Current focus:** Phase 08 — infrastructure (quiz system data foundation)
 
 ## Current Position
 
-Phase: 07
-Plan: Not started
+Phase: 8
+Plan: 2 in progress (of 2) — Tasks 1-2 done, Task 3 awaiting human action (Discord bot creation)
 
 ## Performance Metrics
 
@@ -50,8 +50,8 @@ Plan: Not started
 | Phase 05 P02 | 5min | 1 tasks | 1 files |
 | Phase 06 P01 | 7min | 2 tasks | 4 files |
 | Phase 06 P02 | 6min | 1 tasks | 1 files |
-| Phase 07 P01 | 15min | 2 tasks | 5 files |
-| Phase 07-admin-review-ux-test-coverage P02 | 9min | 2 tasks | 5 files |
+| Phase 08 P01 | 5min | 2 tasks | 7 files |
+| Phase 08 P02 | 4min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -72,11 +72,14 @@ Recent decisions affecting current work:
 - [Phase 06]: uploadFileToStorage and triggerAiReview moved from dm-agent.ts to dm-handler.ts — submission logic belongs in handler layer
 - [Phase 06]: Need to set student mock in every submission flow test — handleSubmissionIntent calls getStudentByDiscordId before empty/session checks
 - [Phase 06]: makeReplyMessageMock(null) triggers timeout path, makeReplyMessageMock(customId) simulates button click
-- [Phase 07]: createReviewThread owns all DB persistence for review_thread_id + review_thread_ai_message_id — callers must not call updateExercise for these IDs
-- [Phase 07]: resubmitExercise clears review_thread_ai_message_id but preserves review_thread_id — thread persists for reuse across re-submissions
-- [Phase 07]: AI message edit in triggerAiReview uses formatReviewThreadMessages with [] attachments — safe because aiReviewMsg does not depend on attachments
-- [Phase 07]: triggerAiReview only reachable from executeSubmission when storagePaths.length > 0 — test via full submission flow (submissionIntent + confirm + file attachment)
-- [Phase 07]: setArchived failure fallback bug in review-thread.ts: fixed with unarchiveSucceeded flag — catch block without success guard silently continues reuse path
+
+- [Phase 08-01]: original_txt TEXT column on quizzes provides DATA-06 baseline storage — Supabase Storage deferred if file sizes require it
+- [Phase 08-01]: getQuizBySession returns latest quiz for session_number (DESC created_at) to allow quiz replacement per session
+- [Phase 08-01]: closeExpiredQuizSessions loops per quiz to correctly calculate partial score per individual session
+- [Phase 08-02]: DISCORD_QUIZ_BOT_TOKEN and DISCORD_QUIZ_CLIENT_ID are separate from Formateur bot vars — TeacherBot is a fully independent Discord application
+- [Phase 08-02]: bot-discord-quiz has zero runtime dependency on @assistme/bot-discord — clean package isolation
+- [Phase 08-02]: Only GatewayIntentBits.Guilds + DirectMessages for Phase 8 scaffold (minimal footprint)
+- [Phase 08-02]: quiz-close-expired cron every 30min (not real-time) — adequate for 48h expiry threshold
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27T07:40:57.447Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-03-27T10:51:13Z
+Stopped at: 08-02-PLAN.md Task 3 checkpoint:human-action (Discord TeacherBot creation)
 Resume file: None

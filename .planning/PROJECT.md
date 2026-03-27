@@ -1,108 +1,116 @@
-# Exercise Submission Flow - Bot Discord
+# Bot Discord Quiz
 
 ## What This Is
 
-Solidification du flow de soumission d'exercices pour le bot Discord formateur (`packages/bot-discord`). L'etudiant soumet des exercices via DM (multi-messages : texte, fichiers, liens), confirme via apercu, et le formateur review avec une UX amelioree. Unicite par session, re-soumission controlee apres feedback.
+Bot Discord séparé (`packages/bot-discord-quiz`) qui évalue les étudiants de la formation via des quiz interactifs liés aux sessions. L'admin uploade un fichier TXT contenant les questions/réponses, le bot parse, prévisualise, puis envoie le quiz à tous les étudiants actifs en DM. L'étudiant répond question par question via boutons Discord. Les résultats sont stockés de manière ultra-structurée en BDD, et l'admin reçoit des digests et alertes en cas de scores bas.
 
 ## Core Value
 
-Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
-
-## Current Milestone: v2.0 Exercise Submission Flow
-
-**Goal:** Solidifier le flow complet de soumission d'exercices — accumulation multi-messages, apercu avant envoi, unicite par session, re-soumission controlee, et UX formateur amelioree.
-
-**Target features:**
-- Soumission multi-messages (texte, fichiers, liens) avec apercu avant confirmation
-- Unicite 1 etudiant = 1 soumission par session (DB constraint + handler logic)
-- Re-soumission apres feedback (remplace l'ancienne)
-- Validation : pas de soumission vide
-- L'etudiant precise la session (doit exister en DB)
-- UX formateur : navigation/review plus fluide (threads, boutons, re-ouverture facile)
+Identifier les étudiants qui décrochent via des quiz automatisés — sans que l'admin ait à corriger manuellement quoi que ce soit.
 
 ## Requirements
 
 ### Validated
 
-- Monorepo pnpm workspaces fonctionnel -- existing
-- Bot Discord en production avec discord.js 14.16 -- existing
-- Core package (DB Supabase, AI Claude, agents) -- existing
-- Handlers: DM agent, admin handler, FAQ, exercise review, slash commands -- existing
-- Test infrastructure: Vitest, unit, integration, E2E, CI -- validated v1.0
-- Dev environment: separate Discord bot, test server -- validated v1.0
+(None yet — ship to validate)
 
 ### Active
 
-(No active requirements — v2.0 milestone complete)
-
-### Validated in Phase 7
-
-- [x] UX formateur : review plus fluide, re-ouverture facile — Validated Phase 7
-
-### Validated in Phase 6
-
-- [x] Apercu avant confirmation de soumission — Validated Phase 6
-- [x] Validation : refus de soumission vide (sans contenu) — Validated Phase 6
-- [x] Etudiant precise la session (validation existence en DB) — Validated Phase 6
-- [x] Re-soumission apres feedback (remplace l'ancienne) — Validated Phase 6
+- [ ] Admin uploade un TXT libre via slash command et le bot parse les questions via IA
+- [ ] Preview obligatoire : l'admin voit le quiz structuré et confirme avant envoi
+- [ ] Envoi immédiat en DM à tous les étudiants actifs après confirmation
+- [ ] 3 types de questions : QCM, Vrai/Faux, Ouverte (conversationnelle)
+- [ ] Étudiant répond question par question via boutons Discord (QCM/V-F) ou texte (ouvertes)
+- [ ] Évaluation automatique : QCM/V-F exact match, ouvertes évaluées par IA (tolérance souple vs réponse attendue du TXT)
+- [ ] Pause/reprise : état sauvegardé en BDD, l'étudiant peut revenir plus tard
+- [ ] 1 seul quiz actif par étudiant — nouveau quiz ferme l'ancien automatiquement (score partiel, statut expired_incomplete)
+- [ ] One-shot : pas de re-tentative possible
+- [ ] Feedback à la fin : question par question (correct/incorrect + explication du TXT) + score total en %
+- [ ] Alerte admin si score < 60%
+- [ ] Admin digest dans channel dédié : qui a fait, qui n'a pas fait, scores, incomplets
+- [ ] Fermeture automatique des quiz expirés (cron)
+- [ ] Modèle de données extensible : quiz, questions, réponses étudiants, scores, statuts, timestamps
+- [ ] Full russe côté étudiant
+- [ ] Bot complètement séparé du bot Discord principal (nouveau token, nouveau process)
+- [ ] Zéro modification du bot Discord existant
 
 ### Out of Scope
 
-- Tests pour les bots Telegram (admin + public) -- scope limite au bot Discord
-- Tests de performance/load -- pas la priorite
-- UI tests / visual regression -- backend only
-- Nouveau design du DM agent complet -- on ameliore le flow existant
+- Modification du bot Discord principal — isolation totale, zéro régression
+- Re-tentative de quiz — one-shot, l'étudiant doit écouter le cours
+- Timer par question — pas un examen, c'est du feedback
+- Quiz dans un channel public — DM uniquement
+- Génération automatique de questions par IA — le TXT est la source de vérité
+- Correction manuelle par l'admin — tout est automatisé
+- Intégration avec le Tsarag agent existant — slash commands dédiées sur le nouveau bot
 
 ## Context
 
-- **Codebase existante:** ~15K+ lignes TypeScript strict, ESM modules
-- **v1.0 complete:** Test infrastructure, CI, dev environment
-- **v2.0 complete:** Exercise submission flow — 175 tests (unit + integration), admin review UX
-- **Bot Discord:** discord.js 14.16, handlers (DM, admin, FAQ, review), slash commands, crons
-- **Core partage:** Supabase (PostgreSQL + pgvector), Claude API (agents avec tool use)
-- **Tables existantes:** students, student_exercises, sessions, submission_attachments
-- **DM Agent:** Claude tool_use, 5 outils dont search_course_content
-- **Admin handler:** review-buttons.ts, thread-based review
+### Architecture existante
+- Monorepo pnpm : `packages/core` (shared), `packages/bot-telegram`, `packages/bot-telegram-public`, `packages/bot-discord`
+- Le quiz bot sera `packages/bot-discord-quiz` — même pattern que les autres bots
+- Partage `@assistme/core` pour DB (Supabase), types, logger
+- Discord.js 14.16.0, même guild que le bot principal
+- Étudiants déjà enregistrés dans table `students` avec `discord_id`
+- Sessions déjà structurées dans table `sessions` (24 sessions × 6 modules)
+
+### Formation
+- 30 étudiants, formation en russe
+- Sessions avec exercices, le quiz complète l'évaluation
+- Fichiers quiz existants dans `learning-knowledge/module-*/session-XX-quiz.md`
+- L'admin (formateur) veut identifier les décrocheurs rapidement
+
+### Interaction admin
+- Channel Discord dédié pour les quiz (séparé de #админ)
+- Slash commands : `/quiz-create`, `/quiz-status`, `/quiz-close`
+- L'admin uploade le TXT en pièce jointe de la slash command
+
+### Interaction étudiant
+- DM du quiz bot (différent du bot principal)
+- Bouton "Commencer" pour démarrer
+- QCM/V-F : boutons Discord (interactions)
+- Ouvertes : réponse texte en DM
+- Feedback immédiat à la fin
 
 ## Constraints
 
-- **Stack:** TypeScript strict, ESM, pnpm workspaces
-- **Runtime:** Node.js 20+
-- **Test framework:** Vitest — tests obligatoires pour tout changement
-- **DB:** Supabase (PostgreSQL), migrations incrementales
-- **Discord limitations:** bots can't DM bots (E2E uses synthetic events)
-- **Pre-push hook:** tests doivent passer avant tout push
+- **Stack**: TypeScript strict, ESM, pnpm workspaces, discord.js 14 — cohérent avec le monorepo
+- **DB**: Supabase (PostgreSQL) — nouvelles tables, pas de modification des tables existantes
+- **Bot séparé**: Nouveau token Discord, nouveau process, même guild
+- **Isolation**: Zéro import depuis `packages/bot-discord`, uniquement depuis `@assistme/core`
+- **Langue**: Tout le contenu étudiant-facing en russe
+- **Source de vérité**: Le fichier TXT uploadé par l'admin — l'IA ne sort jamais du scope du document
+- **Tests**: Vitest, tests unitaires obligatoires avant commit
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Vitest over Jest | Meilleur support ESM natif, plus rapide | Validated v1.0 |
-| Bot Discord de dev separe | Zero risque sur la prod | Validated v1.0 |
-| Supabase local Docker | Integration tests avec vraie DB | Validated v1.0 |
-| 3 couches de tests | Unit + Integration + E2E | Validated v1.0 |
-| Pre-push hook obligatoire | Tests impossible a contourner | Validated v1.0 |
-| Partial unique index (not full constraint) | Scope to active statuses only — allows resubmission after approval | Validated Phase 5 |
-| Atomic session_id in single INSERT | No NULL window, no separate UPDATE race condition | Validated Phase 5 |
-| DM agent returns intent, handler confirms | Preview-confirm flow with buttons, agent doesn't write to DB | Validated Phase 6 |
-| Button timeout preserves attachments | Student can retry without re-uploading files | Validated Phase 6 |
+| Bot séparé plutôt qu'extension du bot existant | Zéro risque de régression, déploiement indépendant, UX claire | — Pending |
+| TXT libre parsé par IA (pas de format structuré imposé) | Moins de friction pour l'admin, format naturel | — Pending |
+| Preview obligatoire avant envoi | Le parsing IA peut avoir des erreurs (5%), preview en 30s évite un quiz buggé envoyé à 30 étudiants | — Pending |
+| 1 quiz actif max par étudiant | Évite l'accumulation, signal clair de décrochage si incomplet | — Pending |
+| Boutons Discord pour QCM/V-F, texte pour ouvertes | Sépare les interactions du DM agent existant, pas de conflit de routing | — Pending |
+| Channel admin dédié (pas #админ) | Isolation totale entre les deux bots | — Pending |
+| Seuil alerte < 60% | Identifier ceux qui sont "à côté de la plaque", pas les perfectionner | — Pending |
+| One-shot, pas de re-tentative | L'objectif est d'évaluer la compréhension réelle, pas de permettre le bachotage | — Pending |
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
 
 **After each phase transition** (via `/gsd:transition`):
-1. Requirements invalidated? -> Move to Out of Scope with reason
-2. Requirements validated? -> Move to Validated with phase reference
-3. New requirements emerged? -> Add to Active
-4. Decisions to log? -> Add to Key Decisions
-5. "What This Is" still accurate? -> Update if drifted
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd:complete-milestone`):
 1. Full review of all sections
-2. Core Value check -- still the right priority?
-3. Audit Out of Scope -- reasons still valid?
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 — Phase 7 complete (admin review UX + test coverage) — v2.0 milestone complete*
+*Last updated: 2026-03-27 after initialization*

@@ -100,20 +100,21 @@ Personal AI assistant system: multi-bot architecture (Telegram Admin + Telegram 
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
-**Dev Environment & Automated Tests - Bot Discord**
+**Bot Discord Quiz**
 
-Infrastructure de tests automatises et environnement de developpement pour le bot Discord formateur (`packages/bot-discord`). Actuellement zero tests, zero feedback local -- tout est teste en production. Ce projet met en place 3 couches de tests (unit, integration, E2E) et l'infra necessaire pour dev en confiance.
+Bot Discord séparé (`packages/bot-discord-quiz`) qui évalue les étudiants de la formation via des quiz interactifs liés aux sessions. L'admin uploade un fichier TXT contenant les questions/réponses, le bot parse, prévisualise, puis envoie le quiz à tous les étudiants actifs en DM. L'étudiant répond question par question via boutons Discord. Les résultats sont stockés de manière ultra-structurée en BDD, et l'admin reçoit des digests et alertes en cas de scores bas.
 
-**Core Value:** Pouvoir modifier le bot Discord et savoir immediatement si ca marche ou si ca casse quelque chose -- sans deployer en prod.
+**Core Value:** Identifier les étudiants qui décrochent via des quiz automatisés — sans que l'admin ait à corriger manuellement quoi que ce soit.
 
 ### Constraints
 
-- **Stack:** TypeScript strict, ESM, pnpm workspaces -- pas de CJS
-- **Runtime:** Node.js 20+
-- **Test framework:** Vitest (recommande par codebase map pour ESM + monorepo)
-- **DB locale:** Supabase local via Docker (pas de mock DB pour les tests d'integration)
-- **Bot de dev:** Token Discord separe de la prod, serveur de test dedie
-- **CI:** GitHub Actions, doit tourner sans secrets Discord pour unit/integration
+- **Stack**: TypeScript strict, ESM, pnpm workspaces, discord.js 14 — cohérent avec le monorepo
+- **DB**: Supabase (PostgreSQL) — nouvelles tables, pas de modification des tables existantes
+- **Bot séparé**: Nouveau token Discord, nouveau process, même guild
+- **Isolation**: Zéro import depuis `packages/bot-discord`, uniquement depuis `@assistme/core`
+- **Langue**: Tout le contenu étudiant-facing en russe
+- **Source de vérité**: Le fichier TXT uploadé par l'admin — l'IA ne sort jamais du scope du document
+- **Tests**: Vitest, tests unitaires obligatoires avant commit
 <!-- GSD:project-end -->
 
 <!-- GSD:stack-start source:codebase/STACK.md -->
