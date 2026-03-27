@@ -36,6 +36,26 @@ Requirements for exercise submission flow milestone. Each maps to roadmap phases
 
 - [ ] **TST-01**: Tests unitaires et d'integration couvrant tous les nouveaux comportements
 
+## v3.0 Requirements (Quiz System — Phase 8+)
+
+### Data Foundation
+
+- [x] **DATA-01**: Table `quizzes` avec session_number, status (draft/active/closed), questions_data JSONB
+- [x] **DATA-02**: Table `quiz_questions` avec quiz_id FK, question_number, type (mcq/true_false/open), choices JSONB
+- [x] **DATA-03**: Table `student_quiz_sessions` avec student_id FK, quiz_id FK, status (not_started/in_progress/completed/expired_incomplete), score
+- [x] **DATA-04**: Table `student_quiz_answers` avec session_id FK, question_id FK, student_answer, is_correct, ai_evaluation JSONB
+- [x] **DATA-05**: Cron ferme automatiquement les quiz actifs plus vieux que 48h (closeExpiredQuizSessions)
+- [x] **DATA-06**: `original_txt TEXT` column stocke le contenu TXT original du quiz (baseline; Storage deferred)
+- [x] **DATA-07**: Schema extensible — timestamps, statuts enum, scores DECIMAL, JSONB pour donnees structurees
+
+### Bot Infrastructure
+
+- [ ] **BOT-01**: Nouveau package `packages/bot-discord-quiz` dans le monorepo pnpm
+- [ ] **BOT-02**: Nouveau token Discord (TeacherBot), meme guild, vars DISCORD_QUIZ_BOT_TOKEN + DISCORD_QUIZ_CLIENT_ID
+- [ ] **BOT-03**: Imports uniquement depuis @assistme/core — zero import depuis packages/bot-discord
+- [ ] **BOT-04**: Entry point independant, process separe, `pnpm -F @assistme/bot-discord-quiz dev`
+- [ ] **BOT-05**: Tests unitaires avec Vitest pour le nouveau package
+
 ## Future Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
@@ -70,7 +90,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UX-02 | Phase 6 | Complete |
 | UX-03 | Phase 6 | Complete |
 | UX-04 | Phase 6 | Complete |
-| ADM-01 | Phase 7 | Pending |
-| ADM-02 | Phase 7 | Pending |
-| ADM-03 | Phase 7 | Pending |
-| TST-01 | Phase 7 | Pending |
+| ADM-01 | Phase 7 | Complete |
+| ADM-02 | Phase 7 | Complete |
+| ADM-03 | Phase 7 | Complete |
+| TST-01 | Phase 7 | Complete |
+| DATA-01 | Phase 8 | Complete |
+| DATA-02 | Phase 8 | Complete |
+| DATA-03 | Phase 8 | Complete |
+| DATA-04 | Phase 8 | Complete |
+| DATA-05 | Phase 8 | Complete |
+| DATA-06 | Phase 8 | Complete |
+| DATA-07 | Phase 8 | Complete |
+| BOT-01 | Phase 8 | Pending |
+| BOT-02 | Phase 8 | Pending |
+| BOT-03 | Phase 8 | Pending |
+| BOT-04 | Phase 8 | Pending |
+| BOT-05 | Phase 8 | Pending |
