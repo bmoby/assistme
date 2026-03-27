@@ -147,7 +147,11 @@ Plans:
   3. The cron job for closing expired quiz sessions is registered and fires on schedule (observable in logs)
   4. Zero imports exist from `packages/bot-discord` — only `@assistme/core` and discord.js
   5. `pnpm test:unit` passes (baseline unit test suite is in place)
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Migration 018 (4 quiz tables) + quiz types in core + DB quiz module with CRUD and expiration logic
+- [ ] 08-02-PLAN.md — Package scaffold (bot-discord-quiz) + entry point + cron + Vitest integration + smoke test + Discord bot setup
 
 ### Phase 9: Quiz Creation
 **Goal**: Admin can upload a TXT file via `/quiz-create`, see a structured preview of all parsed questions, confirm it, and have the quiz dispatched immediately to all active students in DM — the complete admin creation loop in one command.
@@ -199,7 +203,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. DB Foundation + Core Hardening | v2.0 | 2/2 | Complete | 2026-03-25 |
 | 6. Submission Handler Correctness + Student UX | v2.0 | 2/2 | Complete | 2026-03-27 |
 | 7. Admin Review UX + Test Coverage | v2.0 | 0/TBD | Not started | - |
-| 8. Infrastructure | v3.0 | 0/TBD | Not started | - |
+| 8. Infrastructure | v3.0 | 0/2 | Not started | - |
 | 9. Quiz Creation | v3.0 | 0/TBD | Not started | - |
 | 10. Student Quiz Experience | v3.0 | 0/TBD | Not started | - |
 | 11. Admin Notifications & Digest | v3.0 | 0/TBD | Not started | - |
