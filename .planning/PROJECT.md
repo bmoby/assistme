@@ -33,7 +33,11 @@ Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), 
 
 ### Active
 
-- [ ] UX formateur : review plus fluide, re-ouverture facile
+(No active requirements — v2.0 milestone complete)
+
+### Validated in Phase 7
+
+- [x] UX formateur : review plus fluide, re-ouverture facile — Validated Phase 7
 
 ### Validated in Phase 6
 
@@ -52,7 +56,8 @@ Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), 
 ## Context
 
 - **Codebase existante:** ~15K+ lignes TypeScript strict, ESM modules
-- **v1.0 complete:** 163 tests (unit + integration + E2E), CI, dev environment
+- **v1.0 complete:** Test infrastructure, CI, dev environment
+- **v2.0 complete:** Exercise submission flow — 175 tests (unit + integration), admin review UX
 - **Bot Discord:** discord.js 14.16, handlers (DM, admin, FAQ, review), slash commands, crons
 - **Core partage:** Supabase (PostgreSQL + pgvector), Claude API (agents avec tool use)
 - **Tables existantes:** students, student_exercises, sessions, submission_attachments
@@ -100,4 +105,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 — Phase 6 complete (submission handler correctness + student UX)*
+*Last updated: 2026-03-27 — Phase 7 complete (admin review UX + test coverage) — v2.0 milestone complete*
