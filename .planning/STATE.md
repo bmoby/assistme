@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Exercise Submission Flow
-status: Ready to execute
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-27T07:27:13.748Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-27T07:40:57.453Z"
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -51,6 +51,7 @@ Plan: 2 of 2
 | Phase 06 P01 | 7min | 2 tasks | 4 files |
 | Phase 06 P02 | 6min | 1 tasks | 1 files |
 | Phase 07 P01 | 15min | 2 tasks | 5 files |
+| Phase 07-admin-review-ux-test-coverage P02 | 9min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Recent decisions affecting current work:
 - [Phase 07]: createReviewThread owns all DB persistence for review_thread_id + review_thread_ai_message_id — callers must not call updateExercise for these IDs
 - [Phase 07]: resubmitExercise clears review_thread_ai_message_id but preserves review_thread_id — thread persists for reuse across re-submissions
 - [Phase 07]: AI message edit in triggerAiReview uses formatReviewThreadMessages with [] attachments — safe because aiReviewMsg does not depend on attachments
+- [Phase 07]: triggerAiReview only reachable from executeSubmission when storagePaths.length > 0 — test via full submission flow (submissionIntent + confirm + file attachment)
+- [Phase 07]: setArchived failure fallback bug in review-thread.ts: fixed with unarchiveSucceeded flag — catch block without success guard silently continues reuse path
 
 ### Pending Todos
 
@@ -86,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27T07:27:13.742Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-03-27T07:40:57.447Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None

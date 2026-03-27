@@ -133,7 +133,7 @@ Plans:
 
 Plans:
 - [x] 07-01-PLAN.md — Thread reuse, button idempotency, AI message in-place edit (handler changes)
-- [ ] 07-02-PLAN.md — Unit and integration tests for all new admin review behaviors
+- [x] 07-02-PLAN.md — Unit and integration tests for all new admin review behaviors
 
 ## Progress
 

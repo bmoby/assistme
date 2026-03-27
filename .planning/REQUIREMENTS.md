@@ -34,7 +34,7 @@ Requirements for exercise submission flow milestone. Each maps to roadmap phases
 
 ### Tests
 
-- [ ] **TST-01**: Tests unitaires et d'integration couvrant tous les nouveaux comportements
+- [x] **TST-01**: Tests unitaires et d'integration couvrant tous les nouveaux comportements
 
 ## Future Requirements
 
@@ -73,4 +73,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADM-01 | Phase 7 | Complete |
 | ADM-02 | Phase 7 | Complete |
 | ADM-03 | Phase 7 | Complete |
-| TST-01 | Phase 7 | Pending |
+| TST-01 | Phase 7 | Complete |
