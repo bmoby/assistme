@@ -89,47 +89,47 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADMIN-01 | — | Pending |
-| ADMIN-02 | — | Pending |
-| ADMIN-03 | — | Pending |
-| ADMIN-04 | — | Pending |
-| ADMIN-05 | — | Pending |
-| ADMIN-06 | — | Pending |
-| QUIZ-01 | — | Pending |
-| QUIZ-02 | — | Pending |
-| QUIZ-03 | — | Pending |
-| QUIZ-04 | — | Pending |
-| QUIZ-05 | — | Pending |
-| QUIZ-06 | — | Pending |
-| QUIZ-07 | — | Pending |
-| QUIZ-08 | — | Pending |
-| EVAL-01 | — | Pending |
-| EVAL-02 | — | Pending |
-| EVAL-03 | — | Pending |
-| EVAL-04 | — | Pending |
-| EVAL-05 | — | Pending |
-| EVAL-06 | — | Pending |
-| NOTIF-01 | — | Pending |
-| NOTIF-02 | — | Pending |
-| NOTIF-03 | — | Pending |
-| DATA-01 | — | Pending |
-| DATA-02 | — | Pending |
-| DATA-03 | — | Pending |
-| DATA-04 | — | Pending |
-| DATA-05 | — | Pending |
-| DATA-06 | — | Pending |
-| DATA-07 | — | Pending |
-| BOT-01 | — | Pending |
-| BOT-02 | — | Pending |
-| BOT-03 | — | Pending |
-| BOT-04 | — | Pending |
-| BOT-05 | — | Pending |
+| ADMIN-01 | Phase 9 | Pending |
+| ADMIN-02 | Phase 9 | Pending |
+| ADMIN-03 | Phase 9 | Pending |
+| ADMIN-04 | Phase 9 | Pending |
+| ADMIN-05 | Phase 9 | Pending |
+| ADMIN-06 | Phase 9 | Pending |
+| QUIZ-01 | Phase 10 | Pending |
+| QUIZ-02 | Phase 10 | Pending |
+| QUIZ-03 | Phase 10 | Pending |
+| QUIZ-04 | Phase 10 | Pending |
+| QUIZ-05 | Phase 10 | Pending |
+| QUIZ-06 | Phase 10 | Pending |
+| QUIZ-07 | Phase 10 | Pending |
+| QUIZ-08 | Phase 10 | Pending |
+| EVAL-01 | Phase 10 | Pending |
+| EVAL-02 | Phase 10 | Pending |
+| EVAL-03 | Phase 10 | Pending |
+| EVAL-04 | Phase 10 | Pending |
+| EVAL-05 | Phase 10 | Pending |
+| EVAL-06 | Phase 10 | Pending |
+| NOTIF-01 | Phase 11 | Pending |
+| NOTIF-02 | Phase 11 | Pending |
+| NOTIF-03 | Phase 11 | Pending |
+| DATA-01 | Phase 8 | Pending |
+| DATA-02 | Phase 8 | Pending |
+| DATA-03 | Phase 8 | Pending |
+| DATA-04 | Phase 8 | Pending |
+| DATA-05 | Phase 8 | Pending |
+| DATA-06 | Phase 9 | Pending |
+| DATA-07 | Phase 8 | Pending |
+| BOT-01 | Phase 8 | Pending |
+| BOT-02 | Phase 8 | Pending |
+| BOT-03 | Phase 8 | Pending |
+| BOT-04 | Phase 8 | Pending |
+| BOT-05 | Phase 8 | Pending |
 
 **Coverage:**
 - v1 requirements: 35 total
-- Mapped to phases: 0
-- Unmapped: 35
+- Mapped to phases: 35
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-27*
-*Last updated: 2026-03-27 after initial definition*
+*Last updated: 2026-03-27 after roadmap creation (v3.0 phases 8-11)*
