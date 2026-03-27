@@ -1,135 +1,108 @@
-# Requirements: Bot Discord Quiz
+# Requirements: Exercise Submission Flow - Bot Discord
 
-**Defined:** 2026-03-27
-**Core Value:** Identifier les étudiants qui décrochent via des quiz automatisés — sans correction manuelle.
+**Defined:** 2026-03-25
+**Core Value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
 
-## v1 Requirements
+## v1.0 Requirements (Complete)
 
-### Admin — Création de quiz (ADMIN)
+All v1.0 requirements (test infrastructure) were completed in milestone v1.0.
+See `.planning/phases/` for phase summaries.
 
-- [ ] **ADMIN-01**: Admin peut créer un quiz via slash command `/quiz-create {session_number}` avec un fichier TXT en pièce jointe
-- [ ] **ADMIN-02**: Le bot parse le TXT libre via IA et extrait les questions structurées (QCM, Vrai/Faux, Ouverte)
-- [ ] **ADMIN-03**: Le bot affiche un preview structuré du quiz parsé dans le channel admin avec boutons Confirmer/Annuler
-- [ ] **ADMIN-04**: Après confirmation, le bot envoie immédiatement le quiz en DM à tous les étudiants actifs
-- [ ] **ADMIN-05**: Admin peut voir le statut d'un quiz via `/quiz-status [session_number]` (qui a répondu, scores, en cours)
-- [ ] **ADMIN-06**: Admin peut fermer manuellement un quiz via `/quiz-close {session_number}`
+## v2.0 Requirements
 
-### Étudiant — Prise de quiz (QUIZ)
+Requirements for exercise submission flow milestone. Each maps to roadmap phases.
 
-- [ ] **QUIZ-01**: L'étudiant reçoit un DM avec titre du quiz, session, et bouton "Начать" (Commencer)
-- [ ] **QUIZ-02**: Les questions sont présentées une par une dans l'ordre du TXT
-- [ ] **QUIZ-03**: Questions QCM : l'étudiant répond via boutons Discord (A, B, C, D)
-- [ ] **QUIZ-04**: Questions Vrai/Faux : l'étudiant répond via boutons "Правда" / "Ложь"
-- [ ] **QUIZ-05**: Questions ouvertes : l'étudiant tape sa réponse en texte dans le DM
-- [ ] **QUIZ-06**: L'étudiant peut quitter et reprendre plus tard — état sauvegardé en BDD
-- [ ] **QUIZ-07**: 1 seul quiz actif par étudiant — un nouveau quiz ferme automatiquement l'ancien avec score partiel (statut expired_incomplete)
-- [ ] **QUIZ-08**: Pas de re-tentative — one-shot uniquement
+### Submission Correctness
 
-### Évaluation et Feedback (EVAL)
+- [x] **SUB-01**: DB unique constraint `(student_id, session_id)` empeche les doublons de soumission
+- [x] **SUB-02**: Soumission vide refusee (pas de fichier, lien, ou texte substantiel)
+- [x] **SUB-03**: `session_id` assigne atomiquement dans l'INSERT (pas en UPDATE separe)
+- [x] **SUB-04**: `pendingAttachments` nettoye sur erreur agent (pas de fuite d'etat entre messages)
 
-- [ ] **EVAL-01**: QCM et Vrai/Faux évalués par exact match avec la réponse correcte du TXT
-- [ ] **EVAL-02**: Questions ouvertes évaluées par IA — comparaison souple avec la réponse attendue du TXT
-- [ ] **EVAL-03**: À la fin du quiz, feedback question par question : correct/incorrect + explication tirée du TXT
-- [ ] **EVAL-04**: Score total affiché en pourcentage
-- [ ] **EVAL-05**: Message de clôture : "Tes réponses ont été enregistrées"
-- [ ] **EVAL-06**: Tout le feedback et les messages côté étudiant sont en russe
+### Student UX
 
-### Notifications Admin (NOTIF)
+- [x] **UX-01**: Bot affiche un recapitulatif (texte, fichiers, liens) avec bouton "Soumettre" / "Annuler" avant soumission
+- [x] **UX-02**: Etudiant precise le numero de session — bot valide l'existence en DB, refuse si inexistant
+- [x] **UX-03**: Re-soumission autorisee apres feedback — remplace l'ancienne soumission, meme processus
+- [x] **UX-04**: Etudiant peut annuler une soumission en cours ("annuler", bouton Cancel)
 
-- [ ] **NOTIF-01**: Alerte dans le channel admin si un étudiant score < 60%
-- [ ] **NOTIF-02**: Digest régulier : qui a complété, qui n'a pas commencé, qui est en cours, scores
-- [ ] **NOTIF-03**: Signal de décrochage : quiz fermé automatiquement (expired_incomplete) remonté dans le digest
+### Admin Review UX
 
-### Données et Infrastructure (DATA)
+- [ ] **ADM-01**: Re-soumission reutilise le thread de review existant au lieu d'en creer un nouveau
+- [ ] **ADM-02**: Bouton "Ouvrir review" est idempotent — double-clic ne cree pas de thread doublon
+- [ ] **ADM-03**: Message AI dans le thread se met a jour en place quand la review AI est terminee
 
-- [ ] **DATA-01**: Table `quizzes` : id, session_number, status (draft/active/closed), questions_data (JSONB), created_at, closed_at
-- [ ] **DATA-02**: Table `quiz_questions` : id, quiz_id, question_number, type (mcq/true_false/open), question_text, choices (JSONB), correct_answer, explanation
-- [ ] **DATA-03**: Table `student_quiz_sessions` : id, student_id, quiz_id, status (not_started/in_progress/completed/expired_incomplete), current_question, score, started_at, completed_at
-- [ ] **DATA-04**: Table `student_quiz_answers` : id, session_id, question_id, student_answer, is_correct, ai_evaluation (JSONB pour ouvertes), answered_at
-- [ ] **DATA-05**: Cron job pour fermer automatiquement les quiz expirés
-- [ ] **DATA-06**: Le fichier TXT original est stocké (Supabase Storage ou en BDD) comme référence
-- [ ] **DATA-07**: Modèle de données extensible — timestamps, statuts, scores structurés pour analytics futures
+### Tests
 
-### Bot Séparé (BOT)
+- [ ] **TST-01**: Tests unitaires et d'integration couvrant tous les nouveaux comportements
+
+## v3.0 Requirements (Quiz System — Phase 8+)
+
+### Data Foundation
+
+- [x] **DATA-01**: Table `quizzes` avec session_number, status (draft/active/closed), questions_data JSONB
+- [x] **DATA-02**: Table `quiz_questions` avec quiz_id FK, question_number, type (mcq/true_false/open), choices JSONB
+- [x] **DATA-03**: Table `student_quiz_sessions` avec student_id FK, quiz_id FK, status (not_started/in_progress/completed/expired_incomplete), score
+- [x] **DATA-04**: Table `student_quiz_answers` avec session_id FK, question_id FK, student_answer, is_correct, ai_evaluation JSONB
+- [x] **DATA-05**: Cron ferme automatiquement les quiz actifs plus vieux que 48h (closeExpiredQuizSessions)
+- [x] **DATA-06**: `original_txt TEXT` column stocke le contenu TXT original du quiz (baseline; Storage deferred)
+- [x] **DATA-07**: Schema extensible — timestamps, statuts enum, scores DECIMAL, JSONB pour donnees structurees
+
+### Bot Infrastructure
 
 - [ ] **BOT-01**: Nouveau package `packages/bot-discord-quiz` dans le monorepo pnpm
-- [ ] **BOT-02**: Nouveau token Discord, nouveau bot application, même guild
-- [ ] **BOT-03**: Imports uniquement depuis `@assistme/core` — zéro import depuis `packages/bot-discord`
-- [ ] **BOT-04**: Entry point indépendant, process séparé, `pnpm -F @assistme/bot-discord-quiz dev`
-- [ ] **BOT-05**: Tests unitaires avec Vitest
+- [ ] **BOT-02**: Nouveau token Discord (TeacherBot), meme guild, vars DISCORD_QUIZ_BOT_TOKEN + DISCORD_QUIZ_CLIENT_ID
+- [ ] **BOT-03**: Imports uniquement depuis @assistme/core — zero import depuis packages/bot-discord
+- [ ] **BOT-04**: Entry point independant, process separe, `pnpm -F @assistme/bot-discord-quiz dev`
+- [ ] **BOT-05**: Tests unitaires avec Vitest pour le nouveau package
 
-## v2 Requirements
+## Future Requirements
 
-### Analytics avancées
+Deferred to future release. Tracked but not in current roadmap.
 
-- **ANALYTICS-01**: Dashboard de progression par étudiant sur l'ensemble des quiz
-- **ANALYTICS-02**: Identification des thèmes/concepts mal compris (agrégation par question)
-- **ANALYTICS-03**: Comparaison inter-sessions (évolution des scores)
-
-### Améliorations quiz
-
-- **ENHANCE-01**: Questions avec images/médias
-- **ENHANCE-02**: Pondération différente par question (certaines valent plus)
-- **ENHANCE-03**: Quiz programmés (envoi différé)
-- **ENHANCE-04**: Quiz ciblés par pod ou étudiant individuel
+- **FUT-01**: Tests pour les bots Telegram (admin + public)
+- **FUT-02**: Tests de performance/load sur les agents IA
+- **FUT-03**: Confirmation par modal Discord (quand Discord supportera l'upload fichier dans modals)
 
 ## Out of Scope
 
+Explicitly excluded. Documented to prevent scope creep.
+
 | Feature | Reason |
 |---------|--------|
-| Modification du bot Discord principal | Isolation totale — zéro régression |
-| Re-tentative de quiz | One-shot, évalue la compréhension réelle |
-| Timer par question | Pas un examen, c'est du feedback |
-| Quiz dans un channel public | DM uniquement, évaluation individuelle |
-| Génération auto de questions par IA | Le TXT est la source de vérité, pas l'IA |
-| Correction manuelle par l'admin | Tout est automatisé |
-| Intégration Tsarag agent | Slash commands dédiées, pas de langage naturel |
+| Refonte complete du DM Agent | On ameliore le flow existant, pas de rewrite |
+| Modal Discord pour soumission | Modals limitees a 5 champs texte, pas de fichier upload |
+| Soumission automatique sans confirmation | Risque de soumissions accidentelles |
+| Multi-session dans une soumission | 1 soumission = 1 session, scope clair |
+| Tests bots Telegram | Scope limite au bot Discord |
 
 ## Traceability
 
+Which phases cover which requirements. Updated during roadmap creation.
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADMIN-01 | Phase 9 | Pending |
-| ADMIN-02 | Phase 9 | Pending |
-| ADMIN-03 | Phase 9 | Pending |
-| ADMIN-04 | Phase 9 | Pending |
-| ADMIN-05 | Phase 9 | Pending |
-| ADMIN-06 | Phase 9 | Pending |
-| QUIZ-01 | Phase 10 | Pending |
-| QUIZ-02 | Phase 10 | Pending |
-| QUIZ-03 | Phase 10 | Pending |
-| QUIZ-04 | Phase 10 | Pending |
-| QUIZ-05 | Phase 10 | Pending |
-| QUIZ-06 | Phase 10 | Pending |
-| QUIZ-07 | Phase 10 | Pending |
-| QUIZ-08 | Phase 10 | Pending |
-| EVAL-01 | Phase 10 | Pending |
-| EVAL-02 | Phase 10 | Pending |
-| EVAL-03 | Phase 10 | Pending |
-| EVAL-04 | Phase 10 | Pending |
-| EVAL-05 | Phase 10 | Pending |
-| EVAL-06 | Phase 10 | Pending |
-| NOTIF-01 | Phase 11 | Pending |
-| NOTIF-02 | Phase 11 | Pending |
-| NOTIF-03 | Phase 11 | Pending |
-| DATA-01 | Phase 8 | Pending |
-| DATA-02 | Phase 8 | Pending |
-| DATA-03 | Phase 8 | Pending |
-| DATA-04 | Phase 8 | Pending |
-| DATA-05 | Phase 8 | Pending |
-| DATA-06 | Phase 9 | Pending |
-| DATA-07 | Phase 8 | Pending |
+| SUB-01 | Phase 5 | Complete |
+| SUB-02 | Phase 6 | Complete |
+| SUB-03 | Phase 5 | Complete |
+| SUB-04 | Phase 6 | Complete |
+| UX-01 | Phase 6 | Complete |
+| UX-02 | Phase 6 | Complete |
+| UX-03 | Phase 6 | Complete |
+| UX-04 | Phase 6 | Complete |
+| ADM-01 | Phase 7 | Complete |
+| ADM-02 | Phase 7 | Complete |
+| ADM-03 | Phase 7 | Complete |
+| TST-01 | Phase 7 | Complete |
+| DATA-01 | Phase 8 | Complete |
+| DATA-02 | Phase 8 | Complete |
+| DATA-03 | Phase 8 | Complete |
+| DATA-04 | Phase 8 | Complete |
+| DATA-05 | Phase 8 | Complete |
+| DATA-06 | Phase 8 | Complete |
+| DATA-07 | Phase 8 | Complete |
 | BOT-01 | Phase 8 | Pending |
 | BOT-02 | Phase 8 | Pending |
 | BOT-03 | Phase 8 | Pending |
 | BOT-04 | Phase 8 | Pending |
 | BOT-05 | Phase 8 | Pending |
-
-**Coverage:**
-- v1 requirements: 35 total
-- Mapped to phases: 35
-- Unmapped: 0
-
----
-*Requirements defined: 2026-03-27*
-*Last updated: 2026-03-27 after roadmap creation (v3.0 phases 8-11)*

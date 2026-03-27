@@ -1,40 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Bot Discord Quiz
-status: planning
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-27T04:56:15.082Z"
-last_activity: 2026-03-27 — Roadmap created for v3.0 Bot Discord Quiz (Phases 8-11)
+milestone: v2.0
+milestone_name: Exercise Submission Flow
+status: In progress
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-27T10:42:00Z"
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 3
+  total_plans: 6
+  completed_plans: 5
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-27)
+See: .planning/PROJECT.md (updated 2026-03-25)
 
-**Core value:** Identifier les étudiants qui décrochent via des quiz automatisés — sans que l'admin ait à corriger manuellement quoi que ce soit.
-**Current focus:** Phase 8 — Infrastructure (package scaffold + DB migrations)
+**Core value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
+**Current focus:** Phase 08 — infrastructure (quiz system data foundation)
 
 ## Current Position
 
-Phase: 8 of 11 (Infrastructure)
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-03-27 — Roadmap created for v3.0 Bot Discord Quiz (Phases 8-11)
-
-Progress: [░░░░░░░░░░] 0% (v3.0 milestone)
+Phase: 8
+Plan: 1 complete (of 2)
 
 ## Performance Metrics
 
-**Velocity (v3.0):**
+**Velocity (v2.0):**
 
 - Total plans completed: 0
 - Average duration: -
@@ -52,20 +46,35 @@ Progress: [░░░░░░░░░░] 0% (v3.0 milestone)
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 05 P01 | 5min | 2 tasks | 6 files |
+| Phase 05 P02 | 5min | 1 tasks | 1 files |
+| Phase 06 P01 | 7min | 2 tasks | 4 files |
+| Phase 06 P02 | 6min | 1 tasks | 1 files |
+| Phase 08 P01 | 5min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Key decisions for v3.0:
+Recent decisions affecting current work:
 
-- Bot séparé (`packages/bot-discord-quiz`) — zéro import depuis `packages/bot-discord`, uniquement `@assistme/core`
-- TXT libre parsé par IA (pas de format structuré imposé) — moins de friction admin
-- Preview obligatoire avant envoi — le parsing IA peut avoir des erreurs (~5%)
-- 1 quiz actif max par étudiant — signal clair de décrochage si incomplet
-- Seuil alerte < 60% — identifier ceux "à côté de la plaque", pas les perfectionner
-- One-shot, pas de re-tentative — évalue la compréhension réelle
+- DB migration must run and be applied to prod before any handler changes ship
+- Button-based preview/confirm (ActionRowBuilder + awaitMessageComponent) preferred over LLM-driven confirmation — deterministic handler, no Claude misinterpretation risk
+- Partial unique index on `(student_id, session_id) WHERE status IN ('submitted', 'ai_reviewed')` — not a full unique constraint, intentionally scoped to active statuses
+- Re-submission uses expand-then-contract ordering: upload new files first, delete old records last (fire-and-forget) — never leaves a zero-attachment submitted state
+- [Phase 05]: DO block with duplicate detection before index creation for safe production migration
+- [Phase 05]: Keep getPendingExercisesBySession(sessionNumber) signature to avoid breaking callers; resolve UUID internally
+- [Phase 05]: Use DB-generated UUIDs for student test fixtures (students.id is UUID column)
+- [Phase 05]: Verify unique index via 23505 error behavior (Supabase JS cannot query pg_indexes)
+- [Phase 06]: DM agent returns SubmissionIntent instead of executing DB write — handler owns full submission lifecycle
+- [Phase 06]: uploadFileToStorage and triggerAiReview moved from dm-agent.ts to dm-handler.ts — submission logic belongs in handler layer
+- [Phase 06]: Need to set student mock in every submission flow test — handleSubmissionIntent calls getStudentByDiscordId before empty/session checks
+- [Phase 06]: makeReplyMessageMock(null) triggers timeout path, makeReplyMessageMock(customId) simulates button click
+
+- [Phase 08-01]: original_txt TEXT column on quizzes provides DATA-06 baseline storage — Supabase Storage deferred if file sizes require it
+- [Phase 08-01]: getQuizBySession returns latest quiz for session_number (DESC created_at) to allow quiz replacement per session
+- [Phase 08-01]: closeExpiredQuizSessions loops per quiz to correctly calculate partial score per individual session
 
 ### Pending Todos
 
@@ -73,11 +82,11 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 8: Need a new Discord bot application + token (separate from existing bot-discord token) before dev can start
-- Phase 9: Claude API used for TXT parsing — must stay strictly within the TXT scope (no hallucinated questions)
+- Phase 4 (admin UX, thread reuse): `client.channels.fetch(threadId)` can return null if thread was manually deleted from Discord — fallback to new thread creation must be explicitly implemented and tested
+- Phase 4 (admin UX, AI message update): re-read `event-dispatcher.ts` before implementing `ai_review_complete` handler — existing dispatch lifecycle timing matters
 
 ## Session Continuity
 
-Last session: 2026-03-27T04:56:15.074Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-infrastructure/08-CONTEXT.md
+Last session: 2026-03-27T10:42:00Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
