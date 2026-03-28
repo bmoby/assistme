@@ -12,6 +12,7 @@ dotenv.config({ path: resolve(root, '.env') });
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import { logger } from '@assistme/core';
 import { registerCronJobs } from './cron/index.js';
+import { registerSlashCommands, setupCommandHandler } from './commands/index.js';
 import { setupHandlers } from './handlers/index.js';
 
 async function main(): Promise<void> {
@@ -32,12 +33,14 @@ async function main(): Promise<void> {
     partials: [Partials.Channel],
   });
 
-  client.once('ready', (readyClient) => {
+  client.once('ready', async (readyClient) => {
     logger.info(
       { user: readyClient.user.tag, guildId },
       'TeacherBot is online'
     );
     registerCronJobs(client, guildId);
+    await registerSlashCommands(token, clientId, guildId);
+    setupCommandHandler(client);
     setupHandlers(client);
   });
 

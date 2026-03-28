@@ -1,40 +1,46 @@
-import type { Client, Interaction, Message, ButtonInteraction } from 'discord.js';
+import type { Client, Message, ButtonInteraction } from 'discord.js';
 import { logger } from '@assistme/core';
 import { handleQuizStart } from './quiz-start.js';
 import { handleQuizAnswer } from './quiz-answer.js';
 import { handleQuizDm } from './quiz-dm.js';
 
-const buttonHandlers = new Map<string, (i: ButtonInteraction) => Promise<void>>();
+type ButtonHandler = (interaction: ButtonInteraction) => Promise<void>;
 
-function registerButton(prefix: string, handler: (i: ButtonInteraction) => Promise<void>): void {
-  buttonHandlers.set(prefix, handler);
+const handlers = new Map<string, ButtonHandler>();
+
+export function registerButton(prefix: string, handler: ButtonHandler): void {
+  handlers.set(prefix, handler);
+}
+
+export async function handleButtonInteraction(interaction: ButtonInteraction): Promise<void> {
+  const customId = interaction.customId;
+
+  for (const [prefix, handler] of handlers) {
+    if (customId.startsWith(prefix)) {
+      try {
+        await handler(interaction);
+      } catch (error) {
+        logger.error({ error, customId }, 'Quiz button handler error');
+        const reply = { content: 'Произошла ошибка. Попробуйте позже.', ephemeral: true };
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(reply).catch(() => {});
+        } else {
+          await interaction.reply(reply).catch(() => {});
+        }
+      }
+      return;
+    }
+  }
+
+  logger.warn({ customId }, 'Unknown quiz button interaction');
 }
 
 export function setupHandlers(client: Client): void {
+  // Register Phase 10 quiz handlers
   registerButton('quiz_start_', handleQuizStart);
   registerButton('quiz_answer_', handleQuizAnswer);
 
-  client.on('interactionCreate', async (interaction: Interaction) => {
-    if (!interaction.isButton()) return;
-
-    for (const [prefix, handler] of buttonHandlers) {
-      if (interaction.customId.startsWith(prefix)) {
-        try {
-          await handler(interaction);
-        } catch (err) {
-          logger.error({ err, customId: interaction.customId }, 'Quiz button handler error');
-          const reply = { content: 'Произошла ошибка. Попробуйте позже.', ephemeral: true };
-          if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(reply).catch(() => {});
-          } else {
-            await interaction.reply(reply).catch(() => {});
-          }
-        }
-        return;
-      }
-    }
-  });
-
+  // DM listener for open answers + resume
   client.on('messageCreate', async (message: Message) => {
     if (message.author.bot) return;
     if (message.guild !== null) return; // DMs only

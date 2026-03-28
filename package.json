@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
     "dev:discord": "pnpm -F @assistme/core build && pnpm -F @assistme/bot-discord dev",
+    "dev:quiz": "pnpm -F @assistme/core build && pnpm -F @assistme/bot-discord-quiz dev",
     "build": "pnpm -r run build",
     "lint": "eslint packages/*/src/**/*.ts",
     "lint:fix": "eslint packages/*/src/**/*.ts --fix",
