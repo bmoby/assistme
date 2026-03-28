@@ -58,6 +58,31 @@ export default defineConfig({
       },
       {
         test: {
+          name: 'bot-discord-quiz',
+          root: path.resolve(__dirname, 'packages/bot-discord-quiz'),
+          environment: 'node',
+          pool: 'forks',
+          include: ['src/**/*.test.ts'],
+          exclude: ['src/**/*.integration.test.ts', 'src/**/*.e2e.test.ts'],
+          env: {
+            SUPABASE_URL: 'http://localhost:54321',
+            SUPABASE_SERVICE_ROLE_KEY: 'test-service-key-placeholder',
+            ANTHROPIC_API_KEY: 'test-anthropic-key-placeholder',
+            OPENAI_API_KEY: 'test-openai-key-placeholder',
+            DISCORD_QUIZ_BOT_TOKEN: 'test-discord-quiz-token-placeholder',
+            DISCORD_QUIZ_CLIENT_ID: 'test-quiz-client-id-placeholder',
+            DISCORD_GUILD_ID: 'test-guild-id-placeholder',
+            LOG_LEVEL: 'silent',
+          },
+        },
+        resolve: {
+          alias: {
+            '@assistme/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
+          },
+        },
+      },
+      {
+        test: {
           name: 'core-integration',
           root: path.resolve(__dirname, 'packages/core'),
           environment: 'node',

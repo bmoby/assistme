@@ -3,6 +3,7 @@ import { logger } from '../logger.js';
 import { getEmbedding } from '../ai/embeddings.js';
 import { cacheGet, cacheSet, cacheDelete } from '../cache/redis.js';
 import type { MemoryTier } from '../types/index.js';
+import { WORKING_MEMORY_TTL_MS, DECAY_HALF_LIFE_DAYS as DECAY_HALF_LIFE_DAYS } from '../config/constants.js';
 
 const CACHE_KEY_CORE = 'memory:core';
 const CACHE_KEY_WORKING = 'memory:working';
@@ -37,7 +38,7 @@ function inferTier(category: MemoryCategory): MemoryTier {
 
 function defaultExpiresAt(tier: MemoryTier): string | null {
   if (tier === 'working') {
-    return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    return new Date(Date.now() + WORKING_MEMORY_TTL_MS).toISOString();
   }
   return null; // core and archival don't expire
 }
@@ -248,7 +249,6 @@ export async function moveToTier(category: MemoryCategory, key: string, newTier:
 
 // ---------- Temporal Decay ----------
 
-const DECAY_HALF_LIFE_DAYS = 30;
 const DECAY_LAMBDA = Math.LN2 / DECAY_HALF_LIFE_DAYS;
 
 /** Compute decay factor: 1.0 for today, 0.5 at 30 days, 0.125 at 90 days */

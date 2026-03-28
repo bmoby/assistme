@@ -314,6 +314,8 @@ export async function resubmitExercise(
       submission_count: exercise.submission_count + 1,
       review_history: updatedHistory,
       notification_message_id: null,
+      review_thread_ai_message_id: null,  // clear so fresh placeholder gets new ID (D-09)
+      // review_thread_id intentionally NOT cleared — thread persists for reuse (D-09)
     })
     .eq('id', exerciseId)
     .select()

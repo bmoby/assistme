@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Exercise Submission Flow
-status: Ready to plan
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-25T11:16:07.563Z"
+status: Ready to execute
+stopped_at: Completed 10-03-PLAN.md
+last_updated: "2026-03-28T06:01:54.789Z"
 progress:
-  total_phases: 3
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_phases: 7
+  completed_phases: 4
+  total_plans: 11
+  completed_plans: 9
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
-**Current focus:** Phase 06 — submission-handler-correctness-student-ux
+**Current focus:** Phase 10 — student-quiz-experience
 
 ## Current Position
 
-Phase: 7
-Plan: Not started
+Phase: 10 (student-quiz-experience) — EXECUTING
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -50,6 +50,10 @@ Plan: Not started
 | Phase 05 P02 | 5min | 1 tasks | 1 files |
 | Phase 06 P01 | 7min | 2 tasks | 4 files |
 | Phase 06 P02 | 6min | 1 tasks | 1 files |
+| Phase 08 P01 | 5min | 2 tasks | 7 files |
+| Phase 08 P02 | 4min | 2 tasks | 12 files |
+| Phase 10-student-quiz-experience P01 | 12min | 1 tasks | 5 files |
+| Phase 10-student-quiz-experience P03 | 8min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -71,6 +75,19 @@ Recent decisions affecting current work:
 - [Phase 06]: Need to set student mock in every submission flow test — handleSubmissionIntent calls getStudentByDiscordId before empty/session checks
 - [Phase 06]: makeReplyMessageMock(null) triggers timeout path, makeReplyMessageMock(customId) simulates button click
 
+- [Phase 08-01]: original_txt TEXT column on quizzes provides DATA-06 baseline storage — Supabase Storage deferred if file sizes require it
+- [Phase 08-01]: getQuizBySession returns latest quiz for session_number (DESC created_at) to allow quiz replacement per session
+- [Phase 08-01]: closeExpiredQuizSessions loops per quiz to correctly calculate partial score per individual session
+- [Phase 08-02]: DISCORD_QUIZ_BOT_TOKEN and DISCORD_QUIZ_CLIENT_ID are separate from Formateur bot vars — TeacherBot is a fully independent Discord application
+- [Phase 08-02]: bot-discord-quiz has zero runtime dependency on @assistme/bot-discord — clean package isolation
+- [Phase 08-02]: Only GatewayIntentBits.Guilds + DirectMessages for Phase 8 scaffold (minimal footprint)
+- [Phase 08-02]: quiz-close-expired cron every 30min (not real-time) — adequate for 48h expiry threshold
+- [Phase 10-01]: Use SendableChannel union type (DMChannel | TextChannel | NewsChannel | ThreadChannel) instead of TextBasedChannel for quiz flow — PartialGroupDMChannel lacks .send()
+- [Phase 10-01]: advanceOrComplete returns StudentQuizSession | null — null on complete signals handlers to clear awaitingOpenAnswer state
+- [Phase 10-01]: evaluateOpenAnswer fallback: substring match when JSON.parse fails — avoids crash on malformed Claude response
+- [Phase 10-student-quiz-experience]: Class-based discord.js mocks in vi.mock factory — vi.fn().mockImplementation() produces functions not constructors, breaking new EmbedBuilder() calls
+- [Phase 10-student-quiz-experience]: invokeAndWait helper pattern for fire-and-forget lock handlers — await handleQuizDm() returns before processQuizDm runs; drain with 5x Promise.resolve() + setTimeout(0)
+
 ### Pending Todos
 
 None yet.
@@ -82,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T11:07:15.667Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-03-28T06:01:54.784Z
+Stopped at: Completed 10-03-PLAN.md
 Resume file: None

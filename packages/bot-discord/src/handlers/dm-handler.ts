@@ -40,7 +40,7 @@ import type {
   StudentExercise,
   AttachmentType,
 } from '@assistme/core';
-import { formatSubmissionNotification } from '../utils/format.js';
+import { formatSubmissionNotification, formatReviewThreadMessages } from '../utils/format.js';
 import { CHANNELS } from '../config.js';
 
 // Discord client reference (set in setupDmHandler)
@@ -190,6 +190,38 @@ async function triggerAiReview(
     status: 'ai_reviewed',
   });
   logger.info({ exerciseId, score: result.score }, 'AI review completed and saved');
+
+  // Edit thread AI message in place if thread was already opened (per D-06)
+  try {
+    const freshExercise = await getExercise(exerciseId);
+    if (freshExercise?.review_thread_id && freshExercise?.review_thread_ai_message_id) {
+      const thread = await discordClient.channels
+        .fetch(freshExercise.review_thread_id)
+        .catch(() => null);
+      if (thread?.isThread()) {
+        const aiMsg = await thread.messages
+          .fetch(freshExercise.review_thread_ai_message_id)
+          .catch(() => null);
+        if (aiMsg) {
+          // VERIFIED: aiReviewMsg is built entirely from exercise.ai_review (format.ts lines 201-230).
+          // attachmentsWithUrls is only used for submissionMsg and imageUrl, NOT for aiReviewMsg.
+          // Passing [] is correct and safe — no attachment data needed for the AI review message.
+          const { aiReviewMsg } = formatReviewThreadMessages(
+            freshExercise,
+            session,
+            student.name,
+            [],
+          );
+          if (aiReviewMsg) {
+            await aiMsg.edit(aiReviewMsg);
+            logger.info({ exerciseId }, 'Thread AI message updated in place');
+          }
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, exerciseId }, 'Could not update thread AI message — non-blocking');
+  }
 
   // Notify Discord to update the admin notification with AI score
   try {

@@ -419,3 +419,55 @@ export interface TsaragAgentResponse {
   /** ID of the action executed this turn (for idempotency tracking) */
   executedActionId: string | null;
 }
+
+// ============================================
+// Quiz Types
+// ============================================
+
+export type QuizStatus = 'draft' | 'active' | 'closed';
+export type QuizQuestionType = 'mcq' | 'true_false' | 'open';
+export type StudentQuizSessionStatus = 'not_started' | 'in_progress' | 'completed' | 'expired_incomplete';
+
+export interface Quiz {
+  id: string;
+  session_number: number;
+  status: QuizStatus;
+  questions_data: Record<string, unknown> | null;
+  original_txt: string | null;
+  created_at: string;
+  closed_at: string | null;
+}
+
+export interface QuizQuestion {
+  id: string;
+  quiz_id: string;
+  question_number: number;
+  type: QuizQuestionType;
+  question_text: string;
+  choices: Record<string, unknown> | null;
+  correct_answer: string;
+  explanation: string | null;
+  created_at: string;
+}
+
+export interface StudentQuizSession {
+  id: string;
+  student_id: string;
+  quiz_id: string;
+  status: StudentQuizSessionStatus;
+  current_question: number;
+  score: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface StudentQuizAnswer {
+  id: string;
+  session_id: string;
+  question_id: string;
+  student_answer: string;
+  is_correct: boolean | null;
+  ai_evaluation: Record<string, unknown> | null;
+  answered_at: string;
+}

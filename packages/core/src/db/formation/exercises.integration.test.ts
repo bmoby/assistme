@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import {
   submitExercise,
+  resubmitExercise,
   getExerciseByStudentAndSession,
   getPendingExercisesBySession,
 } from './exercises.js';
@@ -18,6 +19,7 @@ const adminDb = createTestClient();
 let studentId1: string;
 let studentId2: string;
 let studentId3: string;
+let studentId4: string;
 
 // Use a high session number to avoid collisions with real data
 const sessionNumber = 9900 + Math.floor(Math.random() * 99);
@@ -64,6 +66,19 @@ beforeAll(async () => {
   if (e3) throw new Error(`Failed to insert test student 3: ${e3.message}`);
   studentId3 = s3!.id;
 
+  const { data: s4, error: e4 } = await adminDb
+    .from('students')
+    .insert({
+      discord_id: `${TEST_RUN_ID}-discord-4`,
+      name: `${TEST_RUN_ID}-TestUser4`,
+      session: 2,
+      status: 'registered',
+    })
+    .select('id')
+    .single();
+  if (e4) throw new Error(`Failed to insert test student 4: ${e4.message}`);
+  studentId4 = s4!.id;
+
   // Insert test session (required by FK on student_exercises.session_id)
   const { error: sessionError } = await adminDb.from('sessions').insert({
     id: sessionId,
@@ -78,7 +93,7 @@ beforeAll(async () => {
 afterAll(async () => {
   // Clean up in reverse FK order: exercises first, then students and sessions
   // Delete exercises by student_id (exact UUID match, not prefix)
-  for (const sid of [studentId1, studentId2, studentId3]) {
+  for (const sid of [studentId1, studentId2, studentId3, studentId4]) {
     if (sid) {
       await adminDb.from('student_exercises').delete().eq('student_id', sid);
     }
@@ -180,5 +195,39 @@ describe('exercises DB integration', () => {
     const results = await getPendingExercisesBySession(sessionNumber);
     const ids = results.map((e) => e.id);
     expect(ids).not.toContain(approvedEx!.id);
+  });
+
+  it('resubmitExercise preserves review_thread_id and clears review_thread_ai_message_id', async () => {
+    // 1. Create initial exercise for studentId4
+    const ex = await submitExercise({
+      student_id: studentId4,
+      session_id: sessionId,
+      module: 1,
+      exercise_number: 1,
+      submission_url: 'https://example.com/thread-test',
+    });
+
+    // 2. Simulate admin opening review: set status='revision_needed', review_thread_id, review_thread_ai_message_id
+    const { error: updateErr } = await adminDb
+      .from('student_exercises')
+      .update({
+        status: 'revision_needed',
+        review_thread_id: 'thread-abc',
+        review_thread_ai_message_id: 'msg-xyz',
+      })
+      .eq('id', ex.id);
+    if (updateErr) throw new Error(`Failed to update exercise for resubmit test: ${updateErr.message}`);
+
+    // 3. Re-submit
+    const result = await resubmitExercise(ex.id, {
+      submission_url: null,
+      submission_type: 'file',
+    });
+
+    // 4. Assert thread ID preserved, AI message ID cleared, other fields updated
+    expect(result.review_thread_id).toBe('thread-abc');
+    expect(result.review_thread_ai_message_id).toBeNull();
+    expect(result.notification_message_id).toBeNull();
+    expect(result.submission_count).toBeGreaterThan(1);
   });
 });

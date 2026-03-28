@@ -129,12 +129,72 @@ Plans:
   2. Double-clicking "Ouvrir review" creates exactly one thread — the second click is a no-op
   3. The AI review message in the thread updates in place when the review is complete — the "en cours..." placeholder is replaced, not appended
   4. `pnpm test:unit` and `pnpm test:integration` pass covering the full state machine: accumulate → preview → confirm → submitted → review → revision → re-submit → thread reuse
+**Plans**: 2/2 complete
+
+Plans:
+- [x] 07-01-PLAN.md — Thread reuse, AI message in-place edit, resubmitExercise fix
+- [x] 07-02-PLAN.md — Test coverage for admin review UX (review-buttons, dm-handler, thread ID persistence)
+
+### Phase 8: Infrastructure (Quiz System Data Foundation)
+**Goal**: The four quiz tables exist in Supabase with correct columns, constraints, and indexes. Quiz types and DB CRUD functions are exported from @assistme/core. closeExpiredQuizSessions implements 48h automatic expiration.
+**Depends on**: Phase 7
+**Requirements**: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05, DATA-06, DATA-07
+**Success Criteria** (what must be TRUE):
+  1. Migration 018 creates quizzes, quiz_questions, student_quiz_sessions, student_quiz_answers tables with CHECK constraints and FK references
+  2. Quiz, QuizQuestion, StudentQuizSession, StudentQuizAnswer types exported from @assistme/core
+  3. CRUD functions available for all 4 tables via @assistme/core
+  4. closeExpiredQuizSessions() closes active quizzes older than 48h and sets in-progress sessions to expired_incomplete with partial score
+**Plans:** 1/2 complete
+
+Plans:
+- [x] 08-01-PLAN.md — Migration 018 + quiz types + core DB CRUD module
+- [x] 08-02-PLAN.md — bot-discord-quiz package scaffold (Tasks 1-2 done; Task 3 awaiting Discord bot creation)
+
+### Phase 9: Quiz Creation
+**Goal**: Admin can upload a TXT file via `/quiz-create`, see a structured preview of all parsed questions, confirm it, and have the quiz dispatched immediately to all active students in DM — the complete admin creation loop in one command.
+**Depends on**: Phase 8
+**Requirements**: ADMIN-01, ADMIN-02, ADMIN-03, ADMIN-04, ADMIN-05, ADMIN-06
+**Success Criteria** (what must be TRUE):
+  1. Admin runs `/quiz-create {session_number}` with a TXT attachment and receives a preview embed showing all questions with their type (QCM/V-F/Ouverte), choices, and correct answers — before any student is contacted
+  2. After clicking Confirm, every active student receives a DM from the quiz bot with the quiz title, session reference, and a "Начать" button within 30 seconds
+  3. The parsed quiz and all its questions are stored correctly in `quizzes` and `quiz_questions` with the original TXT file preserved in storage
+  4. Admin can run `/quiz-status {session_number}` and see which students have completed, started, or not begun — with scores for completions
+  5. Admin can run `/quiz-close {session_number}` and the quiz is marked closed; all in-progress student sessions become `expired_incomplete`
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 10: Student Quiz Experience
+**Goal**: A student can take a quiz end-to-end in DM — QCM via buttons, Vrai/Faux via buttons, open questions via text — pause and resume freely — and receive a complete question-by-question feedback with their total score, entirely in Russian.
+**Depends on**: Phase 9
+**Requirements**: QUIZ-01, QUIZ-02, QUIZ-03, QUIZ-04, QUIZ-05, QUIZ-06, QUIZ-07, QUIZ-08, EVAL-01, EVAL-02, EVAL-03, EVAL-04, EVAL-05, EVAL-06
+**Success Criteria** (what must be TRUE):
+  1. Student clicks "Начать" and receives questions one by one in order — QCM shows A/B/C/D buttons, Vrai/Faux shows "Правда"/"Ложь" buttons, open questions prompt text input in the DM
+  2. Student closes the DM mid-quiz and returns hours later; the bot resumes from the exact question where they stopped with no data loss
+  3. When a new quiz arrives while an existing one is in progress, the old session closes automatically with status `expired_incomplete` and a partial score based on answers submitted so far
+  4. At quiz completion, the student receives a question-by-question feedback (correct/incorrect + explanation from the TXT) followed by a total score in percentage — all text in Russian
+  5. One-shot enforcement holds: a completed quiz cannot be retaken; the "Начать" button on a closed or completed quiz produces a graceful Russian-language message
+**Plans**: 3 plans
+
+Plans:
+- [x] 10-01-PLAN.md — Core DB getQuestionsByQuiz + pure utility functions (quiz-messages, quiz-eval, quiz-flow)
+- [ ] 10-02-PLAN.md — Handler infrastructure + button handlers + DM text handler + entry point wiring
+- [ ] 10-03-PLAN.md — Unit tests for all handlers and utilities (30+ tests covering QUIZ-01..08 + EVAL-01..06)
+**UI hint**: yes
+
+### Phase 11: Admin Notifications & Digest
+**Goal**: Admin is proactively informed of low scorers and overall quiz participation through automatic alerts and a structured digest — no need to manually poll `/quiz-status`.
+**Depends on**: Phase 10
+**Requirements**: NOTIF-01, NOTIF-02, NOTIF-03
+**Success Criteria** (what must be TRUE):
+  1. When a student completes a quiz with a score below 60%, an alert embed is automatically posted in the admin quiz channel within seconds of completion
+  2. A digest is posted in the dedicated channel listing: students who completed (with scores), students who have not started, students currently in progress, and students with expired/incomplete sessions
+  3. Expired-incomplete sessions are visually flagged in the digest as dropout signals, distinct from "not started" entries
 **Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -143,5 +203,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7
 | 3. Integration + CI | v1.0 | 4/4 | Complete | 2026-03-25 |
 | 4. E2E Discord Dev | v1.0 | 2/2 | Complete | 2026-03-25 |
 | 5. DB Foundation + Core Hardening | v2.0 | 2/2 | Complete | 2026-03-25 |
-| 6. Submission Handler Correctness + Student UX | v2.0 | 1/2 | In Progress|  |
-| 7. Admin Review UX + Test Coverage | v2.0 | 0/? | Not started | - |
+| 6. Submission Handler Correctness + Student UX | v2.0 | 2/2 | Complete | 2026-03-25 |
+| 7. Admin Review UX + Test Coverage | v2.0 | 2/2 | Complete | 2026-03-25 |
+| 8. Infrastructure (Quiz System) | v3.0 | 2/2 | Checkpoint (human-action) | - |
+| 9. Quiz Creation | v3.0 | 0/TBD | Not started | - |
+| 10. Student Quiz Experience | v3.0 | 1/3 | In Progress|  |
+| 11. Admin Notifications & Digest | v3.0 | 0/TBD | Not started | - |
