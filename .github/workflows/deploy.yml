@@ -11,6 +11,7 @@ jobs:
       bot-telegram: ${{ steps.changes.outputs.bot-telegram }}
       bot-telegram-public: ${{ steps.changes.outputs.bot-telegram-public }}
       bot-discord: ${{ steps.changes.outputs.bot-discord }}
+      bot-discord-quiz: ${{ steps.changes.outputs.bot-discord-quiz }}
       knowledge: ${{ steps.changes.outputs.knowledge }}
       migrations: ${{ steps.changes.outputs.migrations }}
       infra: ${{ steps.changes.outputs.infra }}
@@ -30,6 +31,9 @@ jobs:
             bot-discord:
               - 'packages/bot-discord/**'
               - 'packages/core/**'
+            bot-discord-quiz:
+              - 'packages/bot-discord-quiz/**'
+              - 'packages/core/**'
             knowledge:
               - 'learning-knowledge/**'
               - 'scripts/seed-formation-knowledge.ts'
@@ -47,6 +51,7 @@ jobs:
             "${{ steps.changes.outputs.bot-telegram }}" == "true" || \
             "${{ steps.changes.outputs.bot-telegram-public }}" == "true" || \
             "${{ steps.changes.outputs.bot-discord }}" == "true" || \
+            "${{ steps.changes.outputs.bot-discord-quiz }}" == "true" || \
             "${{ steps.changes.outputs.knowledge }}" == "true" || \
             "${{ steps.changes.outputs.migrations }}" == "true" || \
             "${{ steps.changes.outputs.infra }}" == "true" \
@@ -140,7 +145,7 @@ jobs:
             # If migrations or infra changed, rebuild all bots
             if [ "${{ needs.detect-changes.outputs.migrations }}" == "true" ] || \
                [ "${{ needs.detect-changes.outputs.infra }}" == "true" ]; then
-              SERVICES="bot-telegram bot-telegram-public bot-discord"
+              SERVICES="bot-telegram bot-telegram-public bot-discord bot-discord-quiz"
             else
               if [ "${{ needs.detect-changes.outputs.bot-telegram }}" == "true" ]; then
                 SERVICES="$SERVICES bot-telegram"
@@ -150,6 +155,9 @@ jobs:
               fi
               if [ "${{ needs.detect-changes.outputs.bot-discord }}" == "true" ]; then
                 SERVICES="$SERVICES bot-discord"
+              fi
+              if [ "${{ needs.detect-changes.outputs.bot-discord-quiz }}" == "true" ]; then
+                SERVICES="$SERVICES bot-discord-quiz"
               fi
             fi
 
