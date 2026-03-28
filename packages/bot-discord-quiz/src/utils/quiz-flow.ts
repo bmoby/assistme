@@ -20,18 +20,21 @@ export async function sendQuestion(
 ): Promise<void> {
   const displayNumber = session.current_question + 1;
 
+  // Plain text fallback — always visible even if embed is slow to render
+  const header = `**Вопрос ${displayNumber}/${totalQuestions}**`;
+
   if (question.type === 'mcq') {
     const embed = buildQuestionEmbed(question, displayNumber, totalQuestions);
     const row = buildMcqRow(session.id, question.choices as Record<string, string>);
-    await dmChannel.send({ embeds: [embed], components: [row] });
+    await dmChannel.send({ content: header, embeds: [embed], components: [row] });
   } else if (question.type === 'true_false') {
     const embed = buildQuestionEmbed(question, displayNumber, totalQuestions);
     const row = buildTrueFalseRow(session.id);
-    await dmChannel.send({ embeds: [embed], components: [row] });
+    await dmChannel.send({ content: header, embeds: [embed], components: [row] });
   } else {
     // open question — student types text, no buttons
     const embed = buildOpenQuestionEmbed(question, displayNumber, totalQuestions);
-    await dmChannel.send({ embeds: [embed] });
+    await dmChannel.send({ content: header, embeds: [embed] });
   }
 }
 

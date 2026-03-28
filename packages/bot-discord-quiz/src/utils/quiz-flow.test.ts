@@ -110,7 +110,7 @@ describe('sendQuestion', () => {
 
     expect(mockBuildQuestionEmbed).toHaveBeenCalledWith(question, 1, 5);
     expect(mockBuildMcqRow).toHaveBeenCalledWith('session-1', question.choices);
-    expect(dmChannel.send).toHaveBeenCalledWith({ embeds: ['embed'], components: ['mcq-row'] });
+    expect(dmChannel.send).toHaveBeenCalledWith({ content: '**Вопрос 1/5**', embeds: ['embed'], components: ['mcq-row'] });
   });
 
   it('sends true_false question with embed and VF button row', async () => {
@@ -122,7 +122,7 @@ describe('sendQuestion', () => {
 
     expect(mockBuildQuestionEmbed).toHaveBeenCalledWith(question, 3, 10);
     expect(mockBuildTrueFalseRow).toHaveBeenCalledWith('session-1');
-    expect(dmChannel.send).toHaveBeenCalledWith({ embeds: ['embed'], components: ['tf-row'] });
+    expect(dmChannel.send).toHaveBeenCalledWith({ content: '**Вопрос 3/10**', embeds: ['embed'], components: ['tf-row'] });
   });
 
   it('sends open question with embed and no components', async () => {
@@ -133,7 +133,7 @@ describe('sendQuestion', () => {
     await sendQuestion(dmChannel, session, question, 7);
 
     expect(mockBuildOpenQuestionEmbed).toHaveBeenCalledWith(question, 5, 7);
-    expect(dmChannel.send).toHaveBeenCalledWith({ embeds: ['open-embed'] });
+    expect(dmChannel.send).toHaveBeenCalledWith({ content: '**Вопрос 5/7**', embeds: ['open-embed'] });
     expect(mockBuildMcqRow).not.toHaveBeenCalled();
     expect(mockBuildTrueFalseRow).not.toHaveBeenCalled();
   });
