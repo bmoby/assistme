@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Exercise Submission Flow
 status: Ready to execute
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-03-28T05:44:30.088Z"
+stopped_at: Completed 10-03-PLAN.md
+last_updated: "2026-03-28T06:01:54.789Z"
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-25)
 ## Current Position
 
 Phase: 10 (student-quiz-experience) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Plan: 2 of 3
 | Phase 08 P01 | 5min | 2 tasks | 7 files |
 | Phase 08 P02 | 4min | 2 tasks | 12 files |
 | Phase 10-student-quiz-experience P01 | 12min | 1 tasks | 5 files |
+| Phase 10-student-quiz-experience P03 | 8min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,8 @@ Recent decisions affecting current work:
 - [Phase 10-01]: Use SendableChannel union type (DMChannel | TextChannel | NewsChannel | ThreadChannel) instead of TextBasedChannel for quiz flow — PartialGroupDMChannel lacks .send()
 - [Phase 10-01]: advanceOrComplete returns StudentQuizSession | null — null on complete signals handlers to clear awaitingOpenAnswer state
 - [Phase 10-01]: evaluateOpenAnswer fallback: substring match when JSON.parse fails — avoids crash on malformed Claude response
+- [Phase 10-student-quiz-experience]: Class-based discord.js mocks in vi.mock factory — vi.fn().mockImplementation() produces functions not constructors, breaking new EmbedBuilder() calls
+- [Phase 10-student-quiz-experience]: invokeAndWait helper pattern for fire-and-forget lock handlers — await handleQuizDm() returns before processQuizDm runs; drain with 5x Promise.resolve() + setTimeout(0)
 
 ### Pending Todos
 
@@ -96,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T05:44:30.083Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-03-28T06:01:54.784Z
+Stopped at: Completed 10-03-PLAN.md
 Resume file: None

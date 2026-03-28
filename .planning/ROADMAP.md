@@ -176,7 +176,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Core DB getQuestionsByQuiz + pure utility functions (quiz-messages, quiz-eval, quiz-flow)
+- [x] 10-01-PLAN.md — Core DB getQuestionsByQuiz + pure utility functions (quiz-messages, quiz-eval, quiz-flow)
 - [ ] 10-02-PLAN.md — Handler infrastructure + button handlers + DM text handler + entry point wiring
 - [ ] 10-03-PLAN.md — Unit tests for all handlers and utilities (30+ tests covering QUIZ-01..08 + EVAL-01..06)
 **UI hint**: yes
@@ -207,5 +207,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Admin Review UX + Test Coverage | v2.0 | 2/2 | Complete | 2026-03-25 |
 | 8. Infrastructure (Quiz System) | v3.0 | 2/2 | Checkpoint (human-action) | - |
 | 9. Quiz Creation | v3.0 | 0/TBD | Not started | - |
-| 10. Student Quiz Experience | v3.0 | 0/3 | Planned    |  |
+| 10. Student Quiz Experience | v3.0 | 1/3 | In Progress|  |
 | 11. Admin Notifications & Digest | v3.0 | 0/TBD | Not started | - |
