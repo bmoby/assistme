@@ -2,10 +2,8 @@ import { updateQuizSession, getAnswersBySession, logger } from '@assistme/core';
 import type { StudentQuizSession, QuizQuestion } from '@assistme/core';
 import type { DMChannel, TextChannel, NewsChannel, ThreadChannel } from 'discord.js';
 import {
-  buildQuestionEmbed,
   buildMcqRow,
   buildTrueFalseRow,
-  buildOpenQuestionEmbed,
   buildFeedbackMessages,
 } from './quiz-messages.js';
 
@@ -20,21 +18,24 @@ export async function sendQuestion(
 ): Promise<void> {
   const displayNumber = session.current_question + 1;
 
-  // Plain text fallback — always visible even if embed is slow to render
-  const header = `**Вопрос ${displayNumber}/${totalQuestions}**`;
+  const header = `**Вопрос ${displayNumber}/${totalQuestions}**\n${question.question_text}`;
 
   if (question.type === 'mcq') {
-    const embed = buildQuestionEmbed(question, displayNumber, totalQuestions);
-    const row = buildMcqRow(session.id, question.choices as Record<string, string>);
-    await dmChannel.send({ content: header, embeds: [embed], components: [row] });
+    const choices = question.choices as Record<string, string>;
+    const choiceLines = Object.entries(choices)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => `**${key}.** ${val}`)
+      .join('\n');
+    const content = `${header}\n\n${choiceLines}`;
+    const row = buildMcqRow(session.id, choices);
+    await dmChannel.send({ content, components: [row] });
   } else if (question.type === 'true_false') {
-    const embed = buildQuestionEmbed(question, displayNumber, totalQuestions);
     const row = buildTrueFalseRow(session.id);
-    await dmChannel.send({ content: header, embeds: [embed], components: [row] });
+    await dmChannel.send({ content: header, components: [row] });
   } else {
     // open question — student types text, no buttons
-    const embed = buildOpenQuestionEmbed(question, displayNumber, totalQuestions);
-    await dmChannel.send({ content: header, embeds: [embed] });
+    const content = `${header}\n\n_Напишите ваш ответ в чат_`;
+    await dmChannel.send({ content });
   }
 }
 
