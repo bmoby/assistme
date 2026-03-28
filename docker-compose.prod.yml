@@ -74,6 +74,26 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  bot-discord-quiz:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vibe-bot-discord-quiz
+    command: node packages/bot-discord-quiz/dist/index.js
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - TZ=Asia/Bangkok
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   seed-knowledge:
     build:
       context: .

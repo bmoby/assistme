@@ -11,6 +11,7 @@ COPY packages/core/package.json packages/core/
 COPY packages/bot-telegram/package.json packages/bot-telegram/
 COPY packages/bot-telegram-public/package.json packages/bot-telegram-public/
 COPY packages/bot-discord/package.json packages/bot-discord/
+COPY packages/bot-discord-quiz/package.json packages/bot-discord-quiz/
 
 RUN pnpm install --frozen-lockfile
 
@@ -32,6 +33,7 @@ COPY packages/core/package.json packages/core/
 COPY packages/bot-telegram/package.json packages/bot-telegram/
 COPY packages/bot-telegram-public/package.json packages/bot-telegram-public/
 COPY packages/bot-discord/package.json packages/bot-discord/
+COPY packages/bot-discord-quiz/package.json packages/bot-discord-quiz/
 
 RUN pnpm install --frozen-lockfile --prod
 
@@ -40,6 +42,7 @@ COPY --from=builder /app/packages/core/dist packages/core/dist
 COPY --from=builder /app/packages/bot-telegram/dist packages/bot-telegram/dist
 COPY --from=builder /app/packages/bot-telegram-public/dist packages/bot-telegram-public/dist
 COPY --from=builder /app/packages/bot-discord/dist packages/bot-discord/dist
+COPY --from=builder /app/packages/bot-discord-quiz/dist packages/bot-discord-quiz/dist
 
 ENV NODE_ENV=production
 
