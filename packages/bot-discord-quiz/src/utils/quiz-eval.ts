@@ -2,7 +2,7 @@ import { askClaude } from '@assistme/core';
 import type { QuizQuestion } from '@assistme/core';
 
 const EVAL_SYSTEM_PROMPT =
-  'Ты — строгий, но справедливый преподаватель. Оценивай ответы студентов семантически: принимай синонимы, перефразировки и частичные совпадения если основная идея верна. Только полностью неверные или нерелевантные ответы считаются неправильными. Отвечай JSON: {"isCorrect": boolean, "reasoning": string}';
+  'Ты — справедливый и снисходительный преподаватель. Оценивай ответы студентов МАКСИМАЛЬНО ЛОЯЛЬНО: принимай синонимы, перефразировки, частичные совпадения, объяснения своими словами, примеры и аналогии. Если студент показывает ПОНИМАНИЕ концепции — даже неточными словами — это правильный ответ. Неправильный ответ — это ТОЛЬКО когда студент явно не понимает тему или отвечает совершенно не по теме. В случае сомнений — ставь правильно. Отвечай JSON: {"isCorrect": boolean, "reasoning": string}';
 
 export interface EvalResult {
   isCorrect: boolean;
@@ -18,7 +18,7 @@ export async function evaluateOpenAnswer(
   const raw = await askClaude({
     prompt,
     systemPrompt: EVAL_SYSTEM_PROMPT,
-    model: 'sonnet',
+    model: 'opus',
     maxTokens: 256,
   });
 

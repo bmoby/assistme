@@ -8,12 +8,14 @@ import type { StudentQuizSession, QuizQuestion } from '@assistme/core';
 
 const {
   mockGetQuizSession,
+  mockGetStudentByDiscordId,
   mockUpdateQuizSession,
   mockGetQuestionsByQuiz,
   mockLogger,
   mockSendQuestion,
 } = vi.hoisted(() => ({
   mockGetQuizSession: vi.fn(),
+  mockGetStudentByDiscordId: vi.fn(),
   mockUpdateQuizSession: vi.fn(),
   mockGetQuestionsByQuiz: vi.fn(),
   mockLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -22,6 +24,7 @@ const {
 
 vi.mock('@assistme/core', () => ({
   getQuizSession: mockGetQuizSession,
+  getStudentByDiscordId: mockGetStudentByDiscordId,
   updateQuizSession: mockUpdateQuizSession,
   getQuestionsByQuiz: mockGetQuestionsByQuiz,
   logger: mockLogger,
@@ -91,6 +94,7 @@ describe('handleQuizStart', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSendQuestion.mockResolvedValue(undefined);
+    mockGetStudentByDiscordId.mockResolvedValue({ id: 'student-1' });
   });
 
   it('QUIZ-01: defers reply with ephemeral:true before any DB call', async () => {
@@ -194,6 +198,54 @@ describe('handleQuizStart', () => {
 
     const replyContent = (interaction.editReply as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as { content: string };
     expect(replyContent.content).toContain('не найдены');
+    expect(mockSendQuestion).not.toHaveBeenCalled();
+  });
+
+  it('rejects when Discord user is not the session owner', async () => {
+    const session = makeSession({ student_id: 'other-student' });
+    mockGetQuizSession.mockResolvedValueOnce(session);
+    mockGetStudentByDiscordId.mockResolvedValueOnce({ id: 'student-1' });
+    const interaction = makeButtonInteraction('quiz_start_session-1');
+
+    await handleQuizStart(interaction);
+
+    const replyContent = (interaction.editReply as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as { content: string };
+    expect(replyContent.content).toContain('не назначен');
+    expect(mockSendQuestion).not.toHaveBeenCalled();
+  });
+
+  it('reverts to not_started when getQuestionsByQuiz throws after status change', async () => {
+    const session = makeSession({ status: 'not_started' });
+    const updatedSession = makeSession({ status: 'in_progress', started_at: '2026-01-01T10:00:00Z' });
+    mockGetQuizSession.mockResolvedValueOnce(session);
+    mockUpdateQuizSession.mockResolvedValueOnce(updatedSession); // first call: start
+    mockUpdateQuizSession.mockResolvedValueOnce(undefined); // second call: revert
+    mockGetQuestionsByQuiz.mockRejectedValueOnce(new Error('DB connection failed'));
+    const interaction = makeButtonInteraction('quiz_start_session-1');
+
+    await handleQuizStart(interaction);
+
+    // Should revert status to not_started
+    expect(mockUpdateQuizSession).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ status: 'not_started', started_at: null }),
+    );
+    // Should show error message
+    const replyContent = (interaction.editReply as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as { content: string };
+    expect(replyContent.content).toContain('Ошибка');
+    expect(mockSendQuestion).not.toHaveBeenCalled();
+  });
+
+  it('rejects when student not found in DB', async () => {
+    const session = makeSession();
+    mockGetQuizSession.mockResolvedValueOnce(session);
+    mockGetStudentByDiscordId.mockResolvedValueOnce(null);
+    const interaction = makeButtonInteraction('quiz_start_session-1');
+
+    await handleQuizStart(interaction);
+
+    const replyContent = (interaction.editReply as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as { content: string };
+    expect(replyContent.content).toContain('не назначен');
     expect(mockSendQuestion).not.toHaveBeenCalled();
   });
 });

@@ -111,6 +111,11 @@ export async function handleQuizClose(interaction: ChatInputCommandInteraction):
 // ============================================
 
 async function handleQuizCloseConfirm(interaction: ButtonInteraction): Promise<void> {
+  if (!isAdmin(interaction)) {
+    await interaction.reply({ content: 'Action reservee au formateur.', ephemeral: true });
+    return;
+  }
+
   // Extract sessionNumber from customId: quiz_close_confirm_{sessionNumber}
   const sessionNumber = parseInt(interaction.customId.replace('quiz_close_confirm_', ''), 10);
 
@@ -182,6 +187,11 @@ async function handleQuizCloseConfirm(interaction: ButtonInteraction): Promise<v
 // ============================================
 
 async function handleQuizCloseCancel(interaction: ButtonInteraction): Promise<void> {
+  if (!isAdmin(interaction)) {
+    await interaction.reply({ content: 'Action reservee au formateur.', ephemeral: true });
+    return;
+  }
+
   // Extract sessionNumber from customId: quiz_close_cancel_{sessionNumber}
   const sessionNumber = parseInt(interaction.customId.replace('quiz_close_cancel_', ''), 10);
 

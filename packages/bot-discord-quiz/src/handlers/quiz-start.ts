@@ -1,5 +1,5 @@
 import type { ButtonInteraction } from 'discord.js';
-import { getQuizSession, updateQuizSession, getQuestionsByQuiz, logger } from '@assistme/core';
+import { getQuizSession, getStudentByDiscordId, updateQuizSession, getQuestionsByQuiz, logger } from '@assistme/core';
 import { sendQuestion } from '../utils/quiz-flow.js';
 
 export async function handleQuizStart(interaction: ButtonInteraction): Promise<void> {
@@ -11,6 +11,13 @@ export async function handleQuizStart(interaction: ButtonInteraction): Promise<v
 
   if (!session) {
     await interaction.editReply({ content: 'Квиз не найден.' });
+    return;
+  }
+
+  // Ownership check — verify the Discord user matches the session's student
+  const student = await getStudentByDiscordId(interaction.user.id);
+  if (!student || student.id !== session.student_id) {
+    await interaction.editReply({ content: 'Этот квиз вам не назначен.' });
     return;
   }
 
@@ -51,7 +58,17 @@ export async function handleQuizStart(interaction: ButtonInteraction): Promise<v
     started_at: new Date().toISOString(),
   });
 
-  const questions = await getQuestionsByQuiz(session.quiz_id);
+  let questions;
+  try {
+    questions = await getQuestionsByQuiz(session.quiz_id);
+  } catch (err) {
+    // Revert session status to prevent stuck state
+    await updateQuizSession(session.id, { status: 'not_started', started_at: null }).catch(() => {});
+    logger.error({ err, sessionId: session.id }, 'Failed to fetch questions after starting quiz');
+    await interaction.editReply({ content: 'Ошибка при загрузке вопросов. Попробуйте ещё раз.' });
+    return;
+  }
+
   const firstQuestion = questions[0];
 
   if (!firstQuestion) {

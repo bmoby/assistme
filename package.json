@@ -4,7 +4,8 @@
   "private": true,
   "description": "Personal AI assistant system - multi-bot architecture",
   "scripts": {
-    "dev": "pnpm -r --parallel run dev",
+    "dev": "bash scripts/migrate-local.sh && pnpm -r --parallel run dev",
+    "migrate": "bash scripts/migrate-local.sh",
     "dev:discord": "pnpm -F @assistme/core build && pnpm -F @assistme/bot-discord dev",
     "dev:quiz": "pnpm -F @assistme/core build && pnpm -F @assistme/bot-discord-quiz dev",
     "build": "pnpm -r run build",

@@ -43,11 +43,11 @@ describe('evaluateOpenAnswer', () => {
     vi.clearAllMocks();
   });
 
-  it('calls askClaude with model: "sonnet" (D-19)', async () => {
+  it('calls askClaude with model: "opus"', async () => {
     mockAskClaude.mockResolvedValueOnce('{"isCorrect": true, "reasoning": "good"}');
     await evaluateOpenAnswer(makeQuestion(), 'learning from labeled examples');
     expect(mockAskClaude).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'sonnet' })
+      expect.objectContaining({ model: 'opus' })
     );
   });
 
@@ -82,11 +82,11 @@ describe('evaluateOpenAnswer', () => {
     expect(result.reasoning).toBe('parsing fallback');
   });
 
-  it('system prompt contains "семантически" (D-18 semantic matching)', async () => {
+  it('system prompt is lenient (D-18 semantic matching)', async () => {
     mockAskClaude.mockResolvedValueOnce('{"isCorrect": true, "reasoning": "ok"}');
     await evaluateOpenAnswer(makeQuestion(), 'some answer');
     const call = mockAskClaude.mock.calls[0]?.[0] as { systemPrompt?: string };
-    expect(call?.systemPrompt).toContain('семантически');
+    expect(call?.systemPrompt).toContain('ЛОЯЛЬНО');
   });
 
   it('prompt includes question_text, correct_answer, and studentAnswer', async () => {

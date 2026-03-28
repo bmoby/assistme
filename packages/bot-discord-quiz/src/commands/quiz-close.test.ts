@@ -249,4 +249,32 @@ describe('handleQuizClose', () => {
       }),
     );
   });
+
+  it('confirm button rejects non-admin user', async () => {
+    mockIsAdmin.mockReturnValue(false);
+    const confirmHandler = registeredButtons.get('quiz_close_confirm_');
+    expect(confirmHandler).toBeDefined();
+
+    const buttonInteraction = buildButtonInteraction('quiz_close_confirm_5');
+    await confirmHandler!(buttonInteraction);
+
+    expect(buttonInteraction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'Action reservee au formateur.', ephemeral: true }),
+    );
+    expect(mockUpdateQuizStatus).not.toHaveBeenCalled();
+  });
+
+  it('cancel button rejects non-admin user', async () => {
+    mockIsAdmin.mockReturnValue(false);
+    const cancelHandler = registeredButtons.get('quiz_close_cancel_');
+    expect(cancelHandler).toBeDefined();
+
+    const buttonInteraction = buildButtonInteraction('quiz_close_cancel_5');
+    await cancelHandler!(buttonInteraction);
+
+    expect(buttonInteraction.reply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'Action reservee au formateur.', ephemeral: true }),
+    );
+    expect(mockUpdateQuizStatus).not.toHaveBeenCalled();
+  });
 });

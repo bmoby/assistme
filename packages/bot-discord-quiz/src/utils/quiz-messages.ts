@@ -3,6 +3,7 @@ import type { QuizQuestion, StudentQuizAnswer } from '@assistme/core';
 
 const MAX_MSG_LEN = 2000;
 const EXPLANATION_HARD_CUT = 120;
+const MAX_BUTTON_LABEL = 80;
 
 export function buildQuestionEmbed(
   q: QuizQuestion,
@@ -15,9 +16,19 @@ export function buildQuestionEmbed(
     open: 'Открытый вопрос',
   };
 
+  let description = q.question_text;
+
+  // For MCQ, append choices to the embed so buttons can stay short
+  if (q.type === 'mcq' && q.choices) {
+    const choiceLines = Object.entries(q.choices as Record<string, string>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => `**${key}.** ${val}`);
+    description += '\n\n' + choiceLines.join('\n');
+  }
+
   return new EmbedBuilder()
     .setTitle(`Вопрос ${questionNumber}/${totalQuestions}`)
-    .setDescription(q.question_text)
+    .setDescription(description)
     .setColor(0x5865f2)
     .setFooter({ text: typeLabel[q.type] ?? q.type });
 }
@@ -35,7 +46,7 @@ export function buildMcqRow(
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(`quiz_answer_${sessionId}_${key}`)
-        .setLabel(`${key}: ${label}`)
+        .setLabel(key)
         .setStyle(ButtonStyle.Primary)
     );
   }
@@ -72,29 +83,38 @@ export function buildOpenQuestionEmbed(
   });
 }
 
-export function buildFeedbackMessage(
+export function buildFeedbackMessages(
   answers: StudentQuizAnswer[],
   questions: QuizQuestion[],
   score: number
-): string {
+): string[] {
   const correct = answers.filter((a) => a.is_correct).length;
   const total = questions.length;
 
-  let header = `**Результат: ${correct}/${total} (${Math.round(score)}%)**\n\n`;
-  let body = '';
+  const header = `**Результат: ${correct}/${total} (${Math.round(score)}%)**\n\n`;
+
+  const lines: string[] = [];
 
   for (const q of questions) {
     const ans = answers.find((a) => a.question_id === q.id);
 
     if (!ans) {
-      body += `⬜ Вопрос ${q.question_number}: пропущен\n`;
+      lines.push(`⬜ Вопрос ${q.question_number}: пропущен`);
       continue;
     }
 
     if (ans.is_correct) {
-      body += `✅ **Q${q.question_number}:** ${ans.student_answer}\n`;
+      lines.push(`✅ **Q${q.question_number}:** ${ans.student_answer}`);
     } else {
-      let line = `❌ **Q${q.question_number}:** ${ans.student_answer}\n> Правильно: ${q.correct_answer}`;
+      let correctDisplay = q.correct_answer;
+      if (q.type === 'mcq' && q.choices) {
+        const choiceText = (q.choices as Record<string, string>)[q.correct_answer];
+        if (choiceText) {
+          correctDisplay = `${q.correct_answer}) ${choiceText}`;
+        }
+      }
+
+      let line = `❌ **Q${q.question_number}:** ${ans.student_answer}\n> Правильно: ${correctDisplay}`;
 
       if (q.explanation && q.explanation.length > 0) {
         let explanation = q.explanation;
@@ -104,21 +124,27 @@ export function buildFeedbackMessage(
         line += `\n> ${explanation}`;
       }
 
-      body += line + '\n';
+      lines.push(line);
     }
   }
 
-  const full = header + body;
+  // Split lines into chunks that fit Discord's 2000-char limit
+  const messages: string[] = [];
+  let current = header;
 
-  if (full.length <= MAX_MSG_LEN) {
-    return full;
+  for (const line of lines) {
+    const candidate = current + line + '\n';
+    if (candidate.length > MAX_MSG_LEN) {
+      messages.push(current);
+      current = line + '\n';
+    } else {
+      current = candidate;
+    }
   }
 
-  // Truncate body at last newline before limit
-  const limit = MAX_MSG_LEN - header.length - 3; // 3 for "..."
-  const truncatedBody = body.slice(0, limit);
-  const lastNewline = truncatedBody.lastIndexOf('\n');
-  const cutBody = lastNewline > 0 ? truncatedBody.slice(0, lastNewline) : truncatedBody;
+  if (current.length > 0) {
+    messages.push(current);
+  }
 
-  return header + cutBody + '...';
+  return messages;
 }

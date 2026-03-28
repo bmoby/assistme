@@ -1,6 +1,7 @@
 import { getSupabase } from '../client.js';
 import type { StudentQuizSession } from '../../types/index.js';
 import { logger } from '../../logger.js';
+import { QUIZ_EXPIRATION_MS } from '../../config/constants.js';
 
 const TABLE = 'student_quiz_sessions';
 
@@ -97,7 +98,7 @@ export async function updateQuizSession(
  */
 export async function closeExpiredQuizSessions(): Promise<{ closedQuizzes: number; expiredSessions: number }> {
   const db = getSupabase();
-  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - QUIZ_EXPIRATION_MS).toISOString();
 
   // Step 1: Find active quizzes older than 48h
   const { data: expiredQuizzes, error: quizError } = await db
@@ -120,51 +121,81 @@ export async function closeExpiredQuizSessions(): Promise<{ closedQuizzes: numbe
 
   for (const quizId of quizIds) {
     // Step 2: Close the quiz
-    await db
+    const { error: closeError } = await db
       .from('quizzes')
       .update({ status: 'closed', closed_at: new Date().toISOString() })
       .eq('id', quizId);
 
+    if (closeError) {
+      logger.error({ error: closeError, quizId }, 'Failed to close expired quiz');
+      throw closeError;
+    }
+
     // Step 3: Get total question count for this quiz
-    const { count: totalQuestions } = await db
+    const { count: totalQuestions, error: countError } = await db
       .from('quiz_questions')
       .select('*', { count: 'exact', head: true })
       .eq('quiz_id', quizId);
 
+    if (countError) {
+      logger.error({ error: countError, quizId }, 'Failed to count quiz questions');
+      throw countError;
+    }
+
     // Step 4: Find in-progress sessions for this quiz
-    const { data: activeSessions } = await db
+    const { data: activeSessions, error: sessionsError } = await db
       .from(TABLE)
       .select('id')
       .eq('quiz_id', quizId)
       .in('status', ['not_started', 'in_progress']);
+
+    if (sessionsError) {
+      logger.error({ error: sessionsError, quizId }, 'Failed to fetch active sessions');
+      throw sessionsError;
+    }
 
     if (!activeSessions || activeSessions.length === 0) continue;
 
     for (const session of activeSessions) {
       const sessionId = session.id as string;
 
-      // Step 5: Count correct answers for this session
-      const { count: correctCount } = await db
-        .from('student_quiz_answers')
-        .select('*', { count: 'exact', head: true })
-        .eq('session_id', sessionId)
-        .eq('is_correct', true);
+      try {
+        // Step 5: Count correct answers for this session
+        const { count: correctCount, error: answerCountError } = await db
+          .from('student_quiz_answers')
+          .select('*', { count: 'exact', head: true })
+          .eq('session_id', sessionId)
+          .eq('is_correct', true);
 
-      const score = totalQuestions && totalQuestions > 0
-        ? ((correctCount ?? 0) / totalQuestions) * 100
-        : 0;
+        if (answerCountError) {
+          logger.error({ error: answerCountError, sessionId }, 'Failed to count correct answers');
+          continue;
+        }
 
-      // Step 6: Expire the session with partial score
-      await db
-        .from(TABLE)
-        .update({
-          status: 'expired_incomplete',
-          score,
-          completed_at: new Date().toISOString(),
-        })
-        .eq('id', sessionId);
+        const score = totalQuestions && totalQuestions > 0
+          ? ((correctCount ?? 0) / totalQuestions) * 100
+          : 0;
 
-      expiredSessionCount++;
+        // Step 6: Expire the session with partial score
+        const { error: expireError } = await db
+          .from(TABLE)
+          .update({
+            status: 'expired_incomplete',
+            score,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', sessionId);
+
+        if (expireError) {
+          logger.error({ error: expireError, sessionId }, 'Failed to expire session');
+          continue;
+        }
+
+        expiredSessionCount++;
+      } catch (err) {
+        logger.error({ err, sessionId }, 'Unexpected error expiring session');
+        continue;
+      }
     }
   }
 

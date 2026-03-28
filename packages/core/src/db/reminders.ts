@@ -1,6 +1,7 @@
 import { getSupabase } from './client.js';
 import { logger } from '../logger.js';
 import type { Reminder } from '../types/index.js';
+import { REMINDER_STALE_THRESHOLD_MS, REMINDER_ZOMBIE_THRESHOLD_MS } from '../config/constants.js';
 
 export async function createReminder(params: {
   message: string;
@@ -67,8 +68,8 @@ export async function createReminders(
 
 export async function getDueReminders(): Promise<Reminder[]> {
   const db = getSupabase();
-  // Zombie guard: ignore reminders older than 6 hours
-  const staleThreshold = new Date(Date.now() - 6 * 60 * 60 * 1000);
+  // Zombie guard: ignore reminders older than threshold
+  const staleThreshold = new Date(Date.now() - REMINDER_STALE_THRESHOLD_MS);
   const { data, error } = await db
     .from('reminders')
     .select('*')
@@ -120,8 +121,8 @@ export async function cancelActiveReminders(): Promise<number> {
 
 export async function expireZombieReminders(): Promise<number> {
   const db = getSupabase();
-  // Cancel all active reminders older than 24 hours
-  const threshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  // Cancel all active reminders older than zombie threshold
+  const threshold = new Date(Date.now() - REMINDER_ZOMBIE_THRESHOLD_MS).toISOString();
 
   const { data, error } = await db
     .from('reminders')

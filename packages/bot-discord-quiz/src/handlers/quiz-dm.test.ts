@@ -12,7 +12,6 @@ const {
   mockGetQuestionsByQuiz,
   mockSaveAnswer,
   mockLogger,
-  mockSendQuestion,
   mockAdvanceOrComplete,
   mockEvaluateOpenAnswer,
 } = vi.hoisted(() => ({
@@ -21,7 +20,6 @@ const {
   mockGetQuestionsByQuiz: vi.fn(),
   mockSaveAnswer: vi.fn(),
   mockLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  mockSendQuestion: vi.fn(),
   mockAdvanceOrComplete: vi.fn(),
   mockEvaluateOpenAnswer: vi.fn(),
 }));
@@ -35,7 +33,6 @@ vi.mock('@assistme/core', () => ({
 }));
 
 vi.mock('../utils/quiz-flow.js', () => ({
-  sendQuestion: mockSendQuestion,
   advanceOrComplete: mockAdvanceOrComplete,
 }));
 
@@ -43,23 +40,16 @@ vi.mock('../utils/quiz-eval.js', () => ({
   evaluateOpenAnswer: mockEvaluateOpenAnswer,
 }));
 
-import { handleQuizDm, _clearStateForTesting, _getAwaitingOpenAnswer } from './quiz-dm.js';
+import { handleQuizDm, _clearStateForTesting } from './quiz-dm.js';
 
 // ---------------------------------------------------------------------------
-// Helper: wait for the per-user lock to drain after handleQuizDm fires
-// handleQuizDm uses a fire-and-forget lock chain — we flush microtasks by waiting
-// for the processingLocks entry to be cleared in the finally() callback.
+// Helper: wait for the per-user lock to drain
 // ---------------------------------------------------------------------------
-async function invokeAndWait(msg: Message, userId = 'user-1'): Promise<void> {
+async function invokeAndWait(msg: Message): Promise<void> {
   await handleQuizDm(msg);
-  // The lock is a Promise set on processingLocks map.
-  // After handleQuizDm returns, the lock promise is still settling.
-  // We flush all pending microtasks by awaiting a resolved promise repeatedly.
-  // In practice 2 rounds covers: Promise.resolve().then(processQuizDm).finally(cleanup)
   for (let i = 0; i < 5; i++) {
     await Promise.resolve();
   }
-  // Extra: yield to let any awaited async operations resolve
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }
 
@@ -122,7 +112,6 @@ describe('handleQuizDm', () => {
     vi.clearAllMocks();
     _clearStateForTesting();
     mockSaveAnswer.mockResolvedValue(undefined);
-    mockSendQuestion.mockResolvedValue(undefined);
     mockAdvanceOrComplete.mockResolvedValue(null);
   });
 
@@ -170,6 +159,7 @@ describe('handleQuizDm', () => {
       makeQuestion({ id: 'q-3', question_number: 3, type: 'open' }),
     ];
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
+    mockEvaluateOpenAnswer.mockResolvedValueOnce({ isCorrect: true, reasoning: 'OK' });
     const msg = makeDmMessage('just a message');
 
     await invokeAndWait(msg);
@@ -183,38 +173,12 @@ describe('handleQuizDm', () => {
     mockGetStudentByDiscordId.mockResolvedValueOnce(makeStudent());
     mockGetActiveSessionByStudent.mockResolvedValueOnce(session);
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
-    // awaitingOpenAnswer is NOT set for this question
     const msg = makeDmMessage('I think the answer is B');
 
     await invokeAndWait(msg);
 
     const channelSend = (msg as ReturnType<typeof makeDmMessage>)._channelSend;
     expect(channelSend).toHaveBeenCalledWith(expect.stringContaining('кнопок выше'));
-    expect(mockSaveAnswer).not.toHaveBeenCalled();
-  });
-
-  it('QUIZ-07: Resume — open question, awaitingOpenAnswer not set → sends recap with "остановились", calls sendQuestion', async () => {
-    const session = makeSession({ status: 'in_progress', current_question: 1 });
-    const questions = [
-      makeQuestion({ id: 'q-1', question_number: 1, type: 'mcq' }),
-      makeQuestion({ id: 'q-2', question_number: 2, type: 'open' }),
-    ];
-    mockGetStudentByDiscordId.mockResolvedValueOnce(makeStudent());
-    mockGetActiveSessionByStudent.mockResolvedValueOnce(session);
-    mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
-    // awaitingOpenAnswer NOT set — resume path
-    const msg = makeDmMessage('I am back');
-
-    await invokeAndWait(msg);
-
-    const channelSend = (msg as ReturnType<typeof makeDmMessage>)._channelSend;
-    expect(channelSend).toHaveBeenCalledWith(expect.stringContaining('остановились'));
-    expect(mockSendQuestion).toHaveBeenCalledWith(
-      expect.anything(),
-      session,
-      questions[1],
-      2
-    );
     expect(mockSaveAnswer).not.toHaveBeenCalled();
   });
 
@@ -226,9 +190,6 @@ describe('handleQuizDm', () => {
     mockGetActiveSessionByStudent.mockResolvedValueOnce(session);
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     mockEvaluateOpenAnswer.mockResolvedValueOnce({ isCorrect: true, reasoning: 'Good' });
-
-    // Set awaitingOpenAnswer state
-    _getAwaitingOpenAnswer().set('user-1', 'q-open');
 
     const msg = makeDmMessage('my open answer');
 
@@ -249,7 +210,6 @@ describe('handleQuizDm', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     mockEvaluateOpenAnswer.mockResolvedValueOnce({ isCorrect: false, reasoning: 'Off topic' });
 
-    _getAwaitingOpenAnswer().set('user-1', 'q-open');
     const msg = makeDmMessage('artificial intelligence');
 
     await invokeAndWait(msg);
@@ -267,7 +227,6 @@ describe('handleQuizDm', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     mockEvaluateOpenAnswer.mockResolvedValueOnce(evalResult);
 
-    _getAwaitingOpenAnswer().set('user-1', 'q-open');
     const msg = makeDmMessage('my open answer');
 
     await invokeAndWait(msg);
@@ -279,7 +238,7 @@ describe('handleQuizDm', () => {
     );
   });
 
-  it('D-14: No confirmation step — message sent and answer saved in single pass', async () => {
+  it('D-14: No confirmation step — answer saved in single pass', async () => {
     const session = makeSession({ status: 'in_progress', current_question: 0 });
     const openQ = makeQuestion({ id: 'q-open', type: 'open' });
     const questions = [openQ];
@@ -288,12 +247,10 @@ describe('handleQuizDm', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     mockEvaluateOpenAnswer.mockResolvedValueOnce({ isCorrect: true, reasoning: 'OK' });
 
-    _getAwaitingOpenAnswer().set('user-1', 'q-open');
     const msg = makeDmMessage('my answer');
 
     await invokeAndWait(msg);
 
-    // reply is called once (acceptance confirmation), saveAnswer was also called
     expect(msg.reply).toHaveBeenCalledWith('Ответ принят!');
     expect(mockSaveAnswer).toHaveBeenCalledTimes(1);
   });
@@ -306,9 +263,8 @@ describe('handleQuizDm', () => {
     mockGetActiveSessionByStudent.mockResolvedValueOnce(session);
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     mockEvaluateOpenAnswer.mockResolvedValueOnce({ isCorrect: true, reasoning: 'OK' });
-    mockAdvanceOrComplete.mockResolvedValueOnce(null); // null = quiz complete
+    mockAdvanceOrComplete.mockResolvedValueOnce(null);
 
-    _getAwaitingOpenAnswer().set('user-1', 'q-open');
     const msg = makeDmMessage('final answer');
 
     await invokeAndWait(msg);

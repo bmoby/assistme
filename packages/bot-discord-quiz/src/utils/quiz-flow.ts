@@ -6,7 +6,7 @@ import {
   buildMcqRow,
   buildTrueFalseRow,
   buildOpenQuestionEmbed,
-  buildFeedbackMessage,
+  buildFeedbackMessages,
 } from './quiz-messages.js';
 
 // Quiz bot only sends to DMs and text channels — PartialGroupDMChannel excluded
@@ -55,8 +55,10 @@ export async function advanceOrComplete(
       completed_at: new Date().toISOString(),
     });
 
-    const feedback = buildFeedbackMessage(answers, questions, score);
-    await dmChannel.send(feedback);
+    const feedbackParts = buildFeedbackMessages(answers, questions, score);
+    for (const part of feedbackParts) {
+      await dmChannel.send(part);
+    }
 
     logger.info({ userId, sessionId: session.id, score }, 'Quiz completed');
     return null;

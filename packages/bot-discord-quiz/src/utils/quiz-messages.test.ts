@@ -53,7 +53,7 @@ import {
   buildMcqRow,
   buildTrueFalseRow,
   buildOpenQuestionEmbed,
-  buildFeedbackMessage,
+  buildFeedbackMessages,
 } from './quiz-messages.js';
 
 // ---------------------------------------------------------------------------
@@ -102,10 +102,12 @@ describe('buildQuestionEmbed', () => {
     expect(mockSetTitle).toHaveBeenCalledWith('Вопрос 1/5');
   });
 
-  it('sets description to question_text', () => {
+  it('sets description to question_text with choices for mcq', () => {
     const q = makeQuestion({ question_text: 'What is TypeScript?' });
     buildQuestionEmbed(q, 2, 10);
-    expect(mockSetDescription).toHaveBeenCalledWith('What is TypeScript?');
+    expect(mockSetDescription).toHaveBeenCalledWith(
+      expect.stringContaining('What is TypeScript?')
+    );
   });
 
   it('sets footer with "Выбор ответа" for mcq type', () => {
@@ -197,7 +199,7 @@ describe('buildOpenQuestionEmbed', () => {
   });
 });
 
-describe('buildFeedbackMessage', () => {
+describe('buildFeedbackMessages', () => {
   it('score header format: "Результат: 2/3 (67%)"', () => {
     const questions = [
       makeQuestion({ id: 'q-1', question_number: 1 }),
@@ -209,35 +211,37 @@ describe('buildFeedbackMessage', () => {
       makeAnswer({ id: 'ans-2', question_id: 'q-2', is_correct: true }),
       makeAnswer({ id: 'ans-3', question_id: 'q-3', is_correct: false }),
     ];
-    const result = buildFeedbackMessage(answers, questions, 66.67);
+    const parts = buildFeedbackMessages(answers, questions, 66.67);
+    const result = parts.join('');
     expect(result).toContain('Результат: 2/3 (67%)');
   });
 
   it('all correct: shows checkmarks, no explanations shown for correct answers (D-22)', () => {
     const q = makeQuestion({ id: 'q-1', explanation: 'My explanation' });
     const ans = makeAnswer({ question_id: 'q-1', is_correct: true, student_answer: 'B' });
-    const result = buildFeedbackMessage([ans], [q], 100);
+    const parts = buildFeedbackMessages([ans], [q], 100);
+    const result = parts.join('');
     expect(result).toContain('✅');
-    // explanation should NOT appear for correct answers
     expect(result).not.toContain('My explanation');
   });
 
   it('incorrect answers show explanation', () => {
     const q = makeQuestion({ id: 'q-1', explanation: 'Because math' });
     const ans = makeAnswer({ question_id: 'q-1', is_correct: false, student_answer: 'A' });
-    const result = buildFeedbackMessage([ans], [q], 0);
+    const parts = buildFeedbackMessages([ans], [q], 0);
+    const result = parts.join('');
     expect(result).toContain('❌');
     expect(result).toContain('Because math');
   });
 
   it('shows "пропущен" for missing answer', () => {
     const q = makeQuestion({ id: 'q-missing', question_number: 2 });
-    const result = buildFeedbackMessage([], [q], 0);
+    const parts = buildFeedbackMessages([], [q], 0);
+    const result = parts.join('');
     expect(result).toContain('пропущен');
   });
 
-  it('returns result <= 2000 chars for long messages (D-23)', () => {
-    // Create many questions with long explanations to force truncation
+  it('every part <= 2000 chars for long messages (D-23)', () => {
     const questions: QuizQuestion[] = Array.from({ length: 30 }, (_, i) =>
       makeQuestion({
         id: `q-${i}`,
@@ -253,8 +257,15 @@ describe('buildFeedbackMessage', () => {
         student_answer: 'wrong',
       })
     );
-    const result = buildFeedbackMessage(answers, questions, 0);
-    expect(result.length).toBeLessThanOrEqual(2000);
+    const parts = buildFeedbackMessages(answers, questions, 0);
+    for (const part of parts) {
+      expect(part.length).toBeLessThanOrEqual(2000);
+    }
+    // All 30 questions must appear across all parts
+    const full = parts.join('');
+    for (let i = 1; i <= 30; i++) {
+      expect(full).toContain(`Q${i}:`);
+    }
   });
 
   it('mix: incorrect answers show correct answer, correct do not', () => {
@@ -266,7 +277,8 @@ describe('buildFeedbackMessage', () => {
       makeAnswer({ question_id: 'q-1', is_correct: true, student_answer: 'B' }),
       makeAnswer({ id: 'ans-2', question_id: 'q-2', is_correct: false, student_answer: 'false' }),
     ];
-    const result = buildFeedbackMessage(answers, questions, 50);
+    const parts = buildFeedbackMessages(answers, questions, 50);
+    const result = parts.join('');
     expect(result).toContain('✅');
     expect(result).toContain('❌');
     expect(result).toContain('Правильно: true');
@@ -275,7 +287,15 @@ describe('buildFeedbackMessage', () => {
   it('100% score shows correct percentage format', () => {
     const q = makeQuestion();
     const ans = makeAnswer({ question_id: 'q-1', is_correct: true });
-    const result = buildFeedbackMessage([ans], [q], 100);
+    const parts = buildFeedbackMessages([ans], [q], 100);
+    const result = parts.join('');
     expect(result).toContain('Результат: 1/1 (100%)');
+  });
+
+  it('returns single message when content fits in 2000 chars', () => {
+    const q = makeQuestion();
+    const ans = makeAnswer({ question_id: 'q-1', is_correct: true });
+    const parts = buildFeedbackMessages([ans], [q], 100);
+    expect(parts).toHaveLength(1);
   });
 });

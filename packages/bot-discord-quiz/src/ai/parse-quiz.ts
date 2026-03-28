@@ -26,14 +26,38 @@ Regles:
 - Ne jamais inventer de questions absentes du texte
 - Numerote les questions dans l'ordre d'apparition (1, 2, 3...)`;
 
-const ParsedQuizQuestionSchema = z.object({
+const McqQuestionSchema = z.object({
   question_number: z.number().int().positive(),
-  type: z.enum(['mcq', 'true_false', 'open']),
+  type: z.literal('mcq'),
   question_text: z.string().min(1),
-  choices: z.record(z.string()).nullable(),
+  choices: z.record(z.string()),
   correct_answer: z.string().min(1),
   explanation: z.string().nullable(),
 });
+
+const TrueFalseQuestionSchema = z.object({
+  question_number: z.number().int().positive(),
+  type: z.literal('true_false'),
+  question_text: z.string().min(1),
+  choices: z.null(),
+  correct_answer: z.enum(['true', 'false']),
+  explanation: z.string().nullable(),
+});
+
+const OpenQuestionSchema = z.object({
+  question_number: z.number().int().positive(),
+  type: z.literal('open'),
+  question_text: z.string().min(1),
+  choices: z.null(),
+  correct_answer: z.string().min(1),
+  explanation: z.string().nullable(),
+});
+
+const ParsedQuizQuestionSchema = z.discriminatedUnion('type', [
+  McqQuestionSchema,
+  TrueFalseQuestionSchema,
+  OpenQuestionSchema,
+]);
 
 export const ParsedQuizSchema = z.object({
   title: z.string().min(1),
@@ -42,6 +66,20 @@ export const ParsedQuizSchema = z.object({
 
 export type ParsedQuizQuestion = z.infer<typeof ParsedQuizQuestionSchema>;
 export type ParsedQuiz = z.infer<typeof ParsedQuizSchema>;
+
+/** Cross-validate MCQ correct_answer against choices keys */
+function validateMcqAnswers(quiz: ParsedQuiz): void {
+  for (const q of quiz.questions) {
+    if (q.type === 'mcq') {
+      if (Object.keys(q.choices).length < 2) {
+        throw new Error(`Question ${q.question_number}: MCQ must have at least 2 choices`);
+      }
+      if (!Object.hasOwn(q.choices, q.correct_answer)) {
+        throw new Error(`Question ${q.question_number}: correct_answer "${q.correct_answer}" not found in choices keys: ${Object.keys(q.choices).join(', ')}`);
+      }
+    }
+  }
+}
 
 export async function parseQuizFromTxt(txtContent: string, sessionNumber: number): Promise<ParsedQuiz> {
   const raw = await askClaude({
@@ -67,6 +105,7 @@ export async function parseQuizFromTxt(txtContent: string, sessionNumber: number
   }
 
   const result = ParsedQuizSchema.parse(parsed); // throws ZodError if malformed
+  validateMcqAnswers(result); // throws if MCQ correct_answer not in choices
 
   // Default title if generic
   if (!result.title || result.title === 'Quiz') {

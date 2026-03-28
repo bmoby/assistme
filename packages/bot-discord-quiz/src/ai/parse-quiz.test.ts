@@ -145,4 +145,44 @@ describe('parseQuizFromTxt', () => {
     expect(result.questions[0]!.explanation).toBeNull();
     expect(result.questions[1]!.explanation).toBeNull();
   });
+
+  it('rejects MCQ with null choices', async () => {
+    const bad = JSON.stringify({
+      title: 'Quiz',
+      questions: [{
+        question_number: 1, type: 'mcq', question_text: 'Q?',
+        choices: null, correct_answer: 'A', explanation: null,
+      }],
+    });
+    mockAskClaude.mockResolvedValue(bad);
+
+    await expect(parseQuizFromTxt('bad', 1)).rejects.toThrow();
+  });
+
+  it('rejects MCQ when correct_answer is not in choices keys', async () => {
+    const bad = JSON.stringify({
+      title: 'Quiz',
+      questions: [{
+        question_number: 1, type: 'mcq', question_text: 'Q?',
+        choices: { A: 'One', B: 'Two', C: 'Three', D: 'Four' },
+        correct_answer: 'E', explanation: null,
+      }],
+    });
+    mockAskClaude.mockResolvedValue(bad);
+
+    await expect(parseQuizFromTxt('bad', 1)).rejects.toThrow();
+  });
+
+  it('rejects true_false with invalid correct_answer', async () => {
+    const bad = JSON.stringify({
+      title: 'Quiz',
+      questions: [{
+        question_number: 1, type: 'true_false', question_text: 'Q?',
+        choices: null, correct_answer: 'yes', explanation: null,
+      }],
+    });
+    mockAskClaude.mockResolvedValue(bad);
+
+    await expect(parseQuizFromTxt('bad', 1)).rejects.toThrow();
+  });
 });

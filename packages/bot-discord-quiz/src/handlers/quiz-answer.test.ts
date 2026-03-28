@@ -9,12 +9,14 @@ import type { StudentQuizSession, QuizQuestion } from '@assistme/core';
 const {
   mockGetQuizSession,
   mockGetQuestionsByQuiz,
+  mockGetStudentByDiscordId,
   mockSaveAnswer,
   mockLogger,
   mockAdvanceOrComplete,
 } = vi.hoisted(() => ({
   mockGetQuizSession: vi.fn(),
   mockGetQuestionsByQuiz: vi.fn(),
+  mockGetStudentByDiscordId: vi.fn(),
   mockSaveAnswer: vi.fn(),
   mockLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   mockAdvanceOrComplete: vi.fn(),
@@ -23,6 +25,7 @@ const {
 vi.mock('@assistme/core', () => ({
   getQuizSession: mockGetQuizSession,
   getQuestionsByQuiz: mockGetQuestionsByQuiz,
+  getStudentByDiscordId: mockGetStudentByDiscordId,
   saveAnswer: mockSaveAnswer,
   logger: mockLogger,
 }));
@@ -32,7 +35,7 @@ vi.mock('../utils/quiz-flow.js', () => ({
   sendQuestion: vi.fn(),
 }));
 
-import { handleQuizAnswer } from './quiz-answer.js';
+import { handleQuizAnswer, _clearStateForTesting } from './quiz-answer.js';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -88,11 +91,25 @@ function makeButtonInteraction(customId: string, userId = 'user-1') {
 // Tests
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Invoke handleQuizAnswer and drain the async lock queue */
+async function invokeAndWait(interaction: ButtonInteraction): Promise<void> {
+  handleQuizAnswer(interaction);
+  // Flush microtask queue (lock is Promise-chained)
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  await new Promise((r) => setTimeout(r, 0));
+}
+
 describe('handleQuizAnswer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    _clearStateForTesting();
     mockSaveAnswer.mockResolvedValue(undefined);
     mockAdvanceOrComplete.mockResolvedValue(null);
+    mockGetStudentByDiscordId.mockResolvedValue({ id: 'student-1' });
   });
 
   it('defers update before DB calls', async () => {
@@ -102,7 +119,7 @@ describe('handleQuizAnswer', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     const interaction = makeButtonInteraction('quiz_answer_session-1_B');
 
-    await handleQuizAnswer(interaction);
+    await invokeAndWait(interaction);
 
     expect(interaction.deferUpdate).toHaveBeenCalled();
     // deferUpdate should be called before getQuizSession
@@ -118,7 +135,7 @@ describe('handleQuizAnswer', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     const interaction = makeButtonInteraction('quiz_answer_session-1_B');
 
-    await handleQuizAnswer(interaction);
+    await invokeAndWait(interaction);
 
     expect(mockSaveAnswer).toHaveBeenCalledWith(
       expect.objectContaining({ is_correct: true, student_answer: 'B' })
@@ -132,7 +149,7 @@ describe('handleQuizAnswer', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     const interaction = makeButtonInteraction('quiz_answer_session-1_A');
 
-    await handleQuizAnswer(interaction);
+    await invokeAndWait(interaction);
 
     expect(mockSaveAnswer).toHaveBeenCalledWith(
       expect.objectContaining({ is_correct: false, student_answer: 'A' })
@@ -146,7 +163,7 @@ describe('handleQuizAnswer', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     const interaction = makeButtonInteraction('quiz_answer_session-1_true');
 
-    await handleQuizAnswer(interaction);
+    await invokeAndWait(interaction);
 
     expect(mockSaveAnswer).toHaveBeenCalledWith(
       expect.objectContaining({ is_correct: true, student_answer: 'true' })
@@ -160,7 +177,7 @@ describe('handleQuizAnswer', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     const interaction = makeButtonInteraction('quiz_answer_session-1_B');
 
-    await handleQuizAnswer(interaction);
+    await invokeAndWait(interaction);
 
     expect(mockSaveAnswer).toHaveBeenCalled();
     expect(mockAdvanceOrComplete).toHaveBeenCalledWith(
@@ -178,7 +195,7 @@ describe('handleQuizAnswer', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     const interaction = makeButtonInteraction('quiz_answer_session-1_B');
 
-    await handleQuizAnswer(interaction);
+    await invokeAndWait(interaction);
 
     expect(interaction.editReply).toHaveBeenCalledWith({ components: [] });
   });
@@ -188,7 +205,7 @@ describe('handleQuizAnswer', () => {
     mockGetQuizSession.mockResolvedValueOnce(session);
     const interaction = makeButtonInteraction('quiz_answer_session-1_B');
 
-    await handleQuizAnswer(interaction);
+    await invokeAndWait(interaction);
 
     expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ ephemeral: true })
@@ -200,7 +217,7 @@ describe('handleQuizAnswer', () => {
     mockGetQuizSession.mockResolvedValueOnce(null);
     const interaction = makeButtonInteraction('quiz_answer_session-1_B');
 
-    await handleQuizAnswer(interaction);
+    await invokeAndWait(interaction);
 
     expect(interaction.followUp).toHaveBeenCalled();
     expect(mockSaveAnswer).not.toHaveBeenCalled();
@@ -213,11 +230,39 @@ describe('handleQuizAnswer', () => {
     mockGetQuestionsByQuiz.mockResolvedValueOnce(questions);
     const interaction = makeButtonInteraction('quiz_answer_my-session-abc_C');
 
-    await handleQuizAnswer(interaction);
+    await invokeAndWait(interaction);
 
     expect(mockGetQuizSession).toHaveBeenCalledWith('my-session-abc');
     expect(mockSaveAnswer).toHaveBeenCalledWith(
       expect.objectContaining({ student_answer: 'C' })
     );
+  });
+
+  it('rejects when Discord user is not the session owner', async () => {
+    const session = makeSession({ student_id: 'other-student' });
+    mockGetQuizSession.mockResolvedValueOnce(session);
+    mockGetStudentByDiscordId.mockResolvedValueOnce({ id: 'student-1' });
+    const interaction = makeButtonInteraction('quiz_answer_session-1_B');
+
+    await invokeAndWait(interaction);
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ content: 'Этот квиз вам не назначен.', ephemeral: true })
+    );
+    expect(mockSaveAnswer).not.toHaveBeenCalled();
+  });
+
+  it('rejects when student not found in DB', async () => {
+    const session = makeSession();
+    mockGetQuizSession.mockResolvedValueOnce(session);
+    mockGetStudentByDiscordId.mockResolvedValueOnce(null);
+    const interaction = makeButtonInteraction('quiz_answer_session-1_B');
+
+    await invokeAndWait(interaction);
+
+    expect(interaction.followUp).toHaveBeenCalledWith(
+      expect.objectContaining({ ephemeral: true })
+    );
+    expect(mockSaveAnswer).not.toHaveBeenCalled();
   });
 });

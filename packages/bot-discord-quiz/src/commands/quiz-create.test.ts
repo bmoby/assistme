@@ -17,6 +17,7 @@ vi.mock('@assistme/core', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
   createQuiz: vi.fn(),
   createQuizQuestion: vi.fn(),
+  updateQuizStatus: vi.fn(),
   getActiveStudents: vi.fn(),
   createQuizSession: vi.fn(),
 }));
@@ -38,12 +39,13 @@ vi.mock('../utils/auth.js', () => ({
 vi.stubGlobal('fetch', mockFetch);
 
 import { handleQuizCreate } from './quiz-create.js';
-import { createQuiz, createQuizQuestion, getActiveStudents, createQuizSession } from '@assistme/core';
+import { createQuiz, createQuizQuestion, updateQuizStatus, getActiveStudents, createQuizSession } from '@assistme/core';
 import { parseQuizFromTxt } from '../ai/parse-quiz.js';
 import { isAdmin } from '../utils/auth.js';
 
 const mockCreateQuiz = vi.mocked(createQuiz);
 const mockCreateQuizQuestion = vi.mocked(createQuizQuestion);
+const mockUpdateQuizStatus = vi.mocked(updateQuizStatus);
 const mockGetActiveStudents = vi.mocked(getActiveStudents);
 const mockCreateQuizSession = vi.mocked(createQuizSession);
 const mockParseQuiz = vi.mocked(parseQuizFromTxt);
@@ -149,7 +151,7 @@ const VALID_PARSED_QUIZ = {
   title: 'Quiz Session 5',
   questions: [
     { question_number: 1, type: 'mcq' as const, question_text: 'Q1?', choices: { A: 'Yes', B: 'No' }, correct_answer: 'A', explanation: 'Because.' },
-    { question_number: 2, type: 'true_false' as const, question_text: 'Q2?', choices: null, correct_answer: 'true', explanation: null },
+    { question_number: 2, type: 'true_false' as const, question_text: 'Q2?', choices: null, correct_answer: 'true' as const, explanation: null },
     { question_number: 3, type: 'open' as const, question_text: 'Q3?', choices: null, correct_answer: 'Some answer', explanation: null },
   ],
 };
@@ -247,7 +249,7 @@ describe('handleQuizCreate', () => {
     mockCreateQuiz.mockResolvedValue({
       id: 'quiz-uuid-1',
       session_number: 5,
-      status: 'active',
+      status: 'draft',
       questions_data: null,
       original_txt: null,
       created_at: new Date().toISOString(),
@@ -263,6 +265,10 @@ describe('handleQuizCreate', () => {
       correct_answer: 'A',
       explanation: null,
       created_at: new Date().toISOString(),
+    });
+    mockUpdateQuizStatus.mockResolvedValue({
+      id: 'quiz-uuid-1', session_number: 5, status: 'active',
+      questions_data: null, original_txt: null, created_at: new Date().toISOString(), closed_at: null,
     });
 
     // Mock active students
@@ -325,7 +331,7 @@ describe('handleQuizCreate', () => {
     mockCreateQuiz.mockResolvedValue({
       id: 'quiz-uuid-1',
       session_number: 5,
-      status: 'active',
+      status: 'draft',
       questions_data: null,
       original_txt: null,
       created_at: new Date().toISOString(),
@@ -334,6 +340,10 @@ describe('handleQuizCreate', () => {
     mockCreateQuizQuestion.mockResolvedValue({
       id: 'qq-1', quiz_id: 'quiz-uuid-1', question_number: 1, type: 'mcq',
       question_text: 'Q1?', choices: null, correct_answer: 'A', explanation: null, created_at: new Date().toISOString(),
+    });
+    mockUpdateQuizStatus.mockResolvedValue({
+      id: 'quiz-uuid-1', session_number: 5, status: 'active',
+      questions_data: null, original_txt: null, created_at: new Date().toISOString(), closed_at: null,
     });
 
     // 2 students: 1 success, 1 DM fail
@@ -393,11 +403,15 @@ describe('handleQuizCreate', () => {
 
     // DB mocks
     mockCreateQuiz.mockResolvedValue({
-      id: 'quiz-uuid-1', session_number: 5, status: 'active', questions_data: null, original_txt: null, created_at: new Date().toISOString(), closed_at: null,
+      id: 'quiz-uuid-1', session_number: 5, status: 'draft', questions_data: null, original_txt: null, created_at: new Date().toISOString(), closed_at: null,
     });
     mockCreateQuizQuestion.mockResolvedValue({
       id: 'qq-1', quiz_id: 'quiz-uuid-1', question_number: 1, type: 'mcq',
       question_text: 'Q1?', choices: null, correct_answer: 'A', explanation: null, created_at: new Date().toISOString(),
+    });
+    mockUpdateQuizStatus.mockResolvedValue({
+      id: 'quiz-uuid-1', session_number: 5, status: 'active',
+      questions_data: null, original_txt: null, created_at: new Date().toISOString(), closed_at: null,
     });
 
     // No active students

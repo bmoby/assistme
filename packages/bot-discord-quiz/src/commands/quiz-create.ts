@@ -8,7 +8,7 @@ import {
   ButtonInteraction,
   PermissionFlagsBits,
 } from 'discord.js';
-import { logger, createQuiz, createQuizQuestion, getActiveStudents, createQuizSession } from '@assistme/core';
+import { logger, createQuiz, createQuizQuestion, updateQuizStatus, getActiveStudents, createQuizSession } from '@assistme/core';
 import { parseQuizFromTxt } from '../ai/parse-quiz.js';
 import type { ParsedQuiz, ParsedQuizQuestion } from '../ai/parse-quiz.js';
 import { isAdmin } from '../utils/auth.js';
@@ -161,6 +161,13 @@ export async function handleQuizCreate(interaction: ChatInputCommandInteraction)
     return;
   }
 
+  // Step 3b: Validate file size (max 512KB)
+  const MAX_TXT_SIZE_BYTES = 512 * 1024;
+  if (attachment.size > MAX_TXT_SIZE_BYTES) {
+    await interaction.editReply('Le fichier est trop volumineux (max 512 Ko).');
+    return;
+  }
+
   // Step 4: Download TXT
   let txtContent: string;
   try {
@@ -233,10 +240,10 @@ async function handleQuizConfirm(interaction: ButtonInteraction): Promise<void> 
   await interaction.update({ components: [disabledRow] });
 
   try {
-    // Write quiz to DB
+    // Write quiz to DB as draft (activated after all questions are inserted)
     const quiz = await createQuiz({
       session_number: pending.sessionNumber,
-      status: 'active',
+      status: 'draft',
       questions_data: { questions: pending.parsed.questions },
       original_txt: pending.txtContent,
     });
@@ -254,6 +261,9 @@ async function handleQuizConfirm(interaction: ButtonInteraction): Promise<void> 
       });
     }
 
+    // All questions inserted — activate the quiz
+    await updateQuizStatus(quiz.id, 'active');
+
     // Fetch active students with Discord IDs
     const students = await getActiveStudents();
     const discordStudents = students.filter((s) => s.discord_id !== null);
@@ -267,34 +277,49 @@ async function handleQuizConfirm(interaction: ButtonInteraction): Promise<void> 
       return;
     }
 
-    // Dispatch DMs to all students
-    const results = await Promise.allSettled(
-      discordStudents.map(async (student) => {
-        const session = await createQuizSession({
-          student_id: student.id,
-          quiz_id: quiz.id,
-        });
+    // Dispatch DMs to students in batches to avoid Discord rate limits (~5 DMs/sec)
+    const BATCH_SIZE = 5;
+    const BATCH_DELAY_MS = 1500;
+    const results: PromiseSettledResult<string>[] = [];
 
-        const member = await interaction.guild!.members.fetch(student.discord_id!);
-        const dm = await member.createDM();
+    for (let i = 0; i < discordStudents.length; i += BATCH_SIZE) {
+      const batch = discordStudents.slice(i, i + BATCH_SIZE);
 
-        const studentEmbed = new EmbedBuilder()
-          .setTitle(`\u0422\u0435\u0441\u0442 \u2014 \u0421\u0435\u0441\u0441\u0438\u044F ${sessionNumber}`)
-          .setDescription(pending.parsed.title)
-          .setColor(0x5865F2)
-          .setFooter({ text: '\u041E\u0442\u0432\u0435\u0442\u044C\u0442\u0435 \u043D\u0430 \u0432\u0441\u0435 \u0432\u043E\u043F\u0440\u043E\u0441\u044B. \u041C\u043E\u0436\u043D\u043E \u043F\u0440\u0435\u0440\u0432\u0430\u0442\u044C\u0441\u044F \u0438 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u043F\u043E\u0437\u0436\u0435.' });
+      const batchResults = await Promise.allSettled(
+        batch.map(async (student) => {
+          const session = await createQuizSession({
+            student_id: student.id,
+            quiz_id: quiz.id,
+          });
 
-        const startRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`quiz_start_${session.id}`)
-            .setLabel('\u041D\u0430\u0447\u0430\u0442\u044C \u0442\u0435\u0441\u0442')
-            .setStyle(ButtonStyle.Primary),
-        );
+          const member = await interaction.guild!.members.fetch(student.discord_id!);
+          const dm = await member.createDM();
 
-        await dm.send({ embeds: [studentEmbed], components: [startRow] });
-        return student.id;
-      })
-    );
+          const studentEmbed = new EmbedBuilder()
+            .setTitle(`\u0422\u0435\u0441\u0442 \u2014 \u0421\u0435\u0441\u0441\u0438\u044F ${sessionNumber}`)
+            .setDescription(pending.parsed.title)
+            .setColor(0x5865F2)
+            .setFooter({ text: '\u041E\u0442\u0432\u0435\u0442\u044C\u0442\u0435 \u043D\u0430 \u0432\u0441\u0435 \u0432\u043E\u043F\u0440\u043E\u0441\u044B. \u041C\u043E\u0436\u043D\u043E \u043F\u0440\u0435\u0440\u0432\u0430\u0442\u044C\u0441\u044F \u0438 \u043F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u043F\u043E\u0437\u0436\u0435.' });
+
+          const startRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`quiz_start_${session.id}`)
+              .setLabel('\u041D\u0430\u0447\u0430\u0442\u044C \u0442\u0435\u0441\u0442')
+              .setStyle(ButtonStyle.Primary),
+          );
+
+          await dm.send({ embeds: [studentEmbed], components: [startRow] });
+          return student.id;
+        })
+      );
+
+      results.push(...batchResults);
+
+      // Wait between batches (skip delay after last batch)
+      if (i + BATCH_SIZE < discordStudents.length) {
+        await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
 
     const delivered = results.filter((r) => r.status === 'fulfilled').length;
     const failed = results.filter((r) => r.status === 'rejected').length;
