@@ -12,6 +12,7 @@ dotenv.config({ path: resolve(root, '.env') });
 import { Client, GatewayIntentBits, Partials } from 'discord.js';
 import { logger } from '@assistme/core';
 import { registerCronJobs } from './cron/index.js';
+import { setupHandlers } from './handlers/index.js';
 
 async function main(): Promise<void> {
   const token = process.env['DISCORD_QUIZ_BOT_TOKEN'];
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.DirectMessages,
+      GatewayIntentBits.GuildMembers,
     ],
     partials: [Partials.Channel],
   });
@@ -36,6 +38,7 @@ async function main(): Promise<void> {
       'TeacherBot is online'
     );
     registerCronJobs(client, guildId);
+    setupHandlers(client);
   });
 
   client.on('error', (error) => {
