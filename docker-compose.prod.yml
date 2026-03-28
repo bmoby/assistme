@@ -1,5 +1,6 @@
 # Production deployment — Docker Compose
 # Embeddings: OpenAI text-embedding-3-small API (no self-hosted server needed)
+# Services: redis, bot-telegram, bot-telegram-public, bot-discord, bot-discord-quiz
 services:
   redis:
     image: redis:7-alpine
