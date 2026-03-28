@@ -18,10 +18,8 @@ const {
   mockUpdateQuizSession: vi.fn(),
   mockGetAnswersBySession: vi.fn(),
   mockLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
-  mockBuildQuestionEmbed: vi.fn().mockReturnValue('embed'),
   mockBuildMcqRow: vi.fn().mockReturnValue('mcq-row'),
   mockBuildTrueFalseRow: vi.fn().mockReturnValue('tf-row'),
-  mockBuildOpenQuestionEmbed: vi.fn().mockReturnValue('open-embed'),
   mockBuildFeedbackMessages: vi.fn().mockReturnValue(['feedback-msg']),
 }));
 
@@ -32,10 +30,8 @@ vi.mock('@assistme/core', () => ({
 }));
 
 vi.mock('./quiz-messages.js', () => ({
-  buildQuestionEmbed: mockBuildQuestionEmbed,
   buildMcqRow: mockBuildMcqRow,
   buildTrueFalseRow: mockBuildTrueFalseRow,
-  buildOpenQuestionEmbed: mockBuildOpenQuestionEmbed,
   buildFeedbackMessages: mockBuildFeedbackMessages,
 }));
 
@@ -101,39 +97,49 @@ describe('sendQuestion', () => {
     vi.clearAllMocks();
   });
 
-  it('sends MCQ question with embed and button row', async () => {
+  it('sends MCQ question with plain text and button row, no embeds', async () => {
     const dmChannel = makeDmChannel();
     const session = makeSession({ current_question: 0 });
     const question = makeQuestion({ type: 'mcq', choices: { A: 'Yes', B: 'No' } });
 
     await sendQuestion(dmChannel, session, question, 5);
 
-    expect(mockBuildQuestionEmbed).toHaveBeenCalledWith(question, 1, 5);
     expect(mockBuildMcqRow).toHaveBeenCalledWith('session-1', question.choices);
-    expect(dmChannel.send).toHaveBeenCalledWith({ embeds: ['embed'], components: ['mcq-row'] });
+    const sentMsg = (dmChannel.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(sentMsg.embeds).toBeUndefined();
+    expect(sentMsg.components).toEqual(['mcq-row']);
+    expect(sentMsg.content).toContain('Вопрос 1/5');
+    expect(sentMsg.content).toContain('What is 2+2?');
+    expect(sentMsg.content).toContain('A.');
+    expect(sentMsg.content).toContain('B.');
   });
 
-  it('sends true_false question with embed and VF button row', async () => {
+  it('sends true_false question with plain text and VF button row', async () => {
     const dmChannel = makeDmChannel();
     const session = makeSession({ current_question: 2 });
     const question = makeQuestion({ type: 'true_false', choices: null });
 
     await sendQuestion(dmChannel, session, question, 10);
 
-    expect(mockBuildQuestionEmbed).toHaveBeenCalledWith(question, 3, 10);
     expect(mockBuildTrueFalseRow).toHaveBeenCalledWith('session-1');
-    expect(dmChannel.send).toHaveBeenCalledWith({ embeds: ['embed'], components: ['tf-row'] });
+    const sentMsg = (dmChannel.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(sentMsg.embeds).toBeUndefined();
+    expect(sentMsg.content).toContain('Вопрос 3/10');
+    expect(sentMsg.content).toContain(question.question_text);
   });
 
-  it('sends open question with embed and no components', async () => {
+  it('sends open question with plain text, no embeds, no components', async () => {
     const dmChannel = makeDmChannel();
     const session = makeSession({ current_question: 4 });
     const question = makeQuestion({ type: 'open', choices: null });
 
     await sendQuestion(dmChannel, session, question, 7);
 
-    expect(mockBuildOpenQuestionEmbed).toHaveBeenCalledWith(question, 5, 7);
-    expect(dmChannel.send).toHaveBeenCalledWith({ embeds: ['open-embed'] });
+    const sentMsg = (dmChannel.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(sentMsg.embeds).toBeUndefined();
+    expect(sentMsg.components).toBeUndefined();
+    expect(sentMsg.content).toContain('Вопрос 5/7');
+    expect(sentMsg.content).toContain('Напишите ваш ответ');
     expect(mockBuildMcqRow).not.toHaveBeenCalled();
     expect(mockBuildTrueFalseRow).not.toHaveBeenCalled();
   });
@@ -145,7 +151,8 @@ describe('sendQuestion', () => {
 
     await sendQuestion(dmChannel, session, question, 15);
 
-    expect(mockBuildQuestionEmbed).toHaveBeenCalledWith(question, 10, 15);
+    const sentContent = (dmChannel.send as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]?.content as string;
+    expect(sentContent).toContain('Вопрос 10/15');
   });
 });
 
