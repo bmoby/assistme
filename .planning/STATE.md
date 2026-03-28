@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Exercise Submission Flow
-status: Checkpoint — awaiting human action
-stopped_at: Phase 10 context gathered
-last_updated: "2026-03-28T04:36:07.066Z"
+status: Ready to execute
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-03-28T05:44:30.088Z"
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 8
+  total_plans: 11
   completed_plans: 8
 ---
 
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-25)
 
 **Core value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
-**Current focus:** Phase 08 — infrastructure (quiz system data foundation)
+**Current focus:** Phase 10 — student-quiz-experience
 
 ## Current Position
 
-Phase: 8
-Plan: 2 in progress (of 2) — Tasks 1-2 done, Task 3 awaiting human action (Discord bot creation)
+Phase: 10 (student-quiz-experience) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Plan: 2 in progress (of 2) — Tasks 1-2 done, Task 3 awaiting human action (Dis
 | Phase 06 P02 | 6min | 1 tasks | 1 files |
 | Phase 08 P01 | 5min | 2 tasks | 7 files |
 | Phase 08 P02 | 4min | 2 tasks | 12 files |
+| Phase 10-student-quiz-experience P01 | 12min | 1 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase 08-02]: bot-discord-quiz has zero runtime dependency on @assistme/bot-discord — clean package isolation
 - [Phase 08-02]: Only GatewayIntentBits.Guilds + DirectMessages for Phase 8 scaffold (minimal footprint)
 - [Phase 08-02]: quiz-close-expired cron every 30min (not real-time) — adequate for 48h expiry threshold
+- [Phase 10-01]: Use SendableChannel union type (DMChannel | TextChannel | NewsChannel | ThreadChannel) instead of TextBasedChannel for quiz flow — PartialGroupDMChannel lacks .send()
+- [Phase 10-01]: advanceOrComplete returns StudentQuizSession | null — null on complete signals handlers to clear awaitingOpenAnswer state
+- [Phase 10-01]: evaluateOpenAnswer fallback: substring match when JSON.parse fails — avoids crash on malformed Claude response
 
 ### Pending Todos
 
@@ -92,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-28T04:36:07.059Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-student-quiz-experience/10-CONTEXT.md
+Last session: 2026-03-28T05:44:30.083Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: None
