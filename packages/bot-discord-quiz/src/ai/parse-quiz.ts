@@ -87,6 +87,7 @@ export async function parseQuizFromTxt(txtContent: string, sessionNumber: number
     systemPrompt: QUIZ_PARSE_SYSTEM_PROMPT,
     model: 'sonnet',
     maxTokens: 8192,
+    formation: true,
   });
 
   // Extract JSON even if Claude adds preamble text

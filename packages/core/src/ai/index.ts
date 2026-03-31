@@ -1,4 +1,4 @@
-export { askClaude } from './client.js';
+export { askClaude, getFormationClient } from './client.js';
 export { generateDailyPlan, parseUserMessage } from './planner.js';
 export { transcribeAudio } from './transcribe.js';
 export { textToSpeech } from './tts.js';

@@ -308,8 +308,8 @@ let anthropicClient: Anthropic | null = null;
 
 function getAnthropicClient(): Anthropic {
   if (anthropicClient) return anthropicClient;
-  const apiKey = process.env['ANTHROPIC_API_KEY'];
-  if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
+  const apiKey = process.env['ANTHROPIC_API_KEY_FORMATION'] ?? process.env['ANTHROPIC_API_KEY'];
+  if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY_FORMATION or ANTHROPIC_API_KEY');
   anthropicClient = new Anthropic({ apiKey });
   return anthropicClient;
 }

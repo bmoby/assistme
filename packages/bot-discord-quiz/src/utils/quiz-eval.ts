@@ -20,6 +20,7 @@ export async function evaluateOpenAnswer(
     systemPrompt: EVAL_SYSTEM_PROMPT,
     model: 'opus',
     maxTokens: 256,
+    formation: true,
   });
 
   try {
