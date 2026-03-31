@@ -31,7 +31,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [ ] 01-01-PLAN.md — Strip AI from submission flow, notifications, and review threads (CLEAN-01, CLEAN-02, CLEAN-03, CLEAN-04)
-- [ ] 01-02-PLAN.md — Update status filters across DB, agents, and review buttons (CLEAN-05)
+- [x] 01-02-PLAN.md — Update status filters across DB, agents, and review buttons (CLEAN-05)
 
 ### Phase 2: Session Archiving
 **Goal**: Trainer can archive all exercises for a completed session with one command, keeping them queryable but out of active workflows

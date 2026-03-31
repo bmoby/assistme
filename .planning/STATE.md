@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-31T07:29:21.140Z"
-last_activity: 2026-03-31 -- Roadmap created
+status: Ready to execute
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-03-31T07:51:34.458Z"
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -21,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-31)
 
 **Core value:** Le formateur peut gerer les soumissions d'exercices sans goulot d'etranglement -- archiver par session, corriger quand il veut, sans bruit IA inutile.
-**Current focus:** Phase 1 - Remove AI Auto-Review
+**Current focus:** Phase 01 — remove-ai-auto-review
 
 ## Current Position
 
-Phase: 1 of 3 (Remove AI Auto-Review)
-Plan: 0 of 0 in current phase (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-31 -- Roadmap created
-
-Progress: [░░░░░░░░░░] 0%
+Phase: 01 (remove-ai-auto-review) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -52,6 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01-remove-ai-auto-review P02 | 5min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -62,6 +57,8 @@ Recent decisions affecting current work:
 
 - [Roadmap]: AI auto-review removal split from codebase cleanup -- remove from flow first (Phase 1), delete module after archiving works (Phase 3)
 - [Roadmap]: Session archiving depends on clean flow -- no point adding features while AI review is still wired in
+- [Phase 01-remove-ai-auto-review]: Removed dead setAiReview function from exercises.ts -- unreachable after AI review removal
+- [Phase 01-remove-ai-auto-review]: Kept ai_reviewed backward compat in review-buttons (D-16) -- old exercises remain actionable
 
 ### Pending Todos
 
@@ -73,6 +70,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-31T07:29:21.127Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-remove-ai-auto-review/01-CONTEXT.md
+Last session: 2026-03-31T07:51:34.452Z
+Stopped at: Completed 01-02-PLAN.md
+Resume file: None

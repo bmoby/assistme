@@ -13,7 +13,7 @@ Requirements pour cette iteration. Chaque requirement mappe a une phase du roadm
 - [ ] **CLEAN-02**: Supprimer le placeholder/message IA dans les threads de review
 - [ ] **CLEAN-03**: Supprimer le score IA et la recommandation des notifications admin
 - [ ] **CLEAN-04**: Simplifier le DM etudiant apres soumission (accuse de reception sans score IA)
-- [ ] **CLEAN-05**: Le statut passe directement de `submitted` a en attente de review admin (plus de `ai_reviewed`)
+- [x] **CLEAN-05**: Le statut passe directement de `submitted` a en attente de review admin (plus de `ai_reviewed`)
 - [ ] **CLEAN-06**: Nettoyer les imports et references a exercise-reviewer dans le codebase
 
 ### Archivage par Session
@@ -51,7 +51,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLEAN-02 | Phase 1 | Pending |
 | CLEAN-03 | Phase 1 | Pending |
 | CLEAN-04 | Phase 1 | Pending |
-| CLEAN-05 | Phase 1 | Pending |
+| CLEAN-05 | Phase 1 | Complete |
 | CLEAN-06 | Phase 3 | Pending |
 | ARCH-01 | Phase 2 | Pending |
 | ARCH-02 | Phase 2 | Pending |
