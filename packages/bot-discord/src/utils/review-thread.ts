@@ -17,8 +17,8 @@ import { formatReviewThreadMessages } from './format.js';
 
 /**
  * Creates (or reuses) a review thread in #админ with full submission content.
- * Owns ALL DB persistence for review_thread_id and review_thread_ai_message_id.
- * Returns { threadId, aiMessageId } in both new-thread and reuse paths.
+ * Owns ALL DB persistence for review_thread_id.
+ * Returns { threadId, aiMessageId: null } in both new-thread and reuse paths.
  */
 export async function createReviewThread(
   adminChannel: TextChannel,
@@ -26,7 +26,7 @@ export async function createReviewThread(
   student: Student,
   session: Session | null,
   client: Client,
-): Promise<{ threadId: string; aiMessageId: string }> {
+): Promise<{ threadId: string; aiMessageId: string | null }> {
   // ── THREAD REUSE PATH (D-01, D-02, D-04, D-05) ──────────────────────────
   if (exercise.review_thread_id) {
     const existing = await client.channels
@@ -68,18 +68,12 @@ export async function createReviewThread(
           await existing.send(submissionMsg);
         }
 
-        // AI placeholder
-        const aiMsg = await existing.send('🤖 **Review IA :** en cours...');
-
-        // Persist new AI message ID (thread_id already correct)
-        await updateExercise(exercise.id, { review_thread_ai_message_id: aiMsg.id });
-
         logger.info(
-          { threadId: existing.id, aiMessageId: aiMsg.id, exerciseId: exercise.id },
+          { threadId: existing.id, exerciseId: exercise.id },
           'Review thread reused for re-submission',
         );
 
-        return { threadId: existing.id, aiMessageId: aiMsg.id };
+        return { threadId: existing.id, aiMessageId: null };
       }
       // setArchived failed — fall through to new thread creation below
     }
@@ -97,7 +91,7 @@ export async function createReviewThread(
   const attachmentsWithUrls = await getSignedUrlsForExercise(exercise.id);
 
   // Build formatted messages
-  const { submissionMsg, aiReviewMsg, historyMsg, imageUrl } = formatReviewThreadMessages(
+  const { submissionMsg, historyMsg, imageUrl } = formatReviewThreadMessages(
     exercise,
     session,
     student.name,
@@ -118,15 +112,12 @@ export async function createReviewThread(
     await thread.send(submissionMsg);
   }
 
-  // Message 2: AI review placeholder (or real review if already available)
-  const aiMsg = await thread.send(aiReviewMsg ?? '🤖 **Review IA :** en cours...');
-
-  // Message 3: History (if re-submission)
+  // Message 2: History (if re-submission)
   if (historyMsg) {
     await thread.send(historyMsg);
   }
 
-  // Message 4: Action buttons
+  // Message 3: Action buttons
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`review_approve_${exercise.id}`)
@@ -145,16 +136,15 @@ export async function createReviewThread(
     components: [row],
   });
 
-  // Persist BOTH IDs (single ownership — no caller should call updateExercise for these)
+  // Persist thread ID (single ownership — no caller should call updateExercise for this)
   await updateExercise(exercise.id, {
     review_thread_id: thread.id,
-    review_thread_ai_message_id: aiMsg.id,
   });
 
   logger.info(
-    { threadId: thread.id, aiMessageId: aiMsg.id, exerciseId: exercise.id, studentName: student.name },
+    { threadId: thread.id, exerciseId: exercise.id, studentName: student.name },
     'Review thread created',
   );
 
-  return { threadId: thread.id, aiMessageId: aiMsg.id };
+  return { threadId: thread.id, aiMessageId: null };
 }
