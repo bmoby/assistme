@@ -27,10 +27,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Admin notification in #admin channel shows exercise details without any AI score or recommendation
   3. Review thread is created with full context but no AI placeholder message or pending AI review indicator
   4. Exercise status transitions directly from `submitted` to admin review states -- the `ai_reviewed` status is never set for new submissions
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
+- [ ] 01-01-PLAN.md — Strip AI from submission flow, notifications, and review threads (CLEAN-01, CLEAN-02, CLEAN-03, CLEAN-04)
+- [ ] 01-02-PLAN.md — Update status filters across DB, agents, and review buttons (CLEAN-05)
 
 ### Phase 2: Session Archiving
 **Goal**: Trainer can archive all exercises for a completed session with one command, keeping them queryable but out of active workflows
@@ -65,6 +66,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Remove AI Auto-Review | 0/0 | Not started | - |
+| 1. Remove AI Auto-Review | 0/2 | Not started | - |
 | 2. Session Archiving | 0/0 | Not started | - |
 | 3. Codebase Cleanup | 0/0 | Not started | - |
