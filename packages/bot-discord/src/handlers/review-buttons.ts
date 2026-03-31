@@ -237,13 +237,9 @@ async function handleReviewSession(interaction: ButtonInteraction): Promise<void
 
   const lines = pending.map((ex) => {
     const name = studentNames.get(ex.student_id) ?? 'Inconnu';
-    const aiReview = ex.ai_review as Record<string, unknown> | null;
-    const score = aiReview?.score as number | undefined;
-    const rec = aiReview?.recommendation as string | undefined;
-    const emoji = ex.status === 'ai_reviewed' ? '🤖' : '📩';
-    const scoreStr = score !== undefined ? `Score IA : ${score}/10 — ${rec ?? '?'}` : 'Score IA : en cours...';
+    const emoji = '📩';
     const resubLabel = ex.submission_count > 1 ? ` (#${ex.submission_count})` : '';
-    return `${emoji} **${name}**${resubLabel} — ${scoreStr}`;
+    return `${emoji} **${name}**${resubLabel}`;
   });
 
   const embed = new EmbedBuilder()
