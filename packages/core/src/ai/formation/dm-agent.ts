@@ -143,7 +143,7 @@ const TOOLS: Anthropic.Messages.Tool[] = [
   },
   {
     name: 'get_pending_feedback',
-    description: 'Посмотреть последние проверки (ИИ или тренер), которые студент ещё не видел.',
+    description: 'Посмотреть последние проверки тренера, которые студент ещё не видел.',
     input_schema: {
       type: 'object' as const,
       properties: {},
@@ -278,21 +278,12 @@ async function handleGetPendingFeedback(student: Student): Promise<string> {
   const exercises = await getExercisesByStudent(student.id);
 
   const feedback = exercises
-    .filter((e) => e.status === 'ai_reviewed' || e.status === 'approved' || e.status === 'revision_needed')
+    .filter((e) => e.status === 'approved' || e.status === 'revision_needed')
     .map((e) => {
-      const aiReview = e.ai_review as Record<string, unknown> | null;
       return {
         session_number: e.exercise_number,
         module: e.module,
-        type: e.status === 'ai_reviewed'
-          ? 'ai_review'
-          : e.status === 'approved'
-            ? 'approved'
-            : 'revision_needed',
-        score: aiReview?.score ?? null,
-        summary: aiReview?.summary ?? null,
-        strengths: aiReview?.strengths ?? null,
-        improvements: aiReview?.improvements ?? null,
+        type: e.status === 'approved' ? 'approved' : 'revision_needed',
         feedback: e.feedback,
       };
     });
