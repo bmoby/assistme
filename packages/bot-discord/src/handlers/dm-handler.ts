@@ -25,10 +25,7 @@ import {
   addAttachment,
   deleteAttachmentsByExercise,
   deleteStorageFiles,
-  getSignedUrl,
   getSignedUrlsForExercise,
-  createFormationEvent,
-  reviewExercise,
 } from '@assistme/core';
 import { runDmAgent } from '@assistme/core';
 import type {
@@ -38,9 +35,8 @@ import type {
   Student,
   Session,
   StudentExercise,
-  AttachmentType,
 } from '@assistme/core';
-import { formatSubmissionNotification, formatReviewThreadMessages } from '../utils/format.js';
+import { formatSubmissionNotification } from '../utils/format.js';
 import { CHANNELS } from '../config.js';
 
 // Discord client reference (set in setupDmHandler)
@@ -152,91 +148,6 @@ async function uploadFileToStorage(
 }
 
 // ============================================
-// AI review trigger (moved from dm-agent)
-// ============================================
-
-async function triggerAiReview(
-  exerciseId: string,
-  student: Student,
-  session: Session,
-  storagePaths: string[]
-): Promise<void> {
-  const attachments: Array<{ signedUrl: string; type: AttachmentType; filename: string; mimeType: string }> = [];
-
-  for (const path of storagePaths) {
-    const signedUrl = await getSignedUrl(path, 3600);
-    const filename = path.split('/').pop() ?? 'file';
-    const isImage = /\.(png|jpe?g|webp|gif)$/i.test(filename);
-    attachments.push({
-      signedUrl,
-      type: isImage ? 'image' : 'file',
-      filename,
-      mimeType: isImage ? `image/${filename.split('.').pop()}` : 'application/octet-stream',
-    });
-  }
-
-  const result = await reviewExercise({
-    module: session.module,
-    exerciseNumber: session.session_number,
-    exerciseDescription: session.exercise_description ?? undefined,
-    studentName: student.name,
-    sessionNumber: session.session_number,
-    attachments,
-  });
-
-  // setAiReview is not exported from core, use updateExercise directly
-  await updateExercise(exerciseId, {
-    ai_review: result as unknown as Record<string, unknown>,
-    status: 'ai_reviewed',
-  });
-  logger.info({ exerciseId, score: result.score }, 'AI review completed and saved');
-
-  // Edit thread AI message in place if thread was already opened (per D-06)
-  try {
-    const freshExercise = await getExercise(exerciseId);
-    if (freshExercise?.review_thread_id && freshExercise?.review_thread_ai_message_id) {
-      const thread = await discordClient.channels
-        .fetch(freshExercise.review_thread_id)
-        .catch(() => null);
-      if (thread?.isThread()) {
-        const aiMsg = await thread.messages
-          .fetch(freshExercise.review_thread_ai_message_id)
-          .catch(() => null);
-        if (aiMsg) {
-          // VERIFIED: aiReviewMsg is built entirely from exercise.ai_review (format.ts lines 201-230).
-          // attachmentsWithUrls is only used for submissionMsg and imageUrl, NOT for aiReviewMsg.
-          // Passing [] is correct and safe — no attachment data needed for the AI review message.
-          const { aiReviewMsg } = formatReviewThreadMessages(
-            freshExercise,
-            session,
-            student.name,
-            [],
-          );
-          if (aiReviewMsg) {
-            await aiMsg.edit(aiReviewMsg);
-            logger.info({ exerciseId }, 'Thread AI message updated in place');
-          }
-        }
-      }
-    }
-  } catch (err) {
-    logger.warn({ err, exerciseId }, 'Could not update thread AI message — non-blocking');
-  }
-
-  // Notify Discord to update the admin notification with AI score
-  try {
-    await createFormationEvent({
-      type: 'ai_review_complete',
-      source: 'discord',
-      target: 'discord',
-      data: { exercise_id: exerciseId },
-    });
-  } catch {
-    // Non-blocking — notification edit is best-effort
-  }
-}
-
-// ============================================
 // Execute submission after confirm
 // ============================================
 
@@ -340,28 +251,6 @@ async function executeSubmission(
       });
       storageIdx++;
     }
-  }
-
-  // Fire-and-forget AI review
-  if (storagePaths.length > 0) {
-    void triggerAiReview(exercise.id, student, session, storagePaths).catch(async (err) => {
-      logger.error({ err, exerciseId: exercise.id }, 'AI review failed (non-blocking)');
-      try {
-        await createFormationEvent({
-          type: 'student_alert',
-          source: 'discord',
-          target: 'telegram-admin',
-          data: {
-            alert_type: 'ai_review_failed',
-            student_name: student.name,
-            session_number: intent.session_number,
-            exercise_id: exercise.id,
-          },
-        });
-      } catch {
-        // Non-blocking
-      }
-    });
   }
 
   // Clear pending attachments
@@ -735,7 +624,7 @@ async function notifyAdminChannel(exerciseId: string, discordUserId: string): Pr
 
   const msg = await adminChannel.send({ embeds: [embed], components: [row] });
 
-  // Store message ID for later editing (when AI score arrives)
+  // Store message ID for later status updates
   await updateExercise(exerciseId, { notification_message_id: msg.id });
 
   logger.info({ exerciseId, messageId: msg.id, isResubmission }, 'Admin notification sent');
