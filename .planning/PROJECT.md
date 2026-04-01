@@ -22,12 +22,14 @@ Le formateur peut gerer les soumissions d'exercices sans goulot d'etranglement �
 - [x] Stockage des fichiers dans Supabase Storage — existing
 - [x] Prevention des doublons (unique index) — existing
 
+- [x] Supprimer l'auto-review IA du flow de soumission — Phase 1
+- [x] Supprimer le score IA et feedback auto des notifications admin — Phase 1
+- [x] Supprimer le placeholder IA dans les threads de review — Phase 1
+- [x] Simplifier le DM etudiant (juste accuse de reception) — Phase 1
+- [x] Statut ne passe plus par ai_reviewed pour les nouvelles soumissions — Phase 1
+
 ### Active
 
-- [ ] Supprimer l'auto-review IA (exercise-reviewer) du flow de soumission
-- [ ] Supprimer le score IA et le feedback auto-genere des notifications admin
-- [ ] Supprimer le placeholder/message IA dans les threads de review
-- [ ] Simplifier le DM etudiant apres soumission (juste accuse de reception, pas de score)
 - [ ] Ajouter une commande admin d'archivage par session
 - [ ] Ajouter le statut `archived` aux exercices
 - [ ] Nettoyer les references a exercise-reviewer dans le codebase
@@ -89,4 +91,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-31 after initialization*
+*Last updated: 2026-04-01 after Phase 1 completion*
