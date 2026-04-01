@@ -188,6 +188,7 @@ async function handleReviewByStudent(
 // /review (no args) — global overview grouped by session
 // ============================================
 
+// Note: archived exercises are excluded — getPendingExercises and getPendingExercisesBySession filter at DB level (ARCH-03)
 async function handleReviewGlobal(interaction: ChatInputCommandInteraction): Promise<void> {
   const pending = await getPendingExercises();
 

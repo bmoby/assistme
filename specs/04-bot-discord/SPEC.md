@@ -137,6 +137,18 @@ Bot : Exercice recu ! Pre-review IA en cours...
 - Rappels 48h et 24h avant deadline
 - File d'attente visible (chaque etudiant voit sa position)
 
+**Statuts d'exercice :**
+| Statut | Description |
+|--------|-------------|
+| `submitted` | Soumis par l'etudiant, en attente de review |
+| `ai_reviewed` | Pre-review IA (legacy, backward compat) |
+| `reviewed` | Review manuelle en cours |
+| `approved` | Approuve par le formateur |
+| `revision_needed` | Revision demandee |
+| `archived` | Archive par session — invisible dans les digests, pending lists, et review buttons |
+
+**Archivage :** La commande `/archive-session [session]` archive en bulk tous les exercices archivables (`submitted`, `approved`, `revision_needed`) d'une session. Les exercices archives restent en base mais ne sont plus affiches dans aucun workflow actif (digests, notifications, review). L'archivage est irreversible en v1.
+
 ### 6.3 Ressources (#ressources)
 
 **Commande admin** : `/resource [module] [titre] [lien?] [description?]`
@@ -200,6 +212,7 @@ Les etudiants n'utilisent PAS de commandes slash. Ils communiquent via DM avec l
 | `/approve [студент] [отзыв?]` | Approuver exercice ✅ |
 | `/revision [студент] [отзыв]` | Demander revision ✅ |
 | `/students` | Lister tous les etudiants ✅ |
+| `/archive-session [session]` | Archiver tous les exercices d'une session (confirmation + bulk) ✅ |
 
 ### Mentor
 | Commande | Action |

@@ -48,6 +48,11 @@ async function handleReviewOpen(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
+  if (exercise.status === 'archived') {
+    await interaction.editReply({ content: 'Cet exercice est archive. Aucune action possible.' });
+    return;
+  }
+
   if (exercise.status !== 'submitted' && exercise.status !== 'ai_reviewed') {
     await interaction.editReply({ content: `Exercice deja traite (${exercise.status}).` });
     return;
@@ -105,6 +110,11 @@ async function handleReviewDecision(interaction: ButtonInteraction): Promise<voi
   const exercise = await getExercise(exerciseId);
   if (!exercise) {
     await interaction.editReply({ content: 'Exercice non trouve.' });
+    return;
+  }
+
+  if (exercise.status === 'archived') {
+    await interaction.editReply({ content: 'Cet exercice est archive. Aucune action possible.' });
     return;
   }
 
