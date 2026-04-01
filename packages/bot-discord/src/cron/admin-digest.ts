@@ -28,6 +28,11 @@ export async function sendAdminDigest(client: Client, guildId: string): Promise<
     const now = new Date();
     const parts: string[] = [];
 
+    // Archived exercise filtering (ARCH-03):
+    // - getPendingExercises() excludes archived at DB level (Plan 01)
+    // - getExercisesByStudent() intentionally includes archived for activity tracking
+    //   (deadline checks + inactive student detection need submission history regardless of archive status)
+
     // 1. Pending exercises (urgent if > 48h)
     const pending = await getPendingExercises();
     const students = await getStudentsBySession(2);
