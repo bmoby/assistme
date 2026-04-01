@@ -139,7 +139,6 @@ Bot : Exercice recu !
 | Statut | Description |
 |--------|-------------|
 | `submitted` | Soumis par l'etudiant, en attente de review |
-| `ai_reviewed` | Pre-review IA (legacy, backward compat) |
 | `reviewed` | Review manuelle en cours |
 | `approved` | Approuve par le formateur |
 | `revision_needed` | Revision demandee |
