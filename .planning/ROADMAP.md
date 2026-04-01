@@ -41,10 +41,11 @@ Plans:
   1. Admin runs `/archive-session` with a session identifier and all exercises for that session move to `archived` status
   2. Archived exercises no longer appear in admin notifications or digest summaries
   3. Archived exercises remain queryable in the database -- no data is deleted
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: TBD
+- [ ] 02-01-PLAN.md — Add archived status to types, create archiveExercisesBySession DB function, update query filtering (ARCH-01, ARCH-03, ARCH-04)
+- [ ] 02-02-PLAN.md — Create /archive-session slash command, update digest crons and review guards (ARCH-02, ARCH-03)
 
 ### Phase 3: Codebase Cleanup
 **Goal**: The exercise-reviewer module and all its references are removed from the codebase -- no dead code remains
@@ -67,5 +68,5 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Remove AI Auto-Review | 0/2 | Not started | - |
-| 2. Session Archiving | 0/0 | Not started | - |
+| 2. Session Archiving | 0/2 | Not started | - |
 | 3. Codebase Cleanup | 0/0 | Not started | - |
