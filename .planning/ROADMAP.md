@@ -55,10 +55,10 @@ Plans:
   1. The file `packages/core/src/ai/formation/exercise-reviewer.ts` is deleted or emptied
   2. No file in the monorepo imports or references `exercise-reviewer` (verified by grep)
   3. `pnpm typecheck` and `pnpm test:unit` pass with zero errors after removal
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md — Delete exercise-reviewer module, purge ai_reviewed from code/tests/types, DB migration, update specs (CLEAN-06)
 
 ## Progress
 
@@ -69,4 +69,4 @@ Phases execute in numeric order: 1 -> 2 -> 3
 |-------|----------------|--------|-----------|
 | 1. Remove AI Auto-Review | 0/2 | Not started | - |
 | 2. Session Archiving | 0/2 | Not started | - |
-| 3. Codebase Cleanup | 0/0 | Not started | - |
+| 3. Codebase Cleanup | 0/1 | Not started | - |
