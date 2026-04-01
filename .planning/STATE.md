@@ -1,34 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
-milestone_name: Exercise Submission Flow
-status: Ready to execute
-stopped_at: Completed 10-03-PLAN.md
-last_updated: "2026-03-28T06:01:54.789Z"
+milestone: v1.0
+milestone_name: milestone
+status: Phase complete — ready for verification
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-04-01T10:11:54.479Z"
 progress:
-  total_phases: 7
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 9
+  total_phases: 3
+  completed_phases: 2
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-25)
+See: .planning/PROJECT.md (updated 2026-03-31)
 
-**Core value:** Un etudiant soumet un exercice proprement (multi-format, apercu, confirmation), le formateur le review facilement, et personne ne se perd dans des doublons ou des soumissions vides.
-**Current focus:** Phase 10 — student-quiz-experience
+**Core value:** Le formateur peut gerer les soumissions d'exercices sans goulot d'etranglement -- archiver par session, corriger quand il veut, sans bruit IA inutile.
+**Current focus:** Phase 03 — codebase-cleanup
 
 ## Current Position
 
-Phase: 10 (student-quiz-experience) — EXECUTING
-Plan: 3 of 3
+Phase: 03 (codebase-cleanup) — EXECUTING
+Plan: 1 of 1
 
 ## Performance Metrics
 
-**Velocity (v2.0):**
+**Velocity:**
 
 - Total plans completed: 0
 - Average duration: -
@@ -42,18 +42,14 @@ Plan: 3 of 3
 
 **Recent Trend:**
 
-- Last 5 plans: none yet
+- Last 5 plans: -
 - Trend: -
 
 *Updated after each plan completion*
-| Phase 05 P01 | 5min | 2 tasks | 6 files |
-| Phase 05 P02 | 5min | 1 tasks | 1 files |
-| Phase 06 P01 | 7min | 2 tasks | 4 files |
-| Phase 06 P02 | 6min | 1 tasks | 1 files |
-| Phase 08 P01 | 5min | 2 tasks | 7 files |
-| Phase 08 P02 | 4min | 2 tasks | 12 files |
-| Phase 10-student-quiz-experience P01 | 12min | 1 tasks | 5 files |
-| Phase 10-student-quiz-experience P03 | 8min | 2 tasks | 5 files |
+| Phase 01-remove-ai-auto-review P02 | 5min | 2 tasks | 5 files |
+| Phase 02-session-archiving P01 | 5min | 2 tasks | 3 files |
+| Phase 02-session-archiving P02 | 6min | 3 tasks | 7 files |
+| Phase 03-codebase-cleanup P01 | 13min | 2 tasks | 25 files |
 
 ## Accumulated Context
 
@@ -62,31 +58,16 @@ Plan: 3 of 3
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- DB migration must run and be applied to prod before any handler changes ship
-- Button-based preview/confirm (ActionRowBuilder + awaitMessageComponent) preferred over LLM-driven confirmation — deterministic handler, no Claude misinterpretation risk
-- Partial unique index on `(student_id, session_id) WHERE status IN ('submitted', 'ai_reviewed')` — not a full unique constraint, intentionally scoped to active statuses
-- Re-submission uses expand-then-contract ordering: upload new files first, delete old records last (fire-and-forget) — never leaves a zero-attachment submitted state
-- [Phase 05]: DO block with duplicate detection before index creation for safe production migration
-- [Phase 05]: Keep getPendingExercisesBySession(sessionNumber) signature to avoid breaking callers; resolve UUID internally
-- [Phase 05]: Use DB-generated UUIDs for student test fixtures (students.id is UUID column)
-- [Phase 05]: Verify unique index via 23505 error behavior (Supabase JS cannot query pg_indexes)
-- [Phase 06]: DM agent returns SubmissionIntent instead of executing DB write — handler owns full submission lifecycle
-- [Phase 06]: uploadFileToStorage and triggerAiReview moved from dm-agent.ts to dm-handler.ts — submission logic belongs in handler layer
-- [Phase 06]: Need to set student mock in every submission flow test — handleSubmissionIntent calls getStudentByDiscordId before empty/session checks
-- [Phase 06]: makeReplyMessageMock(null) triggers timeout path, makeReplyMessageMock(customId) simulates button click
-
-- [Phase 08-01]: original_txt TEXT column on quizzes provides DATA-06 baseline storage — Supabase Storage deferred if file sizes require it
-- [Phase 08-01]: getQuizBySession returns latest quiz for session_number (DESC created_at) to allow quiz replacement per session
-- [Phase 08-01]: closeExpiredQuizSessions loops per quiz to correctly calculate partial score per individual session
-- [Phase 08-02]: DISCORD_QUIZ_BOT_TOKEN and DISCORD_QUIZ_CLIENT_ID are separate from Formateur bot vars — TeacherBot is a fully independent Discord application
-- [Phase 08-02]: bot-discord-quiz has zero runtime dependency on @assistme/bot-discord — clean package isolation
-- [Phase 08-02]: Only GatewayIntentBits.Guilds + DirectMessages for Phase 8 scaffold (minimal footprint)
-- [Phase 08-02]: quiz-close-expired cron every 30min (not real-time) — adequate for 48h expiry threshold
-- [Phase 10-01]: Use SendableChannel union type (DMChannel | TextChannel | NewsChannel | ThreadChannel) instead of TextBasedChannel for quiz flow — PartialGroupDMChannel lacks .send()
-- [Phase 10-01]: advanceOrComplete returns StudentQuizSession | null — null on complete signals handlers to clear awaitingOpenAnswer state
-- [Phase 10-01]: evaluateOpenAnswer fallback: substring match when JSON.parse fails — avoids crash on malformed Claude response
-- [Phase 10-student-quiz-experience]: Class-based discord.js mocks in vi.mock factory — vi.fn().mockImplementation() produces functions not constructors, breaking new EmbedBuilder() calls
-- [Phase 10-student-quiz-experience]: invokeAndWait helper pattern for fire-and-forget lock handlers — await handleQuizDm() returns before processQuizDm runs; drain with 5x Promise.resolve() + setTimeout(0)
+- [Roadmap]: AI auto-review removal split from codebase cleanup -- remove from flow first (Phase 1), delete module after archiving works (Phase 3)
+- [Roadmap]: Session archiving depends on clean flow -- no point adding features while AI review is still wired in
+- [Phase 01-remove-ai-auto-review]: Removed dead setAiReview function from exercises.ts -- unreachable after AI review removal
+- [Phase 01-remove-ai-auto-review]: Kept ai_reviewed backward compat in review-buttons (D-16) -- old exercises remain actionable
+- [Phase 02-session-archiving]: ARCHIVABLE_STATUSES as module-level constant for submitted/approved/revision_needed
+- [Phase 02-session-archiving]: Belt-and-suspenders .neq on getPendingExercises for archived exclusion safety
+- [Phase 02-session-archiving]: Confirmation flow uses awaitMessageComponent with 30s timeout on ephemeral reply
+- [Phase 02-session-archiving]: No code changes in digest crons -- all filtering handled at core query layer (Plan 01)
+- [Phase 02-session-archiving]: getExercisesByStudent intentionally includes archived for activity tracking accuracy
+- [Phase 03-codebase-cleanup]: Removed triggerAiReview dead code and setAiReview dead function beyond plan scope to meet must_haves
 
 ### Pending Todos
 
@@ -94,11 +75,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- Phase 4 (admin UX, thread reuse): `client.channels.fetch(threadId)` can return null if thread was manually deleted from Discord — fallback to new thread creation must be explicitly implemented and tested
-- Phase 4 (admin UX, AI message update): re-read `event-dispatcher.ts` before implementing `ai_review_complete` handler — existing dispatch lifecycle timing matters
+- Existing exercises with `ai_reviewed` status must remain consultable (backward compat constraint from PROJECT.md)
 
 ## Session Continuity
 
-Last session: 2026-03-28T06:01:54.784Z
-Stopped at: Completed 10-03-PLAN.md
+Last session: 2026-04-01T10:11:54.473Z
+Stopped at: Completed 03-01-PLAN.md
 Resume file: None
