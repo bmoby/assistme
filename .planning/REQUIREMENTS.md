@@ -18,10 +18,10 @@ Requirements pour cette iteration. Chaque requirement mappe a une phase du roadm
 
 ### Archivage par Session
 
-- [ ] **ARCH-01**: Ajouter le statut `archived` au type ExerciseStatus (colonne DB texte — pas de migration SQL requise)
+- [x] **ARCH-01**: Ajouter le statut `archived` au type ExerciseStatus (colonne DB texte — pas de migration SQL requise)
 - [ ] **ARCH-02**: Commande admin Discord `/archive-session` pour archiver tous les exercices d'une session
-- [ ] **ARCH-03**: Les exercices archives ne declenchent plus de notifications ni de digests admin
-- [ ] **ARCH-04**: Les exercices archives restent consultables en DB (pas de suppression)
+- [x] **ARCH-03**: Les exercices archives ne declenchent plus de notifications ni de digests admin
+- [x] **ARCH-04**: Les exercices archives restent consultables en DB (pas de suppression)
 
 ## v2 Requirements
 
@@ -53,10 +53,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLEAN-04 | Phase 1 | Pending |
 | CLEAN-05 | Phase 1 | Complete |
 | CLEAN-06 | Phase 3 | Pending |
-| ARCH-01 | Phase 2 | Pending |
+| ARCH-01 | Phase 2 | Complete |
 | ARCH-02 | Phase 2 | Pending |
-| ARCH-03 | Phase 2 | Pending |
-| ARCH-04 | Phase 2 | Pending |
+| ARCH-03 | Phase 2 | Complete |
+| ARCH-04 | Phase 2 | Complete |
 
 **Coverage:**
 - v1 requirements: 10 total
