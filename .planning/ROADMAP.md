@@ -45,7 +45,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md — Add archived status to types, create archiveExercisesBySession DB function, update query filtering (ARCH-01, ARCH-03, ARCH-04)
-- [ ] 02-02-PLAN.md — Create /archive-session slash command, update digest crons and review guards (ARCH-02, ARCH-03)
+- [x] 02-02-PLAN.md — Create /archive-session slash command, update digest crons and review guards (ARCH-02, ARCH-03)
 
 ### Phase 3: Codebase Cleanup
 **Goal**: The exercise-reviewer module and all its references are removed from the codebase -- no dead code remains
