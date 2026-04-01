@@ -388,7 +388,7 @@ Quand l'etudiant envoie un message avec des pieces jointes :
 4. Claude sait qu'un fichier a ete recu et peut decider de le rattacher a une soumission
 5. Les URLs dans le texte sont auto-detectees et ajoutees comme attachments de type `url`
 
-**Pour les images** : Claude est multimodal. On peut envoyer l'image a Claude pour qu'il puisse l'analyser dans le cadre de la review IA.
+**Pour les images** : Claude est multimodal. On peut envoyer l'image a Claude pour qu'il puisse l'analyser.
 
 ### Gestion de la memoire de conversation
 
@@ -533,19 +533,10 @@ Chaque post recoit le tag de son module. L'etudiant peut filtrer par module.
 12. Claude appelle create_submission(session_number=2, attachments=[...], comment="Uber") :
     → Cree student_exercises (status = 'submitted', session_id = session_2.id)
     → Cree submission_attachments (type='image', storage_path='ahmed/session-2/schema.png')
-    → Lance reviewExercise() en arriere-plan
     → Cree event 'exercise_submitted' pour Telegram
 
 13. Claude repond :
-    "✅ Задание по Сессии 2 отправлено! ИИ-проверка через несколько секунд..."
-
-14. L'IA termine la review (en arriere-plan) :
-    → Met a jour student_exercises.ai_review + status = 'ai_reviewed'
-    → Le bot envoie un DM a l'etudiant :
-    "ИИ-проверка — Сессия 2 — Оценка: 7/10
-     ✓ Bonne decomposition
-     ✗ Manque les recettes
-     Тренер завершит проверку."
+    "✅ Задание по Сессии 2 отправлено! Тренер проверит в ближайшее время."
 ```
 
 ### Flux revision (exercice a corriger)
@@ -603,7 +594,6 @@ Le bot envoie des DMs proactifs aux etudiants dans ces cas :
 | Nouvelle session publiee | "Доступна Сессия 4! Посмотри видео к сессии. Ссылка на live будет в посте сессии." | Quand le formateur cree une session avec `/session` |
 | Rappel deadline J-2 | "Через 2 дня дедлайн по Сессии 3. Ты ещё не сдал. Нужна помощь?" | 48h avant la deadline, si pas soumis |
 | Rappel deadline J-1 | "Завтра дедлайн по Сессии 3! Последний день." | 24h avant la deadline, si pas soumis |
-| Review IA terminee | "ИИ-проверка — Сессия 2 — Оценка: 7/10 ..." | Quelques secondes apres la soumission |
 | Exercice approuve | "✅ Задание по Сессии 2 одобрено! ..." | Quand le formateur `/approve` |
 | Revision demandee | "🔄 Нужна доработка — Сессия 2 ..." | Quand le formateur `/revision` |
 | Rappel live J-1 | "Завтра live в 20:00! Тема: ... Ссылка: {live_url}" | Veille du live (cron) |
@@ -710,13 +700,6 @@ Discord refuse les fichiers > 25 MB. Le handler ne recoit jamais le fichier.
 L'etudiant envoie un .exe ou un .dmg.
 → Le handler refuse : "Этот формат не поддерживается. Отправь изображение, PDF, или ссылку."
 → Formats acceptes : PNG, JPG, WEBP, GIF, PDF, DOC, DOCX, TXT, MD, ZIP
-
-### La review IA echoue
-
-L'appel a Claude pour la review echoue (timeout, erreur API).
-→ L'exercice reste avec `status = 'submitted'` (pas `ai_reviewed`)
-→ Un event `student_alert` (type `ai_review_failed`) est cree immediatement pour notifier l'admin via Telegram
-→ Le formateur peut quand meme `/approve` ou `/revision` manuellement
 
 ### Le bot redemarre pendant une conversation
 

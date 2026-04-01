@@ -230,9 +230,6 @@ getNotificationCount(): Promise<number>
 
 ### 2.11 Agents Formation (`formation/`)
 
-#### Exercise Reviewer ✅ (`formation/exercise-reviewer.ts`)
-Pre-review IA des exercices soumis. Score 1-10, points forts/ameliorations, recommendation.
-
 #### FAQ Agent ✅ (`formation/faq-agent.ts`)
 Repond aux questions FAQ. Charge faq_entries + public_knowledge. Confidence > 70% → repond, sinon transfere.
 
