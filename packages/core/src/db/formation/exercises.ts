@@ -100,6 +100,7 @@ export async function getPendingExercises(): Promise<StudentExercise[]> {
     .from(TABLE)
     .select()
     .eq('status', 'submitted')
+    .neq('status', 'archived')
     .order('submitted_at', { ascending: true });
 
   if (error) {
@@ -161,7 +162,7 @@ export async function getExerciseSummary(): Promise<{
   revision_needed: number;
 }> {
   const db = getSupabase();
-  const { data, error } = await db.from(TABLE).select('status');
+  const { data, error } = await db.from(TABLE).select('status').neq('status', 'archived');
 
   if (error) {
     logger.error({ error }, 'Failed to get exercise summary');
@@ -309,4 +310,59 @@ export async function resubmitExercise(
 
   logger.info({ exerciseId, submissionCount: exercise.submission_count + 1 }, 'Exercise resubmitted');
   return data as StudentExercise;
+}
+
+const ARCHIVABLE_STATUSES: ExerciseStatus[] = ['submitted', 'approved', 'revision_needed'];
+
+export async function archiveExercisesBySession(sessionNumber: number): Promise<{ archived: number }> {
+  const db = getSupabase();
+
+  // Step 1: Resolve session UUID from session number
+  const { data: session, error: sessionError } = await db
+    .from('sessions')
+    .select('id')
+    .eq('session_number', sessionNumber)
+    .maybeSingle();
+
+  if (sessionError) {
+    logger.error({ error: sessionError, sessionNumber }, 'Failed to resolve session for archiving');
+    throw sessionError;
+  }
+
+  if (!session) {
+    return { archived: 0 };
+  }
+
+  // Step 2: Count exercises that will be archived
+  const { data: exercises, error: countError, count } = await db
+    .from(TABLE)
+    .select('id', { count: 'exact' })
+    .eq('session_id', session.id)
+    .in('status', ARCHIVABLE_STATUSES);
+
+  if (countError) {
+    logger.error({ error: countError, sessionNumber }, 'Failed to count exercises for archiving');
+    throw countError;
+  }
+
+  const archiveCount = count ?? (exercises ?? []).length;
+
+  if (archiveCount === 0) {
+    return { archived: 0 };
+  }
+
+  // Step 3: Bulk update exercises to archived status
+  const { error: updateError } = await db
+    .from(TABLE)
+    .update({ status: 'archived' as ExerciseStatus })
+    .eq('session_id', session.id)
+    .in('status', ARCHIVABLE_STATUSES);
+
+  if (updateError) {
+    logger.error({ error: updateError, sessionNumber }, 'Failed to archive exercises');
+    throw updateError;
+  }
+
+  logger.info({ sessionNumber, archived: archiveCount }, 'Exercises archived for session');
+  return { archived: archiveCount };
 }
