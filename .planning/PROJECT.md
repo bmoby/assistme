@@ -28,10 +28,13 @@ Le formateur peut gerer les soumissions d'exercices sans goulot d'etranglement �
 - [x] Simplifier le DM etudiant (juste accuse de reception) — Phase 1
 - [x] Statut ne passe plus par ai_reviewed pour les nouvelles soumissions — Phase 1
 
+- [x] Ajouter le statut `archived` aux exercices (type ExerciseStatus) — Phase 2
+- [x] Commande admin `/archive-session` pour archiver par session — Phase 2
+- [x] Exercices archives exclus des notifications et digests — Phase 2
+- [x] Exercices archives restent consultables en DB — Phase 2
+
 ### Active
 
-- [ ] Ajouter une commande admin d'archivage par session
-- [ ] Ajouter le statut `archived` aux exercices
 - [ ] Nettoyer les references a exercise-reviewer dans le codebase
 
 ### Out of Scope
@@ -91,4 +94,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-01 after Phase 1 completion*
+*Last updated: 2026-04-01 after Phase 2 completion*
