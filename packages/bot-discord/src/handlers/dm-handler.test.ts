@@ -79,6 +79,11 @@ function makeClient() {
     send: vi.fn().mockResolvedValue({ id: 'notif-msg-1' }),
     name: 'админ',
   };
+  const mockThreadMessage = { edit: vi.fn().mockResolvedValue(undefined) };
+  const mockThread = {
+    isThread: () => true,
+    messages: { fetch: vi.fn().mockResolvedValue(mockThreadMessage) },
+  };
 
   return {
     on: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
