@@ -30,7 +30,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Strip AI from submission flow, notifications, and review threads (CLEAN-01, CLEAN-02, CLEAN-03, CLEAN-04)
+- [x] 01-01-PLAN.md — Strip AI from submission flow, notifications, and review threads (CLEAN-01, CLEAN-02, CLEAN-03, CLEAN-04)
 - [x] 01-02-PLAN.md — Update status filters across DB, agents, and review buttons (CLEAN-05)
 
 ### Phase 2: Session Archiving
