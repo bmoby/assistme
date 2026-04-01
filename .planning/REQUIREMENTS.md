@@ -18,7 +18,7 @@ Requirements pour cette iteration. Chaque requirement mappe a une phase du roadm
 
 ### Archivage par Session
 
-- [ ] **ARCH-01**: Ajouter le statut `archived` aux exercices en DB (migration SQL)
+- [ ] **ARCH-01**: Ajouter le statut `archived` au type ExerciseStatus (colonne DB texte — pas de migration SQL requise)
 - [ ] **ARCH-02**: Commande admin Discord `/archive-session` pour archiver tous les exercices d'une session
 - [ ] **ARCH-03**: Les exercices archives ne declenchent plus de notifications ni de digests admin
 - [ ] **ARCH-04**: Les exercices archives restent consultables en DB (pas de suppression)
