@@ -9,7 +9,6 @@ const STATUS_EMOJI: Record<string, string> = {
   completed: '🏆',
   dropped: '🔴',
   submitted: '📩',
-  ai_reviewed: '🤖',
   reviewed: '👁️',
   approved: '✅',
   revision_needed: '🔄',
@@ -62,7 +61,7 @@ export function formatProgressEmbed(
   exercises: StudentExercise[]
 ): EmbedBuilder {
   const approved = exercises.filter((e) => e.status === 'approved').length;
-  const pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed').length;
+  const pending = exercises.filter((e) => e.status === 'submitted').length;
   const revision = exercises.filter((e) => e.status === 'revision_needed').length;
 
   const progressBar = (count: number, total: number): string => {

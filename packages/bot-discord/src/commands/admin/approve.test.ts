@@ -119,7 +119,7 @@ describe('handleApprove', () => {
   it('approves with feedback when provided', async () => {
     const studentFixture = createStudentFixture({ name: 'Bob', discord_id: null });
     const exerciseFixture = createExerciseFixture({
-      status: 'ai_reviewed',
+      status: 'submitted',
       student_id: studentFixture.id,
     });
     mockedSearchStudentByName.mockResolvedValue([studentFixture]);

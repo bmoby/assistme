@@ -99,7 +99,7 @@ export async function getPendingExercises(): Promise<StudentExercise[]> {
   const { data, error } = await db
     .from(TABLE)
     .select()
-    .in('status', ['submitted', 'ai_reviewed'])
+    .eq('status', 'submitted')
     .order('submitted_at', { ascending: true });
 
   if (error) {
@@ -154,25 +154,6 @@ export async function updateExercise(
   return data as StudentExercise;
 }
 
-export async function setAiReview(id: string, review: Record<string, unknown>): Promise<StudentExercise> {
-  const db = getSupabase();
-  const { data, error } = await db
-    .from(TABLE)
-    .update({
-      ai_review: review,
-      status: 'ai_reviewed',
-    })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error({ error, id }, 'Failed to set AI review');
-    throw error;
-  }
-  return data as StudentExercise;
-}
-
 export async function getExerciseSummary(): Promise<{
   total: number;
   pending: number;
@@ -190,7 +171,7 @@ export async function getExerciseSummary(): Promise<{
   const exercises = (data ?? []) as Array<{ status: string }>;
   return {
     total: exercises.length,
-    pending: exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed').length,
+    pending: exercises.filter((e) => e.status === 'submitted').length,
     approved: exercises.filter((e) => e.status === 'approved').length,
     revision_needed: exercises.filter((e) => e.status === 'revision_needed').length,
   };
@@ -220,7 +201,7 @@ export async function getPendingExercisesBySession(sessionNumber: number): Promi
     .from(TABLE)
     .select()
     .eq('session_id', session.id)
-    .in('status', ['submitted', 'ai_reviewed'])
+    .eq('status', 'submitted')
     .order('submitted_at', { ascending: true });
 
   if (error) {
@@ -256,7 +237,7 @@ export async function getExerciseByStudentAndSession(
     .select()
     .eq('student_id', studentId)
     .eq('session_id', sessionId)
-    .in('status', ['submitted', 'ai_reviewed'])
+    .eq('status', 'submitted')
     .maybeSingle();
 
   if (error) {

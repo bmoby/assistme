@@ -206,7 +206,7 @@ const READ_TOOLS: Anthropic.Messages.Tool[] = [
   },
   {
     name: 'list_pending_exercises',
-    description: 'Lister tous les exercices en attente de correction (submitted ou ai_reviewed).',
+    description: 'Lister tous les exercices en attente de correction (submitted).',
     input_schema: {
       type: 'object' as const,
       properties: {},
@@ -640,7 +640,7 @@ async function handleApproveExercise(
 
   const student = students[0]!;
   const exercises = await getExercisesByStudent(student.id);
-  const pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed');
+  const pending = exercises.filter((e) => e.status === 'submitted');
 
   if (pending.length === 0) {
     return JSON.stringify({ error: 'no_pending', message: `${student.name} n'a aucun exercice en attente` });
@@ -715,7 +715,7 @@ async function handleRequestRevision(
 
   const student = students[0]!;
   const exercises = await getExercisesByStudent(student.id);
-  const pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed');
+  const pending = exercises.filter((e) => e.status === 'submitted');
 
   if (pending.length === 0) {
     return JSON.stringify({ error: 'no_pending', message: `${student.name} n'a aucun exercice en attente` });

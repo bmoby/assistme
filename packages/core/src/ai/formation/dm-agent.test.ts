@@ -302,7 +302,7 @@ describe('DM Agent', () => {
         submitted_at: '2024-01-01T00:00:00Z',
         ai_review: { score: 85, summary: 'Good work' },
         manual_review: null,
-        status: 'ai_reviewed',
+        status: 'reviewed',
         reviewed_at: null,
         feedback: 'Отличная работа!',
         session_id: null,
