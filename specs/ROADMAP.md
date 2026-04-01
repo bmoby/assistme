@@ -94,7 +94,7 @@ Developpement par phases, chaque phase livre un composant fonctionnel.
 - [x] Structure serveur (ОБЩЕЕ, ОБУЧЕНИЕ, ПОДЫ, АДМИН)
 - [x] Systeme de roles (@tsarag, @student, @mentor)
 - [x] FAQ automatique (#faq) avec base de connaissances
-- [x] Pre-review IA des exercices (exercise-reviewer.ts)
+- [x] ~~Pre-review IA des exercices~~ (supprime — Phase 3 cleanup)
 - [x] Agent DM conversationnel — remplace /submit et /progress (`SPEC-DM-AGENT.md`)
 - [x] Handler DM (upload fichiers Supabase Storage, queue par etudiant, memoire conversation)
 - [x] Agent admin Tsarag — assistant conversationnel dans #admin (`SPEC-TSARAG-AGENT.md`)

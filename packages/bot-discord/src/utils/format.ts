@@ -9,7 +9,6 @@ const STATUS_EMOJI: Record<string, string> = {
   completed: '🏆',
   dropped: '🔴',
   submitted: '📩',
-  ai_reviewed: '🤖',
   reviewed: '👁️',
   approved: '✅',
   revision_needed: '🔄',

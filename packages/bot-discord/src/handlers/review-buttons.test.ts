@@ -376,7 +376,7 @@ describe('review-buttons', () => {
   // Test 4: review_open_ returns error when exercise already processed
   // ============================================
 
-  it('review_open_ returns error when exercise is already processed (not submitted/ai_reviewed)', async () => {
+  it('review_open_ returns error when exercise is already processed (not submitted)', async () => {
     const exercise = createExercise({ id: 'exercise-1', status: 'approved' });
     mockGetExercise.mockResolvedValue(exercise);
 
@@ -449,7 +449,7 @@ describe('review-buttons', () => {
 
     const exercise = createExercise({
       id: 'exercise-2',
-      status: 'ai_reviewed',
+      status: 'submitted',
       student_id: 'student-2',
     });
     mockGetExercise.mockResolvedValue(exercise);
@@ -535,7 +535,7 @@ describe('review-buttons', () => {
     const session = createSession({ session_number: 3 });
     const exercises = [
       createExercise({ id: 'ex-1', student_id: 'st-1', status: 'submitted' }),
-      createExercise({ id: 'ex-2', student_id: 'st-2', status: 'ai_reviewed' }),
+      createExercise({ id: 'ex-2', student_id: 'st-2', status: 'submitted' }),
     ];
     mockGetSessionByNumber.mockResolvedValue(session);
     mockGetPendingExercisesBySession.mockResolvedValue(exercises);

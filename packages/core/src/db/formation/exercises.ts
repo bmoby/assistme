@@ -100,7 +100,6 @@ export async function getPendingExercises(): Promise<StudentExercise[]> {
     .from(TABLE)
     .select()
     .eq('status', 'submitted')
-    .neq('status', 'archived')
     .order('submitted_at', { ascending: true });
 
   if (error) {

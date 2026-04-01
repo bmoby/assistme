@@ -124,11 +124,9 @@ Reference detaillee : `learning-knowledge/programme.md`
 
 **Flow :**
 ```
-Etudiant : /submit lien:https://github.com/eleve/projet module:2 exercice:1
-Bot : Exercice recu ! Pre-review IA en cours...
+Etudiant soumet via DM (ou /submit lien:... module:N exercice:N)
+Bot : Exercice recu !
   → Log dans student_exercises (status: 'submitted')
-  → Pre-review automatique Claude (core/src/ai/formation/exercise-reviewer.ts)
-  → DM etudiant avec score + resume IA
   → Event 'exercise_submitted' cree (→ digest Telegram admin)
 ```
 
@@ -236,7 +234,7 @@ Le bot Discord est **isole** du systeme personnel (admin copilote). Il ne touche
 
 ### Imports autorises
 - `core/src/db/formation/` — students, exercises, faq, events
-- `core/src/ai/formation/` — exercise-reviewer, faq-agent
+- `core/src/ai/formation/` — faq-agent, dm-agent, tsarag-agent
 
 ### Imports INTERDITS
 - `core/src/db/memory/`, `core/src/db/tasks/`, `core/src/db/clients/`
@@ -295,7 +293,6 @@ Les bots communiquent via une table `events` dans Supabase (pas d'appels directs
 - CRUD `events` (`core/src/db/formation/events.ts`) ✅
 - CRUD `sessions` (`core/src/db/formation/sessions.ts`) ✅
 - CRUD `submission_attachments` (`core/src/db/formation/attachments.ts`) ✅
-- Agent de pre-review d'exercices (`core/src/ai/formation/exercise-reviewer.ts`) ✅
 - Agent FAQ (`core/src/ai/formation/faq-agent.ts`) ✅
 - **Agent DM conversationnel** (`core/src/ai/formation/dm-agent.ts`) ✅ — voir `SPEC-DM-AGENT.md`
   - Claude tool_use avec 5 outils (get_student_progress, get_session_exercise, create_submission, get_pending_feedback, search_course_content)

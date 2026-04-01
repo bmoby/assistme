@@ -23,12 +23,6 @@ vi.mock('../utils/format.js', () => ({
     toJSON: () => ({}),
   }),
   formatStudentFeedbackDM: vi.fn().mockReturnValue('feedback dm'),
-  formatReviewThreadMessages: vi.fn().mockReturnValue({
-    submissionMsg: 'Submission content',
-    aiReviewMsg: 'AI review formatted text',
-    historyMsg: null,
-    imageUrl: null,
-  }),
 }));
 vi.mock('../config.js', () => ({
   CHANNELS: {
@@ -102,6 +96,7 @@ function makeClient() {
         find: vi.fn().mockReturnValue(mockAdminChannel),
         get: vi.fn().mockReturnValue(mockAdminChannel),
       },
+      fetch: vi.fn().mockResolvedValue(mockThread),
     },
     _mockAdminChannel: mockAdminChannel,
   };
@@ -908,5 +903,4 @@ describe('dm-handler', () => {
     expect(mockSubmitExercise).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
-
 });

@@ -14,7 +14,7 @@ Requirements pour cette iteration. Chaque requirement mappe a une phase du roadm
 - [ ] **CLEAN-03**: Supprimer le score IA et la recommandation des notifications admin
 - [ ] **CLEAN-04**: Simplifier le DM etudiant apres soumission (accuse de reception sans score IA)
 - [x] **CLEAN-05**: Le statut passe directement de `submitted` a en attente de review admin (plus de `ai_reviewed`)
-- [ ] **CLEAN-06**: Nettoyer les imports et references a exercise-reviewer dans le codebase
+- [x] **CLEAN-06**: Nettoyer les imports et references a exercise-reviewer dans le codebase
 
 ### Archivage par Session
 
@@ -52,7 +52,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLEAN-03 | Phase 1 | Pending |
 | CLEAN-04 | Phase 1 | Pending |
 | CLEAN-05 | Phase 1 | Complete |
-| CLEAN-06 | Phase 3 | Pending |
+| CLEAN-06 | Phase 3 | Complete |
 | ARCH-01 | Phase 2 | Complete |
 | ARCH-02 | Phase 2 | Complete |
 | ARCH-03 | Phase 2 | Complete |

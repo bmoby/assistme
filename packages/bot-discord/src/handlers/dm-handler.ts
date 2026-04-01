@@ -26,6 +26,7 @@ import {
   deleteAttachmentsByExercise,
   deleteStorageFiles,
   getSignedUrlsForExercise,
+  createFormationEvent,
 } from '@assistme/core';
 import { runDmAgent } from '@assistme/core';
 import type {

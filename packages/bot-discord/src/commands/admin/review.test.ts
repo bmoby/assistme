@@ -100,7 +100,7 @@ describe('handleReview', () => {
 
   it('happy path: returns global exercise list grouped by session', async () => {
     const exercise1 = createExerciseFixture({ exercise_number: 1, status: 'submitted' });
-    const exercise2 = createExerciseFixture({ exercise_number: 1, status: 'ai_reviewed' });
+    const exercise2 = createExerciseFixture({ exercise_number: 1, status: 'submitted' });
     mockedGetPendingExercises.mockResolvedValue([exercise1, exercise2]);
 
     const interaction = new CommandInteractionBuilder()

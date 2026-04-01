@@ -172,7 +172,7 @@ describe('exercises DB integration', () => {
     const results = await getPendingExercisesBySession(sessionNumber);
     expect(results.length).toBeGreaterThanOrEqual(2);
     expect(results.every((e) => e.session_id === sessionId)).toBe(true);
-    expect(results.every((e) => ['submitted', 'ai_reviewed'].includes(e.status))).toBe(true);
+    expect(results.every((e) => e.status === 'submitted')).toBe(true);
   });
 
   it('getPendingExercisesBySession excludes approved exercises', async () => {

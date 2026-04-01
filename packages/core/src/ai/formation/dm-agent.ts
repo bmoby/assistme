@@ -278,12 +278,12 @@ async function handleGetPendingFeedback(student: Student): Promise<string> {
   const exercises = await getExercisesByStudent(student.id);
 
   const feedback = exercises
-    .filter((e) => e.status === 'approved' || e.status === 'revision_needed')
+    .filter((e) => e.status === 'reviewed' || e.status === 'approved' || e.status === 'revision_needed')
     .map((e) => {
       return {
         session_number: e.exercise_number,
         module: e.module,
-        type: e.status === 'approved' ? 'approved' : 'revision_needed',
+        type: e.status,
         feedback: e.feedback,
       };
     });

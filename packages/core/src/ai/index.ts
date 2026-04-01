@@ -18,8 +18,6 @@ export type { ConsolidationResult } from './memory-consolidator.js';
 export { getEmbedding, getEmbeddings } from './embeddings.js';
 export { planDailyNotifications, getNotificationCount } from './notification-planner.js';
 export type { PlannedNotification } from './notification-planner.js';
-export { reviewExercise } from './formation/exercise-reviewer.js';
-export type { ExerciseReviewResult } from './formation/exercise-reviewer.js';
 export { answerFaqQuestion } from './formation/faq-agent.js';
 export type { FaqResponse } from './formation/faq-agent.js';
 export { runDmAgent } from './formation/dm-agent.js';
