@@ -33,9 +33,11 @@ Le formateur peut gerer les soumissions d'exercices sans goulot d'etranglement �
 - [x] Exercices archives exclus des notifications et digests — Phase 2
 - [x] Exercices archives restent consultables en DB — Phase 2
 
+- [x] Nettoyer les references a exercise-reviewer dans le codebase — Phase 3
+
 ### Active
 
-- [ ] Nettoyer les references a exercise-reviewer dans le codebase
+(None — all requirements validated)
 
 ### Out of Scope
 
@@ -53,7 +55,6 @@ Le formateur peut gerer les soumissions d'exercices sans goulot d'etranglement �
 - 30 etudiants actifs, plusieurs sessions — les exercices s'accumulent sans archivage
 - Le formateur developpe activement d'autres features et ne peut pas corriger chaque exercice un par un
 - Fichiers cles :
-  - `packages/core/src/ai/formation/exercise-reviewer.ts` — a supprimer/desactiver
   - `packages/bot-discord/src/handlers/dm-handler.ts` — flow de soumission
   - `packages/bot-discord/src/handlers/review-thread.ts` — creation thread review
   - `packages/bot-discord/src/handlers/review-buttons.ts` — boutons approve/revision
@@ -65,16 +66,18 @@ Le formateur peut gerer les soumissions d'exercices sans goulot d'etranglement �
 - **DB**: Nouvelles migrations pour le statut `archived`, pas de modification des tables existantes (ajout seulement)
 - **Langue**: Contenu etudiant-facing en russe
 - **Tests**: Vitest, tests unitaires obligatoires avant commit (`pnpm test:unit`)
-- **Backward compat**: Les exercices existants en `ai_reviewed` doivent rester consultables
+- **Backward compat**: Legacy `ai_reviewed` records migrated to `submitted` via SQL migration 020
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Supprimer l'auto-review IA | Score non fiable pour non-codeurs pilotant l'IA, redondant avec le bot quiz | -- Pending |
-| Archivage par session (pas par exercice) | Le formateur gere par session, pas par etudiant individuel | -- Pending |
-| Garder le flow review admin intact | Le formateur veut continuer a corriger manuellement quand il le souhaite | -- Pending |
-| Accuse de reception simple (pas de score) | Sans correction IA, pas de score a montrer — juste "recu, merci" | -- Pending |
+| Supprimer l'auto-review IA | Score non fiable pour non-codeurs pilotant l'IA, redondant avec le bot quiz | Done (Phase 1) |
+| Archivage par session (pas par exercice) | Le formateur gere par session, pas par etudiant individuel | Done (Phase 2) |
+| Garder le flow review admin intact | Le formateur veut continuer a corriger manuellement quand il le souhaite | Done (Phase 1) |
+| Accuse de reception simple (pas de score) | Sans correction IA, pas de score a montrer — juste "recu, merci" | Done (Phase 1) |
+| Supprimer exercise-reviewer module | Dead code apres Phase 1, references polluent le codebase | Done (Phase 3) |
+| Migrer ai_reviewed DB records | Orphaned status values after type cleanup | Done (Phase 3, migration 020) |
 
 ## Evolution
 
@@ -94,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-01 after Phase 2 completion*
+*Last updated: 2026-04-01 after Phase 3 completion — all milestone phases complete*
