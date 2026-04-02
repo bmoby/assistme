@@ -86,6 +86,7 @@ export async function answerFaqQuestion(params: {
     systemPrompt: prompt,
     model: 'sonnet',
     maxTokens: 2048,
+    formation: true,
   });
 
   try {

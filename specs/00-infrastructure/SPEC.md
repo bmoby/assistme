@@ -135,7 +135,7 @@ Infrastructure commune a tous les composants du systeme. Definit la base de donn
 - submission_url TEXT, submission_type TEXT
 - submitted_at TIMESTAMPTZ
 - ai_review JSONB, manual_review TEXT
-- status TEXT ('submitted', 'ai_reviewed', 'reviewed', 'approved', 'revision_needed')
+- status TEXT ('submitted', 'reviewed', 'approved', 'revision_needed', 'archived')
 - session_id UUID REFERENCES sessions(id)    ← ajouté migration 005
 - reviewed_at, feedback
 - created_at

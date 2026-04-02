@@ -1,254 +1,263 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-24
+**Analysis Date:** 2026-03-31
 
 ## APIs & External Services
 
-**AI Language Models:**
-- Claude API (Anthropic) - Orchestration, memory consolidation, agents
-  - SDK: `@anthropic-ai/sdk` 0.39.0
-  - Auth: `ANTHROPIC_API_KEY` (env var)
-  - Implementation: `packages/core/src/ai/client.ts`
-  - Models: claude-sonnet-4-6 (default), claude-opus-4-6 (available)
+### Anthropic (Claude API)
 
-**OpenAI APIs:**
-- Whisper 1 - Audio transcription to text
-  - SDK: `openai` 6.27.0
-  - Auth: `OPENAI_API_KEY`
-  - Implementation: `packages/core/src/ai/transcribe.ts`
-  - Languages: Detectable or specified (French by default for admin, Russian for public)
+- **SDK/Client:** `@anthropic-ai/sdk` 0.39.0
+- **Auth:** API key via `ANTHROPIC_API_KEY` (personal) and `ANTHROPIC_API_KEY_FORMATION` (formation, optional fallback to main)
+- **Client initialization:** `packages/core/src/ai/client.ts` — Two singleton Anthropic instances
+- **Models used:**
+  - `claude-sonnet-4-6` — Default for most operations (orchestrator, quiz parsing, FAQ, DM agent, exercise review, planner)
+  - `claude-opus-4-6` — Used for open answer evaluation in quiz (`packages/bot-discord-quiz/src/utils/quiz-eval.ts`)
+- **Used in:**
+  - `packages/core/src/ai/client.ts` — `askClaude()` (simple prompt-response) and `getFormationClient()` (raw SDK for tool-use agents)
+  - `packages/core/src/ai/orchestrator.ts` — Admin message interpretation with JSON action extraction
+  - `packages/core/src/ai/formation/dm-agent.ts` — Multi-turn student DM conversations with tool use
+  - `packages/core/src/ai/formation/tsarag-agent.ts` — Admin formation management with tool use
+  - `packages/core/src/ai/formation/faq-agent.ts` — FAQ answer generation
+  - `packages/core/src/ai/formation/exercise-reviewer.ts` — Exercise evaluation with multi-modal (images) support
+  - `packages/core/src/ai/memory-agent.ts` — Memory CRUD operations
+  - `packages/core/src/ai/memory-consolidator.ts` — Daily memory tier consolidation
+  - `packages/core/src/ai/research-agent.ts` — Research tasks
+  - `packages/core/src/ai/planner.ts` — Daily plan generation and message parsing
+  - `packages/core/src/ai/notification-planner.ts` — Notification scheduling
+  - `packages/core/src/ai/client-discovery-agent.ts` — Client qualification
+  - `packages/bot-discord-quiz/src/ai/parse-quiz.ts` — Parse TXT files into structured quiz questions
+  - `packages/bot-discord-quiz/src/utils/quiz-eval.ts` — Evaluate open-ended quiz answers
+- **Purpose:** All AI decision-making, text generation, structured data extraction, and multi-turn tool-use agent workflows
+- **Error handling:**
+  - `askClaude()` throws on missing API key or no text response
+  - JSON responses from Claude parsed with `JSON.parse()` + fallback for malformed output
+  - Zod validation on structured responses (e.g., `ParsedQuizSchema.parse()`)
+  - Tool-use agents have max iteration limits to prevent infinite loops
 
-- TTS (Text-to-Speech) - Voice responses
-  - SDK: `openai` 6.27.0
-  - Auth: `OPENAI_API_KEY`
-  - Implementation: `packages/core/src/ai/tts.ts`
-  - Models: `tts-1` (standard), `tts-1-hd` (natural)
-  - Voices: alloy, echo, fable, onyx, nova, shimmer
-  - Configuration: `TTS_MODEL`, `TTS_VOICE` env vars
+### OpenAI
 
-- text-embedding-3-small - Semantic search embeddings
-  - SDK: `openai` 6.27.0 (via fetch HTTP)
-  - Auth: `OPENAI_API_KEY`
-  - Implementation: `packages/core/src/ai/embeddings.ts`
-  - Vector dimension: 1536 (stored in Supabase)
-  - Used by: Formation knowledge search, hybrid BM25+vector
+- **SDK/Client:** `openai` 6.27.0 (for Whisper/TTS), direct `fetch` to REST API (for embeddings)
+- **Auth:** `OPENAI_API_KEY` env var
+- **Used in:**
+  - `packages/core/src/ai/transcribe.ts` — `transcribeAudio()` using Whisper (`whisper-1` model)
+  - `packages/core/src/ai/tts.ts` — `textToSpeech()` using TTS (`tts-1` or `tts-1-hd` model, configurable via `TTS_MODEL`)
+  - `packages/core/src/ai/embeddings.ts` — `getEmbedding()` / `getEmbeddings()` using `text-embedding-3-small` model via REST API
+- **Purpose:**
+  - **Whisper:** Voice message transcription (French default, configurable language parameter)
+  - **TTS:** Voice response generation (opus format, voice configurable via `TTS_VOICE`, max 4096 chars)
+  - **Embeddings:** 1536-dimensional vectors for semantic search on formation knowledge and memory
+- **Error handling:**
+  - Whisper/TTS: throws on missing API key, propagates API errors
+  - Embeddings: returns `null` on any failure (graceful degradation — search still works via BM25 text matching)
+  - Embeddings have 10s timeout (single) / 30s timeout (batch) via `AbortSignal.timeout()`
 
-**Telegram Bot Platform:**
-- Telegram Bot API (official)
-  - Framework: `grammy` 1.31.0
-  - Auth: `TELEGRAM_BOT_TOKEN` (HTTP polling via grammY)
-  - Admin Bot: `packages/bot-telegram/` - Personal copilot
-  - Public Bot: `packages/bot-telegram-public/` - Audience bot (Russian)
-  - Token env vars: `TELEGRAM_BOT_TOKEN`, `PUBLIC_BOT_TOKEN`
-  - Admin chat: `TELEGRAM_ADMIN_CHAT_ID`
+### Telegram Bot API
 
-**Discord Bot Platform:**
-- Discord Gateway API
-  - Framework: `discord.js` 14.16.0
-  - Auth: `DISCORD_BOT_TOKEN` (websocket gateway connection)
-  - Implementation: `packages/bot-discord/`
-  - Configuration: `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID`
-  - Features: Slash commands (REST API), DM handling, guild messages, member events
+- **SDK/Client:** `grammy` 1.31.0 with `@grammyjs/runner` 2.0.3
+- **Auth:** `TELEGRAM_BOT_TOKEN` (admin bot), `PUBLIC_BOT_TOKEN` (public bot)
+- **Used in:**
+  - `packages/bot-telegram/src/index.ts` — Admin copilot bot (French)
+  - `packages/bot-telegram-public/src/index.ts` — Public audience bot (Russian)
+- **Purpose:** Two separate Telegram bots:
+  - **Admin bot:** Personal copilot with task management, voice messages, orchestrator, cron notifications
+  - **Public bot:** Public-facing bot for audience in Russian (course info, services, FAQ)
+- **Error handling:** `bot.catch()` global error handler logging to pino
 
-**Google Services:**
-- Google Calendar API (v3) - Meet link generation
-  - SDK: `googleapis` 171.4.0
-  - Auth: OAuth2 with refresh token
-  - Implementation: `packages/core/src/google/meet.ts`
-  - Configuration: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`
-  - Feature: Automatic Google Meet link creation for training sessions
-  - Scopes: `https://www.googleapis.com/auth/calendar.events`
+### Discord Gateway API
 
-**Meta Services (Phase 4 - Not Yet Active):**
-- Instagram DM API
-  - Configuration: `META_APP_ID`, `META_APP_SECRET`, `META_ACCESS_TOKEN`, `INSTAGRAM_ACCOUNT_ID`
-  - Status: Planned, credentials held in env
+- **SDK/Client:** `discord.js` 14.16.0
+- **Auth:** `DISCORD_BOT_TOKEN` (formateur), `DISCORD_QUIZ_BOT_TOKEN` (quiz)
+- **Used in:**
+  - `packages/bot-discord/src/index.ts` — Formateur bot (Intents: Guilds, GuildMessages, MessageContent, GuildMembers, DirectMessages)
+  - `packages/bot-discord-quiz/src/index.ts` — Quiz bot (Intents: Guilds, DirectMessages, GuildMembers)
+  - Both require `DISCORD_CLIENT_ID` / `DISCORD_QUIZ_CLIENT_ID` and `DISCORD_GUILD_ID`
+- **Purpose:** Two separate Discord bots on the same guild:
+  - **Formateur:** Slash commands for session/exercise/student management, DM agent, FAQ, review threads, admin handler
+  - **Quiz:** Automated quiz delivery via DMs, button interactions for MCQ/true-false, AI evaluation for open questions
+- **Features used:** Slash commands (REST API registration), button interactions, DMs, forum channels, thread management, member events
+- **Error handling:** `client.on('error')` global error handler; slash command registration wrapped in try-catch with warning log
+
+### Google Calendar API
+
+- **SDK/Client:** `googleapis` 171.4.0
+- **Auth:** OAuth2 with refresh token via `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`
+- **Used in:** `packages/core/src/google/meet.ts` — `createMeetEvent()`
+- **Purpose:** Create Google Calendar events with auto-generated Google Meet links for live training sessions
+- **Scope:** `https://www.googleapis.com/auth/calendar.events`
+- **Error handling:**
+  - **Graceful degradation:** Returns fictitious Meet URL when credentials not configured (dev/test)
+  - Throws on missing credentials or failed event creation in production
+- **Setup scripts:** `scripts/google-auth.ts` — OAuth2 flow to obtain initial refresh token
 
 ## Data Storage
 
-**Databases:**
-- PostgreSQL (via Supabase)
-  - Client: `@supabase/supabase-js` 2.49.1
-  - Connection: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (backend), `SUPABASE_ANON_KEY` (frontend)
-  - Implementation: `packages/core/src/db/client.ts`
-  - Features: Vector extension (pgvector) for embeddings, custom RPCs, storage buckets
+### Supabase (PostgreSQL + pgvector + Storage)
 
-  **Core Tables:**
-  - `tasks` - Daily task management
-  - `daily_plans` - AI-generated daily schedules
-  - `memory` - Short-term and long-term memory with tiers (immediate, working, long-term)
-  - `memory_events` - Timestamped events for memory consolidation
-  - `clients` - Lead/project management
-  - `team_members` - Team roster
-  - `students` - Training session students
-  - `sessions` - Training sessions with dates, attendees, recordings
-  - `student_exercises` - Exercise submissions and grading
-  - `formation_knowledge` - Educational content with embeddings
-  - `formation_faq` - FAQ database
-  - `agent_jobs` - Async job queue for agents
-  - More: See `supabase/migrations/` for full schema
+- **Client:** `@supabase/supabase-js` 2.49.1
+- **Connection:** Service role key via `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+- **Client location:** `packages/core/src/db/client.ts` — Singleton pattern
+- **Migrations:** `supabase/migrations/` — 19 sequential SQL files (001 through 019)
 
-**File Storage:**
-- Supabase Storage (AWS S3-compatible)
-  - Implementation: Via Supabase client
-  - Buckets: `student-submissions` (exercise files), `session-recordings`, `assets`
-  - Used by: Exercise reviewer, session recording links
+**Core Tables:**
+| Table | Module | Purpose |
+|-------|--------|---------|
+| `tasks` | `packages/core/src/db/tasks.ts` | Task management (todo, in_progress, done) |
+| `daily_plans` | `packages/core/src/db/daily-plans.ts` | AI-generated daily plans |
+| `clients` | `packages/core/src/db/clients.ts` | Client/lead pipeline |
+| `team_members` | — | Team member profiles |
+| `memory` | `packages/core/src/db/memory.ts` | Three-tier memory system (core/working/archival) with embeddings |
+| `public_knowledge` | `packages/core/src/db/public-knowledge.ts` | Public bot knowledge base |
+| `reminders` | `packages/core/src/db/reminders.ts` | Scheduled reminders |
 
-**Caching:**
-- Redis (optional, graceful degradation)
-  - Client: `redis` 4.6.0
-  - Connection: `REDIS_URL` (optional)
-  - Implementation: `packages/core/src/cache/redis.ts`
-  - Behavior: If unavailable, cache is disabled (all operations succeed without caching)
-  - TTL-based expiry
+**Formation Tables:**
+| Table | Module | Purpose |
+|-------|--------|---------|
+| `students` | `packages/core/src/db/formation/students.ts` | Student enrollment and profiles |
+| `sessions` | `packages/core/src/db/formation/sessions.ts` | Training session management |
+| `student_exercises` | `packages/core/src/db/formation/exercises.ts` | Exercise submissions and reviews |
+| `submission_attachments` | `packages/core/src/db/formation/attachments.ts` | Files attached to submissions |
+| `formation_knowledge` | `packages/core/src/db/formation/knowledge.ts` | Course content with embeddings (pgvector) |
+| `formation_events` | `packages/core/src/db/formation/events.ts` | Inter-bot event queue |
+| `faq` | `packages/core/src/db/formation/faq.ts` | FAQ entries for the FAQ agent |
+
+**Quiz Tables:**
+| Table | Module | Purpose |
+|-------|--------|---------|
+| `quizzes` | `packages/core/src/db/quiz/quizzes.ts` | Quiz metadata (draft/active/closed) |
+| `quiz_questions` | `packages/core/src/db/quiz/questions.ts` | Individual questions per quiz |
+| `student_quiz_sessions` | `packages/core/src/db/quiz/sessions.ts` | Per-student quiz progress tracking |
+| `student_quiz_answers` | `packages/core/src/db/quiz/answers.ts` | Individual answer records with AI evaluation |
+
+**Agent Tables:**
+| Table | Module | Purpose |
+|-------|--------|---------|
+| `agent_jobs` | `packages/core/src/agents/db.ts` | Async agent job queue (pending/processing/completed/failed) |
+
+**File Storage (Supabase Storage buckets):**
+- `exercise-submissions` — Student exercise file uploads (signed URLs for access)
+  - Used in: `packages/core/src/db/formation/attachments.ts`
+- `agent-outputs` — Generated files from autonomous agents (PPTX, etc.)
+  - Used in: `packages/core/src/agents/job-processor.ts`
+
+**PostgreSQL Extensions:**
+- `uuid-ossp` — UUID generation for primary keys
+- `pgvector` — Vector similarity search for embeddings (1536-dimensional, OpenAI text-embedding-3-small)
+- `tsvector` — Full-text search (BM25) for formation knowledge hybrid search
+
+**RPC Functions:**
+- `search_formation_knowledge()` — Hybrid search combining vector cosine similarity + BM25 text matching
+  - Defined in: `supabase/migrations/010_formation_knowledge.sql` (with fixes in 011, 012)
+
+### Redis
+
+- **Client:** `redis` 4.6.0 (node-redis)
+- **Connection:** `REDIS_URL` env var (e.g., `redis://localhost:6379`)
+- **Client location:** `packages/core/src/cache/redis.ts` — Singleton with graceful degradation
+- **Purpose:** TTL-based caching for memory context queries
+  - Core memory cache: 5 minutes TTL (`CACHE_TTL_CORE = 300`)
+  - Working memory cache: 2 minutes TTL (`CACHE_TTL_WORKING = 120`)
+- **Production config:** Redis 7 Alpine, 256MB max memory, allkeys-lru eviction policy
+- **Error handling:**
+  - Returns `null` on any connection or operation failure
+  - Sets `connectionFailed` flag to avoid repeated connection attempts
+  - All cache operations (get/set/delete) are non-critical — silently swallowed errors
 
 ## Authentication & Identity
 
-**Auth Provider:**
-- Custom (no centralized auth service used)
-  - Role-based: admin, mentor, student, public
-  - Implementation: `packages/core/src/agents/types.ts` (CallerRole type)
-  - Source: Telegram user ID, Discord user ID, or public mode
-  - Permissions: Per-agent in `packages/core/src/agents/permissions.ts`
+**No custom auth system.** Trust is delegated to platform APIs:
 
-**OAuth2 Integrations:**
-- Google OAuth2 - For Google Calendar/Meet
-  - Refresh token stored: `GOOGLE_REFRESH_TOKEN`
-  - No user login, only backend service account integration
+- **Telegram admin bot:** Admin check via `isAdmin(ctx)` helper in `packages/bot-telegram/src/utils/auth.ts` — compares `ctx.from.id` against `TELEGRAM_ADMIN_CHAT_ID`
+- **Discord formateur bot:** Role-based checks via `isAdmin(interaction)` in `packages/bot-discord/src/utils/auth.ts`
+- **Discord quiz bot:** Admin check in `packages/bot-discord-quiz/src/utils/auth.ts`
+- **Supabase:** Service role key (full access, no RLS) — used server-side only
+- **No JWT/OAuth for end users** — bots authenticate to platforms, platforms authenticate users
 
 ## Monitoring & Observability
 
 **Error Tracking:**
-- None (not integrated)
-- Manual logging to console/file
+- No dedicated service (no Sentry, no Datadog)
+- Errors logged via pino to stdout/stderr
 
 **Logs:**
-- Approach: Structured logging via pino
-  - Implementation: `packages/core/src/logger.ts`
-  - Format: JSON in production, pretty-printed in development
-  - Log Level: Configurable via `LOG_LEVEL` env var (default: info)
-  - All major operations logged: API calls, DB queries, agent execution, errors
+- Structured JSON logging via pino (`packages/core/src/logger.ts`)
+- Pretty-print in development (`pino-pretty`)
+- JSON output in production
+- Docker log rotation: `json-file` driver, 10MB max size, 3 files per container
+- Log levels: debug, info, warn, error (controlled by `LOG_LEVEL` env var)
+
+**Health Checks:**
+- None configured (no HTTP health endpoints, no readiness probes)
 
 ## CI/CD & Deployment
 
 **Hosting:**
-- Self-hosted or cloud VM (any Node.js compatible platform)
-- GitHub Actions (mentioned in bot-telegram index, CI/CD deployment hook)
+- VPS (SSH-based deployment) — accessed via `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` secrets
+- Docker Compose production: `docker-compose.prod.yml`
+- 5 services: redis, bot-telegram, bot-telegram-public, bot-discord, bot-discord-quiz
+- Seed runner: `seed-knowledge` service (on-demand, `profiles: [seed]`)
 
 **CI Pipeline:**
-- GitHub Actions (referenced in code comments)
-- Triggers: Push to main branch
-- Jobs: Build, typecheck, deploy
+- GitHub Actions (`.github/workflows/test.yml` and `.github/workflows/deploy.yml`)
+- Unit tests: every push (non-main) + every PR to main
+- Integration tests: PR to main only (uses `supabase/setup-cli` for local Supabase)
+- E2E tests: manual dispatch only (requires Discord test bot tokens)
+- Deploy: push to main triggers selective Docker rebuild via SSH
 
-## Environment Configuration
-
-**Required Environment Variables (Production):**
-```
-# Core Services
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-SUPABASE_URL=https://...supabase.co
-SUPABASE_SERVICE_ROLE_KEY=...
-SUPABASE_ANON_KEY=...
-
-# Bot Tokens
-TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
-PUBLIC_BOT_TOKEN=123456:ABC-DEF...
-DISCORD_BOT_TOKEN=...
-DISCORD_CLIENT_ID=...
-DISCORD_GUILD_ID=...
-
-# Google Services
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-GOOGLE_REFRESH_TOKEN=...
-```
-
-**Optional Environment Variables:**
-```
-# Caching
-REDIS_URL=redis://localhost:6379
-
-# Embeddings
-EMBEDDING_SERVER_URL=http://localhost:8090/embed
-
-# TTS Configuration
-TTS_MODEL=hd  # or empty for standard
-TTS_VOICE=nova  # alloy, echo, fable, onyx, nova, shimmer
-
-# Logging
-LOG_LEVEL=info  # debug, info, warn, error
-
-# Server
-NODE_ENV=production  # or development
-PORT=3000
-
-# Public URLs
-PILOTE_NEURO_URL=https://pilotneuro.com
-PORTAL_URL=https://...
-TELEGRAM_GROUP_URL=https://t.me/...
-
-# Instagram (Phase 4)
-META_APP_ID=...
-META_APP_SECRET=...
-META_ACCESS_TOKEN=...
-INSTAGRAM_ACCOUNT_ID=...
-```
-
-**Secrets Location:**
-- `.env` file (git-ignored) at project root
-- Never committed; copied to deployment environment manually
-- Sensitive values: API keys, tokens, credentials
+**Deployment strategy:**
+- Change detection via `dorny/paths-filter` — only rebuild affected bot services
+- Migrations run before service deploy via `psql` with custom `_migrations` tracking table
+- `.env` synced from GitHub Secrets to VPS before deploy
+- Knowledge re-seed triggered when `learning-knowledge/` content changes
 
 ## Webhooks & Callbacks
 
 **Incoming:**
-- Telegram: grammY handles long polling (no webhooks exposed)
-- Discord: Discord.js handles gateway websocket (no webhooks)
-- Google: OAuth2 refresh token (server-side only)
+- None — all bots use long-polling (grammY default) or WebSocket gateway (discord.js)
 
 **Outgoing:**
-- None currently implemented
-- Future: Instagram webhook callbacks (Phase 4)
+- None — no webhook-based integrations
 
-## Data Flow
+## Inter-Bot Communication
 
-**AI Processing Pipeline:**
-1. User input → Bot (Telegram/Discord)
-2. Bot → Core AI (Claude API via `packages/core/src/ai/orchestrator.ts`)
-3. Claude processes with context from DB (memory, tasks, formation knowledge)
-4. Response → Supabase (if storing memory/events)
-5. Response → User (Telegram/Discord)
+**Event-driven pattern via Supabase `formation_events` table:**
+- Producers: DM Agent, Tsarag Agent, exercise handlers
+- Consumers: Cron jobs (event-dispatcher in `packages/bot-discord/src/cron/event-dispatcher.ts`)
+- Pattern: Create event row -> cron polls every 2 min -> format + send -> mark processed
+- Event types: `exercise_submitted`, `exercise_reviewed`, `student_alert`, `announcement`, `daily_exercise_digest`
 
-**Transcription Flow:**
-1. User uploads audio (Telegram voice message)
-2. Bot → OpenAI Whisper API
-3. Transcription → Claude for processing
-4. Result stored in memory table → Supabase
+## Scheduled Jobs (Cron)
 
-**Knowledge Search:**
-1. Query text → OpenAI embeddings (text-embedding-3-small)
-2. Vector search via Supabase RPC (cosine + BM25 hybrid)
-3. Results → DM Agent tool, FAQ Agent, etc.
+**Bot Telegram cron jobs** (`packages/bot-telegram/src/cron/`):
+- Morning plan generation
+- Dynamic notifications
+- Check-ins (anti-procrastination)
+- Midnight reminder
+- Formation event dispatch
 
-**Cron Job Flow:**
-1. Scheduler (`node-cron`) triggers at set times
-2. Handler → Agent execution via job queue
-3. Jobs stored in `agent_jobs` table
-4. Async processing with result storage
+**Bot Discord cron jobs** (`packages/bot-discord/src/cron/`):
+- Event dispatcher (polls `formation_events`)
+- Exercise digest
+- Admin digest
+- Deadline reminders
+- Dropout detector
+- Storage cleanup
 
-## Dependency Risks
+**Bot Discord Quiz cron jobs** (`packages/bot-discord-quiz/src/cron/`):
+- Close expired quizzes (after `QUIZ_EXPIRATION_HOURS`, default 48h)
 
-**Critical Path:**
-- Anthropic Claude API - Core AI functionality, no fallback
-- Supabase PostgreSQL - All data persistence, no fallback
-- OpenAI API - Transcription, TTS, embeddings (graceful degradation if missing)
+**Scheduler:** `packages/core/src/scheduler/index.ts` — `node-cron` 3.0.3 with error-wrapped execution
 
-**Graceful Degradation:**
-- Redis: Disabled if unavailable, cache bypassed
-- OpenAI embedding: Disabled if API key missing, semantic search unavailable
-- Google Calendar: Sessions cannot generate Meet links if credentials missing
+## Phase 4 Integrations (Not Yet Active)
+
+**Instagram (Meta Graph API):**
+- Env vars defined but empty: `META_APP_ID`, `META_APP_SECRET`, `META_ACCESS_TOKEN`, `INSTAGRAM_ACCOUNT_ID`
+- No implementation code present — placeholder for future DM filtering bot
+
+**Embedding Server (Self-hosted, deprecated):**
+- `EMBEDDING_SERVER_URL` env var exists (default: `http://localhost:8090/embed`)
+- Previously used MiniLM-L6-v2 via FastAPI; now replaced by OpenAI `text-embedding-3-small`
+- Migration 012 (`012_openai_embeddings_1536.sql`) upgraded from 384d to 1536d vectors
 
 ---
 
-*Integration audit: 2026-03-24*
+*Integration audit: 2026-03-31*

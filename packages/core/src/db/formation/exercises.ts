@@ -11,6 +11,7 @@ export async function submitExercise(params: {
   exercise_number: number;
   submission_url: string;
   submission_type?: string;
+  student_comment?: string;
 }): Promise<StudentExercise> {
   const db = getSupabase();
   const { data, error } = await db
@@ -23,6 +24,7 @@ export async function submitExercise(params: {
       submission_url: params.submission_url,
       submission_type: params.submission_type ?? 'link',
       status: 'submitted',
+      student_comment: params.student_comment ?? null,
     })
     .select()
     .single();
@@ -99,7 +101,7 @@ export async function getPendingExercises(): Promise<StudentExercise[]> {
   const { data, error } = await db
     .from(TABLE)
     .select()
-    .in('status', ['submitted', 'ai_reviewed'])
+    .eq('status', 'submitted')
     .order('submitted_at', { ascending: true });
 
   if (error) {
@@ -154,25 +156,6 @@ export async function updateExercise(
   return data as StudentExercise;
 }
 
-export async function setAiReview(id: string, review: Record<string, unknown>): Promise<StudentExercise> {
-  const db = getSupabase();
-  const { data, error } = await db
-    .from(TABLE)
-    .update({
-      ai_review: review,
-      status: 'ai_reviewed',
-    })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error({ error, id }, 'Failed to set AI review');
-    throw error;
-  }
-  return data as StudentExercise;
-}
-
 export async function getExerciseSummary(): Promise<{
   total: number;
   pending: number;
@@ -180,7 +163,7 @@ export async function getExerciseSummary(): Promise<{
   revision_needed: number;
 }> {
   const db = getSupabase();
-  const { data, error } = await db.from(TABLE).select('status');
+  const { data, error } = await db.from(TABLE).select('status').neq('status', 'archived');
 
   if (error) {
     logger.error({ error }, 'Failed to get exercise summary');
@@ -190,7 +173,7 @@ export async function getExerciseSummary(): Promise<{
   const exercises = (data ?? []) as Array<{ status: string }>;
   return {
     total: exercises.length,
-    pending: exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed').length,
+    pending: exercises.filter((e) => e.status === 'submitted').length,
     approved: exercises.filter((e) => e.status === 'approved').length,
     revision_needed: exercises.filter((e) => e.status === 'revision_needed').length,
   };
@@ -220,7 +203,7 @@ export async function getPendingExercisesBySession(sessionNumber: number): Promi
     .from(TABLE)
     .select()
     .eq('session_id', session.id)
-    .in('status', ['submitted', 'ai_reviewed'])
+    .eq('status', 'submitted')
     .order('submitted_at', { ascending: true });
 
   if (error) {
@@ -256,7 +239,7 @@ export async function getExerciseByStudentAndSession(
     .select()
     .eq('student_id', studentId)
     .eq('session_id', sessionId)
-    .in('status', ['submitted', 'ai_reviewed'])
+    .eq('status', 'submitted')
     .maybeSingle();
 
   if (error) {
@@ -271,6 +254,7 @@ export async function resubmitExercise(
   params: {
     submission_url: string | null;
     submission_type: string;
+    student_comment?: string;
   }
 ): Promise<StudentExercise> {
   const db = getSupabase();
@@ -311,6 +295,7 @@ export async function resubmitExercise(
       reviewed_at: null,
       submission_url: params.submission_url,
       submission_type: params.submission_type,
+      student_comment: params.student_comment ?? null,
       submission_count: exercise.submission_count + 1,
       review_history: updatedHistory,
       notification_message_id: null,
@@ -328,4 +313,59 @@ export async function resubmitExercise(
 
   logger.info({ exerciseId, submissionCount: exercise.submission_count + 1 }, 'Exercise resubmitted');
   return data as StudentExercise;
+}
+
+const ARCHIVABLE_STATUSES: ExerciseStatus[] = ['submitted', 'approved', 'revision_needed'];
+
+export async function archiveExercisesBySession(sessionNumber: number): Promise<{ archived: number }> {
+  const db = getSupabase();
+
+  // Step 1: Resolve session UUID from session number
+  const { data: session, error: sessionError } = await db
+    .from('sessions')
+    .select('id')
+    .eq('session_number', sessionNumber)
+    .maybeSingle();
+
+  if (sessionError) {
+    logger.error({ error: sessionError, sessionNumber }, 'Failed to resolve session for archiving');
+    throw sessionError;
+  }
+
+  if (!session) {
+    return { archived: 0 };
+  }
+
+  // Step 2: Count exercises that will be archived
+  const { data: exercises, error: countError, count } = await db
+    .from(TABLE)
+    .select('id', { count: 'exact' })
+    .eq('session_id', session.id)
+    .in('status', ARCHIVABLE_STATUSES);
+
+  if (countError) {
+    logger.error({ error: countError, sessionNumber }, 'Failed to count exercises for archiving');
+    throw countError;
+  }
+
+  const archiveCount = count ?? (exercises ?? []).length;
+
+  if (archiveCount === 0) {
+    return { archived: 0 };
+  }
+
+  // Step 3: Bulk update exercises to archived status
+  const { error: updateError } = await db
+    .from(TABLE)
+    .update({ status: 'archived' as ExerciseStatus })
+    .eq('session_id', session.id)
+    .in('status', ARCHIVABLE_STATUSES);
+
+  if (updateError) {
+    logger.error({ error: updateError, sessionNumber }, 'Failed to archive exercises');
+    throw updateError;
+  }
+
+  logger.info({ sessionNumber, archived: archiveCount }, 'Exercises archived for session');
+  return { archived: archiveCount };
 }

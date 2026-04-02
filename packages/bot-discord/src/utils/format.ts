@@ -9,7 +9,6 @@ const STATUS_EMOJI: Record<string, string> = {
   completed: '🏆',
   dropped: '🔴',
   submitted: '📩',
-  ai_reviewed: '🤖',
   reviewed: '👁️',
   approved: '✅',
   revision_needed: '🔄',
@@ -62,7 +61,7 @@ export function formatProgressEmbed(
   exercises: StudentExercise[]
 ): EmbedBuilder {
   const approved = exercises.filter((e) => e.status === 'approved').length;
-  const pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed').length;
+  const pending = exercises.filter((e) => e.status === 'submitted').length;
   const revision = exercises.filter((e) => e.status === 'revision_needed').length;
 
   const progressBar = (count: number, total: number): string => {
@@ -97,10 +96,6 @@ export function formatSubmissionNotification(
   attachmentsWithUrls: Array<{ attachment: SubmissionAttachment; signedUrl: string | null }>,
   isResubmission: boolean
 ): EmbedBuilder {
-  const aiReview = exercise.ai_review as Record<string, unknown> | null;
-  const aiScore = aiReview?.score as number | undefined;
-  const aiRec = aiReview?.recommendation as string | undefined;
-
   const title = isResubmission
     ? `🔄 Re-soumission (#${exercise.submission_count})`
     : '📩 Nouveau exercice soumis';
@@ -138,14 +133,6 @@ export function formatSubmissionNotification(
     if (firstImageUrl) {
       embed.setImage(firstImageUrl);
     }
-  }
-
-  // AI score
-  if (aiScore !== undefined) {
-    const recLabel = aiRec === 'approve' ? 'approve' : aiRec === 'revision_needed' ? 'revision' : aiRec ?? '?';
-    embed.addFields({ name: '🤖 Score IA', value: `${aiScore}/10 — ${recLabel}`, inline: true });
-  } else {
-    embed.addFields({ name: '🤖 Score IA', value: 'en cours...', inline: true });
   }
 
   // Previous feedback (for re-submissions)
@@ -194,6 +181,11 @@ export function formatReviewThreadMessages(
         submissionLines.push(`📎 ${a.original_filename ?? 'Fichier'} (lien indisponible)`);
       }
     }
+  }
+
+  // Student comment
+  if (exercise.student_comment) {
+    submissionLines.push('', '\u{1F4AC} **Commentaire etudiant :**', exercise.student_comment);
   }
 
   const submissionMsg = submissionLines.join('\n').slice(0, 1900);
@@ -264,8 +256,6 @@ export function formatStudentFeedbackDM(
   status: 'approved' | 'revision_needed'
 ): string {
   const sessionTitle = session ? `Сессия ${session.session_number} : ${session.title}` : `Сессия ${exercise.exercise_number}`;
-  const aiReview = exercise.ai_review as Record<string, unknown> | null;
-  const aiScore = aiReview?.score as number | undefined;
 
   const emoji = status === 'approved' ? '✅' : '🔄';
   const statusText = status === 'approved' ? 'Задание одобрено' : 'Нужна доработка';
@@ -276,10 +266,6 @@ export function formatStudentFeedbackDM(
   const lines: string[] = [
     `${emoji} **${statusText}** — ${sessionTitle}`,
   ];
-
-  if (aiScore !== undefined) {
-    lines.push('', `🤖 Оценка IA : ${aiScore}/10`);
-  }
 
   lines.push('', '💬 **Отзыв преподавателя :**', feedback);
   lines.push('', footer);

@@ -149,16 +149,15 @@ describe('createReviewThread', () => {
     // Thread created via adminChannel.threads.create
     expect(adminChannel.threads.create).toHaveBeenCalledOnce();
 
-    // Returns correct IDs
+    // Returns correct IDs (aiMessageId is null — no AI placeholder)
     expect(result).toMatchObject({
       threadId: 'new-thread-1',
-      aiMessageId: 'ai-msg-1',
+      aiMessageId: null,
     });
 
-    // DB persistence: both IDs stored
+    // DB persistence: thread ID stored (no ai message ID)
     expect(mockUpdateExercise).toHaveBeenCalledWith('ex-1', {
       review_thread_id: 'new-thread-1',
-      review_thread_ai_message_id: 'ai-msg-1',
     });
   });
 
@@ -198,10 +197,10 @@ describe('createReviewThread', () => {
     // adminChannel.threads.create NOT called (thread was reused)
     expect(adminChannel.threads.create).not.toHaveBeenCalled();
 
-    // Returns the existing thread ID and the new AI message ID
+    // Returns the existing thread ID (aiMessageId is null — no AI placeholder)
     expect(result).toMatchObject({
       threadId: 'existing-thread',
-      aiMessageId: 'new-ai-msg',
+      aiMessageId: null,
     });
   });
 
@@ -233,7 +232,7 @@ describe('createReviewThread', () => {
     expect(adminChannel.threads.create).toHaveBeenCalledOnce();
     expect(result).toMatchObject({
       threadId: 'fallback-thread',
-      aiMessageId: 'fallback-ai',
+      aiMessageId: null,
     });
   });
 
@@ -271,15 +270,15 @@ describe('createReviewThread', () => {
     expect(adminChannel.threads.create).toHaveBeenCalledOnce();
     expect(result).toMatchObject({
       threadId: 'new-thread-perm',
-      aiMessageId: 'new-ai-perm',
+      aiMessageId: null,
     });
   });
 
   // ============================================
-  // Test 5: AI review message included when exercise has ai_review
+  // Test 5: No AI message sent even when exercise has ai_review
   // ============================================
 
-  it('sends real AI review message (not placeholder) when exercise.ai_review is set', async () => {
+  it('does not send AI review message even when exercise.ai_review is set', async () => {
     const exercise = createExercise({
       id: 'ex-5',
       review_thread_id: null,
@@ -289,7 +288,7 @@ describe('createReviewThread', () => {
     const student = createStudent({ id: 'student-1', name: 'Eve' });
     const session = createSession({ id: 'session-1' });
 
-    // formatReviewThreadMessages returns a real aiReviewMsg
+    // formatReviewThreadMessages returns a real aiReviewMsg (but it should be ignored)
     mockFormatReviewThreadMessages.mockReturnValue({
       submissionMsg: 'Submission content',
       aiReviewMsg: 'Score IA: 8/10 — approve',
@@ -297,16 +296,9 @@ describe('createReviewThread', () => {
       imageUrl: null,
     });
 
-    // Make the thread's send return the AI message ID for the aiReviewMsg content
     const mockThread = {
       id: 'new-thread-ai',
-      send: vi.fn().mockImplementation(async (content: unknown) => {
-        const text = typeof content === 'string' ? content : '';
-        if (text.includes('Score IA')) {
-          return { id: 'real-ai-msg' };
-        }
-        return { id: 'other-msg' };
-      }),
+      send: vi.fn().mockResolvedValue({ id: 'other-msg' }),
       setArchived: vi.fn(),
     };
     const adminChannel = {
@@ -327,16 +319,16 @@ describe('createReviewThread', () => {
       client as never,
     );
 
-    // Thread send should have been called with the real AI review text (not placeholder)
+    // No AI review or placeholder message sent
     const sendCalls = mockThread.send.mock.calls.map((c: unknown[]) =>
       typeof c[0] === 'string' ? c[0] : ''
     );
-    expect(sendCalls.some((msg: string) => msg.includes('Score IA'))).toBe(true);
-    // Placeholder NOT sent
+    expect(sendCalls.some((msg: string) => msg.includes('Score IA'))).toBe(false);
     expect(sendCalls.some((msg: string) => msg.includes('en cours'))).toBe(false);
+    expect(sendCalls.some((msg: string) => msg.includes('Review IA'))).toBe(false);
 
-    // Returns valid IDs
+    // Returns null for aiMessageId
     expect(result.threadId).toBe('new-thread-ai');
-    expect(result.aiMessageId).toBe('real-ai-msg');
+    expect(result.aiMessageId).toBeNull();
   });
 });

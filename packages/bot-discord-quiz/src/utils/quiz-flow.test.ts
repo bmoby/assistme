@@ -18,8 +18,10 @@ const {
   mockUpdateQuizSession: vi.fn(),
   mockGetAnswersBySession: vi.fn(),
   mockLogger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+  mockBuildQuestionEmbed: vi.fn().mockReturnValue('question-embed'),
   mockBuildMcqRow: vi.fn().mockReturnValue('mcq-row'),
   mockBuildTrueFalseRow: vi.fn().mockReturnValue('tf-row'),
+  mockBuildOpenQuestionEmbed: vi.fn().mockReturnValue('open-question-embed'),
   mockBuildFeedbackMessages: vi.fn().mockReturnValue(['feedback-msg']),
 }));
 

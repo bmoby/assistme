@@ -1,595 +1,208 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-03-24
+**Analysis Date:** 2026-03-31
 
----
+## Technical Debt
 
-## Tech Debt
+### In-Memory State Without Periodic Cleanup (Telegram Bots)
+- **Issue:** Telegram bot conversation histories (`packages/bot-telegram/src/utils/conversation.ts`, `packages/bot-telegram-public/src/utils/conversation.ts`) and pending change maps (`packages/bot-telegram/src/utils/pending-changes.ts`) rely on lazy expiration checked only on read. There is no `setInterval` cleanup loop, unlike the Discord handlers which clean up stale state every 5-10 minutes. If a user chats once and never returns, their entry stays in the Map forever.
+- **Impact:** Slow memory growth over weeks/months of uptime. Not critical given the small user base, but inconsistent with the Discord handler pattern.
+- **Severity:** low
+- **Fix approach:** Add a `setInterval` cleanup loop (like `packages/bot-discord/src/handlers/dm-handler.ts` line 795) that runs every 10-30 minutes and evicts entries older than TTL.
 
-### 1. Missing Test Coverage
+### Duplicated `sendLongMessage` Function
+- **Issue:** The 2000-character Discord message splitting logic is copy-pasted in three locations:
+  - `packages/bot-discord/src/handlers/dm-handler.ts` (line 674)
+  - `packages/bot-discord/src/handlers/admin-handler.ts` (line 189)
+  - `packages/bot-telegram/src/utils/reply.ts` (line 32, Telegram-specific variant)
+- **Impact:** Bug fixes or improvements to message splitting must be applied in multiple places. The Discord variants are nearly identical.
+- **Severity:** low
+- **Fix approach:** Extract the Discord `sendLongMessage` into a shared utility (e.g., `packages/bot-discord/src/utils/message-split.ts` already exists but is not used by the handlers). Import from there.
 
-**Issue:** Zero automated test files in packages (no .test.ts or .spec.ts files detected)
+### Duplicated `isAdmin` / Auth Patterns Across Bots
+- **Issue:** Three separate `isAdmin` implementations exist:
+  - `packages/bot-discord/src/utils/auth.ts` (role-based, accepts `Message | ChatInputCommandInteraction`)
+  - `packages/bot-discord-quiz/src/utils/auth.ts` (role-based, accepts `ChatInputCommandInteraction | ButtonInteraction`)
+  - `packages/bot-telegram/src/utils/auth.ts` (chat ID comparison)
+- The Discord variants are nearly identical (both check `ROLES.admin` on guild member) but have different type signatures, preventing shared use.
+- **Impact:** Divergence risk if role names change. The quiz bot must independently track `ROLES.admin` in its own `config.ts`.
+- **Severity:** low
+- **Fix approach:** Consider moving common Discord auth logic into a shared utility within `packages/bot-discord/src/utils/` that both bots import, or keep them separate since the quiz bot is intentionally isolated from `bot-discord`.
 
-**Files:**
-- `packages/core/src/**/*.ts` - 100+ files without unit tests
-- `packages/bot-telegram/src/**/*.ts` - All handler code untested
-- `packages/bot-discord/src/**/*.ts` - Critical handlers untested (dm-handler.ts, admin-handler.ts, review-buttons.ts)
-- `packages/bot-telegram-public/src/**/*.ts` - All features untested
+### `as any` in Memory Agent
+- **Issue:** `packages/core/src/ai/memory-agent.ts` (lines 92, 96) uses `as any` to cast Claude's JSON output categories to `MemoryCategory`. The Claude response is parsed but not validated — if Claude returns an invalid category, it silently passes through.
+- **Impact:** Could insert invalid category values into the memory table. Since Claude usually gets categories right, this is low-probability but should be validated.
+- **Severity:** low
+- **Fix approach:** Add a Zod schema or manual validation for the parsed JSON response, consistent with the project convention of using Zod for external data validation.
 
-**Impact:**
-- AI agent modifications (orchestrator, memory manager, exercise reviewer) have no regression protection
-- Database layer changes risk silent failures
-- Critical Discord handlers (exercise review, student submissions) cannot be validated pre-deployment
-- Formation content seed script lacks validation
+### Exercise Reviewer: AI Auto-Correction Complexity
+- **Issue:** The exercise review flow (`packages/core/src/ai/formation/exercise-reviewer.ts`) involves a complex chain: DM handler receives submission -> uploads to storage -> triggers AI review (fire-and-forget) -> AI writes review to DB -> creates formation event -> updates admin notification embed -> edits review thread message. Multiple fire-and-forget operations create a fragile cascade.
+- **Files:** `packages/bot-discord/src/handlers/dm-handler.ts` (lines 158-237, `triggerAiReview`), `packages/core/src/ai/formation/exercise-reviewer.ts`, `packages/bot-discord/src/handlers/review-buttons.ts`
+- **Impact:** Failures in the cascade are silently swallowed (non-blocking by design), but the admin may see inconsistent state — e.g., a thread shows "AI score: en cours..." that never gets updated. The review thread update (editing the AI message in a thread found by stored message ID) is particularly fragile.
+- **Severity:** medium
+- **Fix approach:** The user plans to simplify this by removing AI auto-correction entirely. If kept, add a periodic cron to detect exercises stuck in `submitted` status > N hours (i.e., AI review silently failed) and alert the admin.
 
-**Fix approach:**
-1. Set up Jest/Vitest with shared test utilities in `packages/core`
-2. Add integration tests for Claude API calls, Supabase queries, orchestrator flows
-3. Add unit tests for utility functions (format.ts, PDF parsing)
-4. Mock external services (Claude API, Supabase, Discord)
-5. Target 60%+ coverage on critical paths before Phase 4
+### Pervasive `return data as Type` in DB Layer
+- **Issue:** Nearly all Supabase query functions cast results with `return data as StudentExercise` (40+ occurrences across `packages/core/src/db/`). The Supabase JS client returns `any` from `.select()`, and these casts skip runtime validation.
+- **Files:** All files in `packages/core/src/db/formation/`, `packages/core/src/db/quiz/`, `packages/core/src/db/clients.ts`, `packages/core/src/db/tasks.ts`
+- **Impact:** If a database migration changes a column type or adds a required field, TypeScript will not catch the mismatch at runtime. This contradicts the project convention of using Zod for external data validation.
+- **Severity:** medium
+- **Fix approach:** Either (1) add Zod schemas for each entity and validate Supabase responses, or (2) use Supabase's generated types via `supabase gen types typescript`. Option 2 gives compile-time safety; option 1 gives runtime safety. Both are incremental — can be done table-by-table.
 
----
-
-### 2. Unhandled Promise Chains and Race Conditions
-
-**Issue:** Multiple fire-and-forget promises with `.catch()` handlers that only log errors
-
-**Files:**
-- `packages/core/src/ai/orchestrator.ts:234-235` - Memory agent background runs without awaiting
-- `packages/core/src/ai/formation/dm-agent.ts:387` - deleteStorageFiles silently fails
-- `packages/core/src/ai/formation/dm-agent.ts:454-468` - AI review async failure notifications incomplete
-- `packages/bot-discord/src/handlers/dm-handler.ts:163` - notifyAdminChannel fire-and-forget
-- `packages/bot-discord/src/handlers/dm-handler.ts:284-286` - DM processing lock pattern uses Promise.resolve() chain
-
-**Impact:**
-- Storage cleanup failures not propagated to user
-- Admin channel notifications may silently fail during high load
-- Exercise review failures logged but not escalated to student feedback queue
-- Concurrent DM processing could create race conditions with locking
-
-**Fix approach:**
-1. Add explicit error recovery: retry logic for storage deletions
-2. Use centralized job queue (already in DB: `agent_jobs` table in `009_agent_jobs.sql`)
-3. Implement fallback notifications if admin channel update fails
-4. Add telemetry to detect silent failures
-5. Consider using Promise.allSettled for parallel operations
-
----
-
-### 3. Large AI Agent Files - Cognitive Load
-
-**Issue:** Two critical agents exceed 600 lines, making maintenance and debugging difficult
-
-**Files:**
-- `packages/core/src/ai/formation/tsarag-agent.ts` - 1045 lines (system prompt + tools + logic)
-- `packages/core/src/ai/formation/dm-agent.ts` - 690 lines (5 tools + conversation logic)
-
-**Impact:**
-- Difficult to reason about agent behavior without reading entire file
-- Tool implementations mixed with conversation flow
-- Changes to one tool affect readability of others
-- System prompt changes require file navigation
-
-**Fix approach:**
-1. Extract tools to separate files: `tools/tsarag-*.ts`, `tools/dm-*.ts`
-2. Move system prompts to constants file: `ai/formation/prompts.ts`
-3. Keep agent core at 200-300 lines max
-4. Example: `tsarag-agent.ts` → `tsarag-agent.ts` (orchestrator) + `tools/tsarag-session.ts`, `tools/tsarag-student.ts`, `tools/tsarag-announcements.ts`
-
----
-
-### 4. Type Safety Gaps - "any" Usage
-
-**Issue:** Process.env variables used without validation in multiple files
-
-**Files:**
-- `packages/core/src/ai/transcribe.ts:10` - Throws on missing OPENAI_API_KEY, but no Zod validation
-- `packages/core/src/ai/formation/dm-agent.ts:549` - ANTHROPIC_API_KEY checked with throw, not validated
-- `packages/bot-discord/src/handlers/**/*.ts` - Discord API errors returned as JSON strings, not typed errors
-
-**Impact:**
-- Runtime errors instead of compile-time detection
-- Incomplete error context (missing auth keys discovered only at runtime)
-- Inconsistent error handling across packages (some throw, some return JSON errors)
-
-**Fix approach:**
-1. Create `packages/core/src/env.ts` with Zod schema for all env vars
-2. Validate at package startup, not in AI agents
-3. Use typed Error classes: `class MissingConfigError extends Error { constructor(key: string) }`
-4. Return discriminated union errors from agents: `{ ok: true, result } | { ok: false, error: AgentError }`
-
----
-
-## Known Bugs
-
-### 1. Habit Check Not Implemented
-
-**Bug description:** Daily plan system references habit tracking that doesn't exist
-
-**Symptoms:**
-- Plan command returns `sportDoneRecently: false` hardcoded
-- No way to update or query habits from any bot interface
-- Habits table never created (listed as ❌ Futur in specs)
-
-**Files:**
-- `packages/bot-telegram/src/commands/plan.ts:32`
-- `specs/01-cerveau-central/SPEC.md:33` (habits table not implemented)
-
-**Trigger:** Run `/plan` command - returns dummy habit data
-
-**Workaround:** Habits feature currently disabled; won't affect current training (Phase 3)
-
-**Fix approach:**
-- Phase 4: Create `habits` table in DB migration
-- Add `/habit` command in Telegram admin bot
-- Integrate with morning plan context builder
-
----
-
-### 2. Event Dispatcher Daily Digest Not Implemented
-
-**Bug description:** Notifications grouping to admin bot is incomplete
-
-**Symptoms:**
-- Formation events created and stored in `events` table (migration 005)
-- No daily digest cron to aggregate events and send to admin
-- Individual notifications may spam admin channel during high submission volume
-- No event prioritization or filtering
-
-**Files:**
-- `specs/ROADMAP.md:105,137` - Listed as "[ ] Notifications groupees vers bot admin (1x/jour)"
-- `packages/core/src/types/index.ts:293` - Type exists (`daily_exercise_digest`) but never used
-- `packages/core/src/db/formation/events.ts` - CRUD exists, but no aggregation logic
-
-**Trigger:** 30+ students submit exercises in same hour → 30+ individual DMs to admin
-
-**Impact:** Admin channel becomes noisy; hard to see urgent issues
-
-**Fix approach:**
-1. Add cron job in scheduler (similar to `scheduleReminders()` pattern in `packages/core/src/scheduler/crons.ts`)
-2. Cron: 21:00 Bangkok time daily → query unprocessed events → group by type → send 1 formatted message to admin
-3. Mark events as processed after sending
-4. Implement priority levels: `critical` (student stuck >48h) → immediate, `normal` → daily digest
-
----
+### No Linting/Formatting Configuration Files
+- **Issue:** `package.json` defines `pnpm lint`, `pnpm lint:fix`, and `pnpm format` commands, but no ESLint config file (`.eslintrc*`, `eslint.config.*`) or Prettier config (`.prettierrc*`) exists in the repository root.
+- **Impact:** Running `pnpm lint` or `pnpm format` may fail or use default rules. Code style consistency relies on developer discipline rather than tooling enforcement.
+- **Severity:** low
+- **Fix approach:** Add `eslint.config.js` and `.prettierrc` to the project root. The CI pipeline runs `pnpm typecheck` but not `pnpm lint`, so linting is not enforced anywhere.
 
 ## Security Considerations
 
-### 1. Supabase Service Role Key Exposure Risk
-
-**Risk:** Service role key used in multiple agents and bots
-
-**Files:**
-- `packages/core/src/db/client.ts` - Uses `SUPABASE_SERVICE_ROLE_KEY` for privileged operations
-- All packages initialize client with service key at startup
-- Key stored in `.env` (not committed, but one leak = full database access)
-
-**Current mitigation:**
-- `.env` in `.gitignore`
-- Key rotation instructions in `.env.example`
-- Used only for trusted server-side operations
-
-**Recommendations:**
-1. Document service key rotation procedure in CLAUDE.md
-2. Add secret rotation to deployment checklist
-3. Monitor Supabase audit logs for suspicious queries (via dashboard)
-4. Consider Row Level Security (RLS) policies for sensitive tables if moving to web frontend later
-5. Separate read-only key for public bot (use anon key where possible)
-
----
-
-### 2. Discord Token Compromise Path
-
-**Risk:** Discord bot token in environment allows anyone with the token to impersonate the bot
-
-**Files:**
-- `packages/bot-discord/src/index.ts` - Loads `DISCORD_BOT_TOKEN` at startup
-- Token used to authenticate all bot actions
-
-**Current mitigation:**
-- Token in `.env`, not committed
-- Token rotated via Discord Developer Portal if compromised
-- Bot runs in single private guild (limited blast radius)
-
-**Recommendations:**
-1. Enable Discord's bot token rotation feature in Developer Portal
-2. Audit bot permissions quarterly (least privilege principle)
-3. Monitor bot activity in Discord audit logs
-4. Document emergency bot token rotation procedure
-
----
-
-### 3. Claude API Key Rate Limiting and Cost Control
-
-**Risk:** No rate limiting on Claude API calls; high-traffic periods could cause runaway costs or service throttling
-
-**Files:**
-- `packages/core/src/ai/client.ts` - Direct Claude API calls without rate limiting
-- `packages/core/src/ai/formation/dm-agent.ts:623` - Tool loop unbounded
-- `packages/core/src/ai/formation/tsarag-agent.ts` - No iteration limits on tool calls
-
-**Current mitigation:**
-- Single user (personal bot), limited message volume
-- maxTokens caps on each call (Sonnet: 8000, agents: 4096)
-
-**Recommendations:**
-1. Implement request queue with exponential backoff for 429 (rate limit) responses
-2. Add daily cost budget alerts (track in DB)
-3. Implement per-user rate limits for Discord (e.g., max 5 DM messages/minute)
-4. Log all API calls with token counts for cost auditing
-5. Set up budget alerts in Anthropic console (Claude API settings)
-
----
-
-## Performance Bottlenecks
-
-### 1. In-Memory Conversation History Scaling Issue
-
-**Issue:** Conversation histories stored in-memory with TTL; will overflow on high message volume
-
-**Problem:** 30 students × multiple DMs/day = hundreds of conversations in memory simultaneously
-
-**Files:**
-- `packages/bot-discord/src/handlers/dm-handler.ts:26` - Map<userId, ConversationMessage[]>
-- `packages/bot-discord/src/handlers/admin-handler.ts:19` - Map<userId, AdminConversationMessage[]>
-- TTL cleanup: 30 min (DM) / 60 min (admin) via `cleanupConversations()` interval
-
-**Impact:**
-- Memory leak if bot process crashes before TTL runs
-- Restart = loss of all conversation context
-- Max ~20MB memory per 1000 conversations (estimate)
-
-**Improvement path:**
-1. Move conversations to Redis (optional `REDIS_URL` already in env)
-2. Use Supabase `messages_log` table (created in schema but unused)
-3. Implement automatic persistence: save to DB after agent response
-4. Add memory metrics to logger (warn if >200 conversations in memory)
-
----
-
-### 2. Formation Knowledge Search Performance (Vector + BM25)
-
-**Issue:** Hybrid search on formation_knowledge table could slow with >5000 chunks
-
-**Problem:** Currently ~200 chunks (14 markdown files, H2/H3 splitting). No query optimization.
-
-**Files:**
-- `supabase/migrations/010_formation_knowledge.sql` - RPC `search_formation_knowledge()`
-- `packages/core/src/db/formation/knowledge.ts` - searchFormationKnowledge() calls RPC
-- Used in: dm-agent (tool), tsarag-agent (tool), faq-agent (fallback), exercise-reviewer (context)
-
-**Current latency:** ~100-200ms per search (estimated, no monitoring)
-
-**Improvement path:**
-1. Add `created_at` index on formation_knowledge
-2. Implement query caching layer: memoize results for same session_id + query within 5 min
-3. Pre-compute embeddings for top 20 queries (most common student questions)
-4. Monitor RPC performance with Supabase Query Performance dashboard
-5. Phase 4: Add full-text search optimization if dataset grows >5000 chunks
-
----
-
-### 3. Exercise Review File Download Latency
-
-**Issue:** Attachment signedURLs generated on-demand; downloading multiple files during review slows agent
-
-**Problem:** Student submits 5 files → 5 signedURLs generated → 5 concurrent downloads → blocked on slowest
-
-**Files:**
-- `packages/core/src/ai/formation/exercise-reviewer.ts:78-137` - downloadReviewAttachment() called sequentially for each file
-- `packages/core/src/ai/formation/dm-agent.ts:259-268` - Single file upload has error handling, but no timeout
-- Files stored in Supabase Storage bucket (no CDN, direct download)
-
-**Improvement path:**
-1. Add timeout to attachment downloads (30s max)
-2. Download attachments in parallel: Promise.all instead of sequential
-3. Cache signedURLs in Redis for 1 hour (reduced generation calls)
-4. Consider CDN for frequently accessed files (Phase 4)
-
----
-
-## Fragile Areas
-
-### 1. Student Exercise Submission State Machine
-
-**Fragile:** Exercise submission lifecycle complex with multiple state transitions
-
-**Files:**
-- `packages/core/src/db/formation/exercises.ts` - updateExerciseStatus() with status enum
-- `packages/bot-discord/src/handlers/dm-handler.ts:57-177` - DM message flow triggers submissions
-- `packages/bot-discord/src/handlers/review-buttons.ts` - Admin approval/revision buttons change state
-- `specs/04-bot-discord/SPEC-DM-AGENT.md:105-150` - State diagram
-
-**Why fragile:**
-- 5 possible states: `draft` → `pending_review` → `approved` / `revision_needed` → `resubmit` (draft again) → `pending_review` (loop) / `approved` (final)
-- No transaction safety: submission + AI review + notification fires async
-- If AI review fails, state stays `pending_review` but no error logged to student
-- Concurrent re-submissions possible if bot crashes mid-state-update
-
-**Safe modification approach:**
-1. Wrap state transitions in DB transactions (Supabase already supports)
-2. Never update status without also logging event (create event record atomically)
-3. Add invariant checks: before state X, verify preconditions in code
-4. Test state machine with unit tests covering all transitions
-5. Add logging at each state boundary (aide with debugging)
-
----
-
-### 2. Tsarag Admin Agent Tool Execution
-
-**Fragile:** Agent calls tools that have side effects (create sessions, send announcements); no dry-run mode
-
-**Files:**
-- `packages/core/src/ai/formation/tsarag-agent.ts:100-200` (propose_action flow)
-- `packages/core/src/ai/formation/tsarag-agent.ts:500-700` (tool implementations: create_session, publish_session, send_announcement)
-- System prompt enforces propose → confirm → execute, but tool code doesn't validate confirmation state
-
-**Why fragile:**
-- If confirm message contains typo ("go" vs "GO"), agent may skip execute
-- System prompt requires verbatim text copy, but tool code doesn't verify
-- Announcement scheduled for wrong time if date format mismatch (JJ/MM/AAAA vs DD/MM/YYYY)
-- No rollback if session create succeeds but Discord thread creation fails
-
-**Safe modification approach:**
-1. Implement execute state machine: `{ phase: 'proposed' | 'confirmed' | 'executed', data, confirmation }` stored in memory
-2. Refuse tool execution if not in `confirmed` state
-3. Validate all inputs (dates, session numbers, text encoding) before tool call, not after
-4. Wrap multi-step operations in transaction (session + thread + message)
-5. Add explicit confirmation codes: user must type "CONFIRM 123" (code from agent)
-
----
-
-### 3. Memory Manager Update Conflicts
-
-**Fragile:** Two agents can modify `memory` table simultaneously without locking
-
-**Files:**
-- `packages/core/src/ai/memory-manager.ts` - Orchestrator delegates all memory ops here
-- `packages/core/src/ai/memory-agent.ts` - Background agent also updates memory
-- `packages/core/src/db/memory.ts` - upsertMemory() has no conflict detection
-
-**Why fragile:**
-- Memory Agent runs async, Memory Manager runs sync in handler
-- If both update same key at same time: last write wins (silent data loss)
-- No version field or timestamp check on updates
-
-**Safe modification approach:**
-1. Add `updated_at TIMESTAMPTZ` field to memory table
-2. Use optimistic locking: check `updated_at` before upsert, fail if changed
-3. Or: implement advisory locks in Postgres (SELECT pg_advisory_lock(hash(key)))
-4. Prevent concurrent execution: memory_agent shouldn't run if memory_manager just executed
-
----
-
-## Scaling Limits
-
-### 1. Discord Message Queue (DM Handler)
-
-**Current capacity:** Processing lock handles 1 DM per user sequentially
-
-**Files:** `packages/bot-discord/src/handlers/dm-handler.ts:272-290`
-
-**Limit:** With 30 students, each sending 1 message = 30 sequential locks, ~30 seconds total processing
-
-**Where it breaks:**
-- 100 students = 100 seconds processing (2+ minutes)
-- Discord rate limits trigger (~50 msgs/min per bot)
-- User sees delayed bot responses
-
-**Scaling path:**
-1. Move from in-memory locks to Redis-based queue
-2. Add worker pool: process N DMs in parallel (3-5 workers)
-3. Scale to 100-500 students with queue depth metrics
-4. Monitor Discord API rate limits and back off on 429
-
----
-
-### 2. Formation Knowledge Embeddings
-
-**Current capacity:** 200 chunks, stored locally as vectors
-
-**Where it breaks:**
-- >5000 chunks = query performance degrades
-- No automatic re-embedding when knowledge updates
-
-**Files:** `supabase/migrations/010_formation_knowledge.sql`, `scripts/seed-formation-knowledge.ts`
-
-**Scaling path:**
-1. Batch embed on seed (already done)
-2. Re-embed only changed chunks on seed:knowledge
-3. Monitor vector search query time (add APM)
-4. Phase 4: Switch to OpenAI embeddings (1536d) for better search quality
-
----
-
-### 3. Daily Schedule Crons (Telegram Bot)
-
-**Current capacity:** 5 crons (08:30, 11:00, 14:00, 19:00, 00:00)
-
-**Files:** `packages/bot-telegram/src/scheduler.ts`
-
-**Where it breaks:**
-- Each cron sends 1 message to admin = 5 messages/day
-- Phase 4: 10+ new crons (content checks, client followups, etc.) = context switching overhead
-- No distribution: all fire at once if bot restarts
-
-**Scaling path:**
-1. Move crons to centralized scheduler in `packages/core`
-2. Use DB-driven schedule with jitter (±5 min) to avoid thundering herd
-3. Implement cron failure recovery (retry 3x with exponential backoff)
-4. Add observability: log each cron execution and duration
-
----
-
-## Dependencies at Risk
-
-### 1. OpenAI Whisper for Transcription (Single Point of Failure)
-
-**Risk:** Transcription API outage blocks audio messages in both Telegram bots
-
-**Files:**
-- `packages/core/src/ai/transcribe.ts` - Uses OpenAI Whisper API directly
-- `packages/bot-telegram/src/handlers/voice.ts` - Audio message handler depends on transcription
-- `packages/bot-telegram-public/src/handlers/voice.ts` - Same dependency
-
-**Impact:** If OpenAI Whisper down → users can't send voice messages (all voice features blocked)
-
-**Mitigation:**
-1. Add fallback: cache transcriptions (Redis or DB) + return cached if API fails
-2. Queue failed transcriptions for batch retry (5 min later)
-3. Monitor Whisper API status via StatusPage
-4. Phase 4: Consider alternative (Google Cloud Speech-to-Text, Azure)
-
----
-
-### 2. Claude API Cost Control (Budget Risk)
-
-**Risk:** No spending limits; high-context-window agents (tsarag, dm) could spike costs
-
-**Agents with highest token consumption:**
-- Tsarag agent: system prompt (500 tokens) + tools (1000+) + conversation history (2000+) = 3500+ tokens per message
-- DM agent: similar structure + file attachments (vision)
-
-**Phase 4 risk:** If conversation history saved to DB and loaded for every message, costs multiply
-
-**Mitigation:**
-1. Set monthly budget limit in Anthropic console
-2. Log token usage per message (track in DB)
-3. Implement token budgets per agent type
-4. Use Haiku for simple tasks, Sonnet only for complex reasoning
-5. Compress conversation history before reloading (summarize after 50 messages)
-
----
+### Telegram Admin Auth: Fail-Open When Env Var Missing
+- **Issue:** `packages/bot-telegram/src/utils/auth.ts` returns `true` (allows all users) when `TELEGRAM_ADMIN_CHAT_ID` is not set. The warning is logged, but any user can send commands.
+- **Files:** `packages/bot-telegram/src/utils/auth.ts` (line 8)
+- **Impact:** If the env var is accidentally unset in production, all Telegram users would have admin access to orchestrator actions (create tasks, manage clients, run memory agent).
+- **Severity:** high
+- **Fix approach:** Change to fail-closed: return `false` when `TELEGRAM_ADMIN_CHAT_ID` is not set, and log an error instead of a warning.
+
+### Supabase Service Role Key Used Client-Side
+- **Issue:** All database access uses the `SUPABASE_SERVICE_ROLE_KEY`, which bypasses Row Level Security (RLS). This is the "god key" for the database.
+- **Files:** `packages/core/src/db/client.ts` (line 10)
+- **Impact:** This is acceptable for server-side bots that run as trusted processes, but any code injection or leaked key gives full DB access. There is no RLS fallback layer.
+- **Severity:** low (acceptable for the architecture, but worth noting)
+- **Fix approach:** Keep the current pattern since all bots are server-side. Ensure the key never leaks (already in `.gitignore`). Consider RLS policies as an additional defense layer if the system scales.
+
+### No Input Sanitization on Claude JSON Outputs
+- **Issue:** Multiple agents parse Claude's JSON responses and use values directly in database operations and Discord messages: orchestrator (`packages/core/src/ai/orchestrator.ts` line 116), memory agent (`packages/core/src/ai/memory-agent.ts` line 73), FAQ agent, exercise reviewer, etc. None validate the parsed JSON against a schema.
+- **Impact:** A malformed Claude response could insert unexpected values into the database. The `as Type` casts give a false sense of type safety.
+- **Severity:** medium
+- **Fix approach:** Add Zod validation for all Claude JSON responses. The project already uses Zod (`zod` is in core dependencies) but only for the artisan agent input. Apply it consistently across all agents.
+
+## Performance Risks
+
+### No Rate Limiting or Retry Logic for Claude API
+- **Issue:** API calls to Claude (`packages/core/src/ai/client.ts`) have no retry logic, no exponential backoff, and no rate limiting. If Claude returns a 429 or 500, the error propagates immediately. The same applies to OpenAI embedding calls (`packages/core/src/ai/embeddings.ts`).
+- **Impact:** During API outages or rate limits, all agent operations fail immediately. The Discord bot DM handler catches errors gracefully (replies "try again"), but the Telegram orchestrator and cron jobs may fail silently.
+- **Severity:** medium
+- **Fix approach:** Wrap `askClaude` and `getEmbedding` with retry logic (2-3 retries with exponential backoff). The `@anthropic-ai/sdk` has built-in retry support that could be configured when creating the client.
+
+### Pending Attachments Hold Buffers in Memory
+- **Issue:** When a student sends files via DM, the Discord handler downloads the file into a Node.js `Buffer` and stores it in the in-memory `ConversationState.pendingAttachments` array (`packages/bot-discord/src/handlers/dm-handler.ts` line 593). Files up to 25 MB are accepted. These buffers persist until either: submission is confirmed, the conversation is cleaned up (30 min TTL), or an error clears them.
+- **Impact:** If multiple students send large files simultaneously, memory usage spikes. With the current small class size (~30 students), this is manageable. At scale (100+ concurrent students), it becomes a problem.
+- **Severity:** low (for current scale)
+- **Fix approach:** Consider streaming directly to Supabase Storage on receipt instead of buffering in-memory, or implement a memory cap on total pending buffer size.
+
+### Exercise Summary Fetches All Rows
+- **Issue:** `getExerciseSummary()` in `packages/core/src/db/formation/exercises.ts` (line 183) fetches all exercises from the table and counts them in JavaScript, rather than using a SQL aggregate.
+- **Impact:** Inefficient as the number of exercises grows. Currently negligible with ~30 students and ~24 sessions.
+- **Severity:** low
+- **Fix approach:** Replace with a Supabase RPC that does `SELECT status, COUNT(*) FROM student_exercises GROUP BY status`.
+
+### Quiz Open-Answer Evaluation Uses Opus Model
+- **Issue:** `packages/bot-discord-quiz/src/utils/quiz-eval.ts` (line 23) uses `model: 'opus'` for evaluating every open-answer quiz response. Opus is significantly more expensive and slower than Sonnet.
+- **Impact:** Higher API costs and slower response times during quizzes with open questions. For a binary "correct/incorrect" determination, Sonnet would likely suffice.
+- **Severity:** low
+- **Fix approach:** Switch to `model: 'sonnet'` for quiz evaluation. The lenient evaluation prompt already handles edge cases well.
+
+## Scalability Issues
+
+### Module-Level Singletons Without Graceful Shutdown
+- **Issue:** Several modules use module-level singletons that are never cleaned up:
+  - `packages/core/src/db/client.ts`: Supabase client (no disconnect)
+  - `packages/core/src/cache/redis.ts`: Redis client (no disconnect on shutdown)
+  - `packages/core/src/ai/client.ts`: Anthropic clients (no cleanup)
+  - `packages/core/src/scheduler/index.ts`: `jobs` array is module-level, `stopAllJobs()` exists but is never called
+  - All `setInterval` calls in handler setup functions (`dm-handler`, `admin-handler`) are never cleared
+- **Impact:** On graceful shutdown or hot reload, connections may leak. The `setInterval` timers keep the Node.js process alive even after the bot disconnects.
+- **Severity:** low
+- **Fix approach:** Add a `shutdown()` function to core that stops cron jobs, clears intervals, and closes Redis/Supabase connections. Call it from each bot's shutdown handler.
+
+### In-Memory Conversation State Lost on Restart
+- **Issue:** All conversation state (Discord DM conversations, admin conversations, Telegram chat history, pending quiz data) is stored in in-memory `Map` objects. A process restart or crash loses all active conversations mid-flow.
+- **Impact:** Students in the middle of an exercise submission or quiz will need to start over. Admin conversations with pending actions lose their context.
+- **Severity:** medium
+- **Fix approach:** For critical flows (exercise submission, quiz in progress), the DB already tracks state (exercise status, quiz session). The conversation context loss is acceptable. Consider persisting pending quiz data (`quiz-create.ts` `pendingQuizzes` Map) to avoid quiz creation failures on restart.
+
+## Missing Infrastructure
+
+### No Health Check Endpoints
+- **Issue:** None of the bots expose HTTP health check endpoints. The deployment uses Docker containers (`docker-compose.prod.yml` referenced in CI), but there is no way for a load balancer or monitoring system to verify bot health.
+- **Impact:** Silent failures (e.g., bot loses Discord gateway connection but the process stays alive) are undetectable without manual monitoring.
+- **Severity:** medium
+- **Fix approach:** Add a minimal HTTP server (express or built-in `http`) to each bot that responds to `/health` with bot connection status.
+
+### No Structured Error Reporting / Alerting
+- **Issue:** Errors are logged via Pino but there is no error tracking service (Sentry, Datadog, etc.). Log analysis requires SSH access to the VPS.
+- **Impact:** Production errors may go unnoticed for hours or days unless the admin sees a user-facing error message.
+- **Severity:** medium
+- **Fix approach:** Add Sentry or a similar error tracking service. The Telegram admin bot already receives some alerts (e.g., `ai_review_failed`), but systematic error tracking is missing.
+
+### CI Does Not Run Linting
+- **Issue:** The CI pipeline (`.github/workflows/test.yml`) runs `pnpm typecheck` and `pnpm test:unit` but not `pnpm lint` or `pnpm format`. Combined with the missing linting config files, there is no automated style enforcement.
+- **Impact:** Code style may drift over time, especially with AI-assisted code generation.
+- **Severity:** low
+- **Fix approach:** Add lint configuration files, then add `pnpm lint` to the CI pipeline.
+
+## Code Smells
+
+### Empty Catch Blocks Swallow Errors Silently
+- **Issue:** 27 `catch {}` blocks (empty catch without variable binding or logging) across the codebase. Many are intentional (non-critical operations like cache, thread archiving), but some hide real failures:
+  - `packages/core/src/ai/orchestrator.ts` (line 117): JSON parse failure falls through silently
+  - `packages/core/src/ai/context-builder.ts` (line 150, 175): Public knowledge and archival search failures are hidden
+  - `packages/core/src/ai/planner.ts` (line 78, 142): Daily plan JSON parse failures return garbage
+- **Impact:** Debugging production issues is harder when errors are swallowed. An empty catch is the TypeScript equivalent of Python's `except: pass`.
+- **Severity:** low
+- **Fix approach:** Add at least `logger.debug` to all catch blocks. For critical paths (orchestrator JSON parsing), add proper error handling.
+
+### Tsarag Agent File Size (1081 lines)
+- **Issue:** `packages/core/src/ai/formation/tsarag-agent.ts` is the largest source file at 1081 lines, containing: system prompt, tool definitions, all tool handlers, action execution, date parsing, language detection, and the main agent loop.
+- **Impact:** Difficult to navigate and modify. Each tool handler is a self-contained function, but they all live in one file.
+- **Severity:** low
+- **Fix approach:** Extract tool handlers into `tsarag-tools/` subdirectory with one file per tool category (read-tools.ts, action-tools.ts, helpers.ts). Keep the main agent loop in the top-level file.
+
+### Hardcoded Role and Channel Names
+- **Issue:** While `config.ts` files centralize role/channel names per bot, the values themselves are hardcoded strings matching the Discord server setup (e.g., `'tsarag'`, `'объявления'`, `'студент'`). The bot-discord and bot-discord-quiz each maintain separate `config.ts` files with overlapping role names.
+- **Files:** `packages/bot-discord/src/config.ts`, `packages/bot-discord-quiz/src/config.ts`
+- **Impact:** Adding a new bot or changing a Discord role name requires finding and updating all config files.
+- **Severity:** low
+- **Fix approach:** Move shared Discord role/channel constants to `packages/core` or to an environment variable.
+
+## Dependencies
+
+### OpenAI API Key Used for Embeddings
+- **Issue:** `packages/core/src/ai/embeddings.ts` reads `OPENAI_API_KEY` at module load time (line 3: `const OPENAI_API_KEY = process.env['OPENAI_API_KEY']`). If the env var is set after the module is imported, the key won't be picked up. All other API clients read env vars lazily inside functions.
+- **Impact:** Could cause embedding failures if module load order is wrong. Currently works because `dotenv` runs before any imports.
+- **Severity:** low
+- **Fix approach:** Read `process.env['OPENAI_API_KEY']` inside the `getEmbedding()` function instead of at module scope, consistent with how `client.ts` handles `ANTHROPIC_API_KEY`.
+
+### No Dependency Pinning Beyond Lockfile
+- **Issue:** `package.json` dependencies use caret ranges (e.g., `"discord.js": "^14.16.0"`, `"@anthropic-ai/sdk": "^0.39.0"`). This is normal, but the devDependencies in the root `package.json` use even wider ranges (`"discord.js": "^14.25.1"`, `"vitest": "^4.1.1"`).
+- **Impact:** `pnpm-lock.yaml` ensures reproducible installs, but if the lockfile is regenerated (e.g., after `pnpm update`), major version differences between root devDependencies and package dependencies could cause issues.
+- **Severity:** low
+- **Fix approach:** Periodically audit with `pnpm outdated` and update intentionally.
 
 ## Test Coverage Gaps
 
-### 1. Orchestrator Action Execution (Complex, Untested)
+### Telegram Bots Have Zero Tests
+- **Issue:** `packages/bot-telegram/` and `packages/bot-telegram-public/` have no test files. All existing tests cover `packages/bot-discord/`, `packages/bot-discord-quiz/`, and `packages/core/`.
+- **Files:** `packages/bot-telegram/src/` (13 source files, 0 test files), `packages/bot-telegram-public/src/` (5 source files, 0 test files)
+- **Impact:** Changes to the orchestrator integration, voice handler, cron jobs, or reply formatting in Telegram bots are untested. The orchestrator itself (`packages/core/src/ai/orchestrator.ts`) also has no unit tests.
+- **Risk:** High for the orchestrator — it parses Claude JSON and executes database actions. A JSON parsing edge case could create duplicate tasks or crash.
+- **Priority:** Medium (orchestrator is the riskiest untested component)
 
-**What's not tested:**
-- Orchestrator parses JSON actions correctly
-- Each action type (create_task, complete_task, note, manage_memory, etc.) executes correctly
-- Inline actions succeed/fail independently without affecting others
-- Memory Agent background doesn't interfere with orchestrator response
+### Cron Jobs Have No Tests
+- **Issue:** All cron jobs across all bots are untested:
+  - `packages/bot-discord/src/cron/` (6 files: admin-digest, deadline-reminders, dropout-detector, event-dispatcher, exercise-digest, storage-cleanup)
+  - `packages/bot-telegram/src/cron/` (6 files: anti-procrastination, check-ins, dynamic-notifications, formation-events, midnight-reminder, morning-plan)
+  - `packages/bot-discord-quiz/src/cron/` (2 files: close-expired-quizzes, index)
+- **Impact:** Cron jobs run autonomously and affect production data (sending DMs, marking exercises, dispatching events). Bugs in cron jobs are discovered only in production.
+- **Risk:** Medium-high for `event-dispatcher` and `deadline-reminders` which modify state.
+- **Priority:** Medium
 
-**Files:**
-- `packages/core/src/ai/orchestrator.ts:115-240` - All action execution logic
-- No tests mock Claude API responses or DB operations
-
-**Risk:** Silent failures (actions silently dropped if JSON parse fails, no error to user)
-
-**Priority:** HIGH (core feature)
-
----
-
-### 2. Formation Exercise Reviewer (AI-Generated Content)
-
-**What's not tested:**
-- Reviewer correctly parses Claude response as ExerciseReviewResult
-- Image attachments downloaded and passed to Claude correctly
-- Scores are reasonable (always 5-8, never 0 or 10?)
-- Language mixing (French + Russian in response) works
-
-**Files:**
-- `packages/core/src/ai/formation/exercise-reviewer.ts:78-170` - Core review logic
-- `packages/core/src/ai/formation/dm-agent.ts:454-468` - Exercise trigger (fire-and-forget)
-
-**Risk:** Student gets incomplete or nonsensical review; no feedback loop
-
-**Priority:** HIGH (affects student experience)
+### Memory Agent and Consolidator Untested
+- **Issue:** `packages/core/src/ai/memory-agent.ts` and `packages/core/src/ai/memory-consolidator.ts` have no tests. These modules modify the memory database based on Claude's JSON output.
+- **Impact:** Memory corruption (wrong category, accidental deletion) would be difficult to detect and diagnose.
+- **Priority:** Low (memory operations are best-effort and the admin can manually fix)
 
 ---
 
-### 3. Database Migration Safety
-
-**What's not tested:**
-- All 16 migrations apply in order without errors
-- Data integrity after migrations (no orphaned rows)
-- RPC functions (search_formation_knowledge, search_memory_hybrid) return correct types
-- Indexes built correctly (no N+1 queries)
-
-**Files:**
-- `supabase/migrations/*.sql` - Zero automated testing
-- No pre-deployment validation script
-
-**Risk:** Migration fails on production, manual rollback needed
-
-**Priority:** MEDIUM (mitigated by manual testing, but error-prone)
-
----
-
-## Missing Critical Features
-
-### 1. Graceful Error Recovery for Students
-
-**Feature gap:** When exercise submission fails (upload, AI review, etc.), student gets error but no retry path
-
-**Problem:**
-- Student tries to submit exercise in DM → storage upload fails → "error: internal_error"
-- Student doesn't know if submission was partial, lost, or queued
-- No way to check submission status without DM history
-
-**Files:**
-- `packages/core/src/ai/formation/dm-agent.ts:259-268` - Upload error thrown
-- `packages/core/src/ai/formation/dm-agent.ts:345-380` - Submission creation
-- No status query tool in DM agent
-
-**What's needed:**
-1. Add `status` tool to DM agent: "Какой статус моего задания?" → returns latest submission state
-2. Implement submission queuing (if upload fails, queue for retry)
-3. Notify student via DM when queued task retried/succeeds
-
----
-
-### 2. Mentor Review Workflow (Partially Implemented)
-
-**Feature gap:** Mentors can view exercises but limited approval capabilities
-
-**Problem:**
-- Mentors (alumni) can call `/review` to see pending exercises
-- Mentors can leave feedback (FAQ tool)
-- But mentors can't approve or request revisions (only admin/formateur can)
-- No assignment of mentors to students for supervision
-
-**Files:**
-- `specs/04-bot-discord/SPEC.md:88-94` - Mentor role defined
-- `packages/core/src/db/formation/exercises.ts` - No mentor_id field
-- `packages/bot-discord/src/commands/admin/review.ts` - /review access uses isMentor() but no approval buttons
-
-**What's needed:**
-1. Add mentor_id to student_exercises table
-2. Let mentors approve exercises for their pod (not all)
-3. Send mentor notifications for their pod's submissions
-
-**Priority:** MEDIUM (blocking mentor role activation)
-
----
-
-## Summary by Severity
-
-### 🔴 CRITICAL (Fix Before Production)
-1. **No automated tests** - Zero test coverage on core agents
-2. **Unhandled promises** - Silent failures in storage cleanup and notifications
-3. **Exercise reviewer not validated** - AI output could be nonsensical
-4. **State machine fragility** - Submission state transitions not atomic
-
-### 🟠 HIGH (Fix Before Phase 4)
-1. **Event dispatcher not implemented** - Admin gets spammed with notifications
-2. **Missing orchestrator tests** - Core action logic untested
-3. **Memory manager conflicts** - Concurrent updates possible
-4. **No migration testing** - DB changes risky
-
-### 🟡 MEDIUM (Fix in Phase 4)
-1. **Large agent files** - Hard to maintain (1045 lines)
-2. **In-memory conversation scaling** - Memory leak on high volume
-3. **Type safety gaps** - No Zod env validation
-4. **Mentor workflow incomplete** - Feature partially implemented
-
-### 🟢 LOW (Nice to Have)
-1. **Performance monitoring** - No metrics on API latency
-2. **Knowledge search optimization** - Premature (current dataset small)
-3. **Alternative transcription** - Whisper working, backups not urgent
-
----
-
-*Concerns audit: 2026-03-24*
+*Concerns audit: 2026-03-31*

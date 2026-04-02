@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../logger.js';
 
 let anthropic: Anthropic | null = null;
+let anthropicFormation: Anthropic | null = null;
 
 function getClient(): Anthropic {
   if (anthropic) return anthropic;
@@ -16,6 +17,19 @@ function getClient(): Anthropic {
   return anthropic;
 }
 
+export function getFormationClient(): Anthropic {
+  if (anthropicFormation) return anthropicFormation;
+
+  const apiKey = process.env['ANTHROPIC_API_KEY_FORMATION'] ?? process.env['ANTHROPIC_API_KEY'];
+  if (!apiKey) {
+    throw new Error('Missing ANTHROPIC_API_KEY_FORMATION or ANTHROPIC_API_KEY environment variable');
+  }
+
+  anthropicFormation = new Anthropic({ apiKey });
+  logger.info('Anthropic formation client initialized');
+  return anthropicFormation;
+}
+
 export type ModelChoice = 'sonnet' | 'opus';
 
 const MODEL_MAP: Record<ModelChoice, string> = {
@@ -28,8 +42,9 @@ export async function askClaude(params: {
   systemPrompt?: string;
   model?: ModelChoice;
   maxTokens?: number;
+  formation?: boolean;
 }): Promise<string> {
-  const client = getClient();
+  const client = params.formation ? getFormationClient() : getClient();
   const model = MODEL_MAP[params.model ?? 'sonnet'];
 
   logger.debug({ model, promptLength: params.prompt.length }, 'Calling Claude API');

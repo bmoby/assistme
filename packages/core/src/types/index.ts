@@ -88,7 +88,7 @@ export type NewStudent = Omit<Student, 'id' | 'created_at' | 'updated_at'>;
 // Exercise Types
 // ============================================
 
-export type ExerciseStatus = 'submitted' | 'ai_reviewed' | 'reviewed' | 'approved' | 'revision_needed';
+export type ExerciseStatus = 'submitted' | 'reviewed' | 'approved' | 'revision_needed' | 'archived';
 export type NewStudentExercise = Omit<StudentExercise, 'id' | 'created_at' | 'submitted_at' | 'ai_review' | 'manual_review' | 'reviewed_at' | 'feedback'>;
 
 export interface StudentExercise {
@@ -104,6 +104,7 @@ export interface StudentExercise {
   status: ExerciseStatus;
   reviewed_at: string | null;
   feedback: string | null;
+  student_comment: string | null;
   session_id: string | null;
   submission_count: number;
   review_history: ReviewHistoryEntry[];

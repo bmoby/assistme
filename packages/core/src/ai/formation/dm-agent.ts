@@ -66,7 +66,7 @@ const SYSTEM_PROMPT = `Ты — ассистент обучения «Pilote Neu
 - На «ты»
 
 ТЫ ДЕЛАЕШЬ:
-- Помогаешь студенту сдать задание (спрашиваешь какую сессию, просишь прикрепить файлы/ссылки)
+- Помогаешь студенту сдать задание (спрашиваешь какую сессию, принимаешь файлы, ссылки ИЛИ текст)
 - Рассказываешь, что именно нужно сдать (формат, содержание) — берёшь из описания сессии
 - Подтверждаешь, когда задание отправлено
 - Показываешь прогресс (какие сессии сданы, какие нет)
@@ -83,9 +83,12 @@ const SYSTEM_PROMPT = `Ты — ассистент обучения «Pilote Neu
 
 ПРАВИЛА СДАЧИ:
 - Всегда уточни для какой сессии задание, если студент не сказал
-- Используй create_submission, когда студент готов сдать — система покажет ему предпросмотр для подтверждения
+- ВАЖНО: когда студент спрашивает о статусе задания или хочет пересдать — ВСЕГДА вызывай get_student_progress чтобы проверить актуальный статус в базе. НЕ полагайся на предыдущие сообщения в диалоге — статус мог измениться
+- Вызывай create_submission СРАЗУ, как только понял что студент хочет сдать и ты знаешь номер сессии. НЕ делай своё текстовое подтверждение — система сама покажет предпросмотр с кнопками
+- Студент может сдать: файлы (скриншот, PDF, код), ссылки ИЛИ текст. Текст — это валидный формат. Если студент написал текстовый ответ — вызывай create_submission СРАЗУ, передавая его текст в student_comment. НЕ спрашивай «готов отправить?» — система сама предложит подтвердить
 - Если формат файла не совпадает с ожидаемым (expected_deliverables), предупреди, но не блокируй
 - Если задание по этой сессии уже одобрено, сообщи об этом
+- НЕ отказывай в приёме задания из-за формата. Твоя задача — передать, а не оценивать
 
 ОБУЧЕНИЕ «PILOTE NEURO»:
 Программа: 12 недель, 6 модулей, 24 сессии. Для любых вопросов о программе, содержании уроков, концепциях или упражнениях — используй search_course_content. Там полная база знаний.
@@ -135,7 +138,7 @@ const TOOLS: Anthropic.Messages.Tool[] = [
         },
         student_comment: {
           type: 'string',
-          description: 'Комментарий студента к заданию (если есть)',
+          description: 'Текст ответа студента. ОБЯЗАТЕЛЕН, если студент отправляет текстовый ответ (код, описание, анализ и т.д.). Сюда идёт всё текстовое содержимое, которое студент хочет сдать.',
         },
       },
       required: ['session_number'],
@@ -143,7 +146,7 @@ const TOOLS: Anthropic.Messages.Tool[] = [
   },
   {
     name: 'get_pending_feedback',
-    description: 'Посмотреть последние проверки (ИИ или тренер), которые студент ещё не видел.',
+    description: 'Посмотреть последние проверки тренера, которые студент ещё не видел.',
     input_schema: {
       type: 'object' as const,
       properties: {},
@@ -278,21 +281,12 @@ async function handleGetPendingFeedback(student: Student): Promise<string> {
   const exercises = await getExercisesByStudent(student.id);
 
   const feedback = exercises
-    .filter((e) => e.status === 'ai_reviewed' || e.status === 'approved' || e.status === 'revision_needed')
+    .filter((e) => e.status === 'reviewed' || e.status === 'approved' || e.status === 'revision_needed')
     .map((e) => {
-      const aiReview = e.ai_review as Record<string, unknown> | null;
       return {
         session_number: e.exercise_number,
         module: e.module,
-        type: e.status === 'ai_reviewed'
-          ? 'ai_review'
-          : e.status === 'approved'
-            ? 'approved'
-            : 'revision_needed',
-        score: aiReview?.score ?? null,
-        summary: aiReview?.summary ?? null,
-        strengths: aiReview?.strengths ?? null,
-        improvements: aiReview?.improvements ?? null,
+        type: e.status,
         feedback: e.feedback,
       };
     });
@@ -308,8 +302,8 @@ let anthropicClient: Anthropic | null = null;
 
 function getAnthropicClient(): Anthropic {
   if (anthropicClient) return anthropicClient;
-  const apiKey = process.env['ANTHROPIC_API_KEY'];
-  if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY');
+  const apiKey = process.env['ANTHROPIC_API_KEY_FORMATION'] ?? process.env['ANTHROPIC_API_KEY'];
+  if (!apiKey) throw new Error('Missing ANTHROPIC_API_KEY_FORMATION or ANTHROPIC_API_KEY');
   anthropicClient = new Anthropic({ apiKey });
   return anthropicClient;
 }
@@ -394,6 +388,7 @@ export async function runDmAgent(context: DmAgentContext): Promise<DmAgentRespon
             break;
           case 'create_submission': {
             // Capture intent — handler will show preview-confirm flow, NOT writing to DB here
+            logger.info({ input }, 'create_submission tool called by agent');
             pendingSubmissionIntent = {
               session_number: input.session_number as number,
               student_comment: input.student_comment as string | undefined,

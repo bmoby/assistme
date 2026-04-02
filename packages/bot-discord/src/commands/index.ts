@@ -12,6 +12,7 @@ import { studentListCommand, handleStudentList } from './admin/student-list.js';
 import { sessionCommand, handleSession } from './admin/session.js';
 import { sessionUpdateCommand, handleSessionUpdate } from './admin/session-update.js';
 import { createCommand, handleCreate } from './admin/create.js';
+import { archiveSessionCommand, handleArchiveSession, handleArchiveSessionAutocomplete } from './admin/archive-session.js';
 
 type CommandHandler = (interaction: ChatInputCommandInteraction) => Promise<void>;
 
@@ -25,6 +26,7 @@ const adminCommands = [
   sessionCommand,
   sessionUpdateCommand,
   createCommand,
+  archiveSessionCommand,
 ];
 for (const cmd of adminCommands) {
   cmd.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
@@ -43,6 +45,7 @@ const commands: Array<{ data: SlashCommandBuilder; handler: CommandHandler }> = 
   { data: sessionCommand as SlashCommandBuilder, handler: handleSession },
   { data: sessionUpdateCommand as SlashCommandBuilder, handler: handleSessionUpdate },
   { data: createCommand as SlashCommandBuilder, handler: handleCreate },
+  { data: archiveSessionCommand as SlashCommandBuilder, handler: handleArchiveSession },
 ];
 
 const commandHandlers = new Collection<string, CommandHandler>();
@@ -72,6 +75,13 @@ export function setupCommandHandler(client: Client): void {
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isButton()) {
       await handleButtonInteraction(interaction);
+      return;
+    }
+
+    if (interaction.isAutocomplete()) {
+      if (interaction.commandName === 'archive-session') {
+        await handleArchiveSessionAutocomplete(interaction);
+      }
       return;
     }
 

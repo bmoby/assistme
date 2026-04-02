@@ -1,405 +1,326 @@
 # Architecture
 
-**Analysis Date:** 2026-03-24
+**Analysis Date:** 2026-03-31
 
 ## Pattern Overview
 
-**Overall:** Multi-bot centralized architecture with async event-driven orchestration.
+**Overall:** Multi-bot monorepo with shared Core brain. Four independent bot processes communicate through a central `@assistme/core` package and a shared Supabase database. AI agents use Claude API tool-use loops for decision-making.
 
 **Key Characteristics:**
-- **Three independent bot clients** (Telegram Admin, Telegram Public, Discord) communicate through a shared Core brain
-- **Request-response pattern** for synchronous operations + **event-driven pattern** for async notifications
-- **Autonomous agents** (Orchestrator, DM Agent, Tsarag Agent, FAQ Agent) with tool use for Claude API
-- **Three-tier memory system** (Core/Working/Archival) with semantic search via pgvector
-- **Graceful degradation:** Redis cache and embedding server are optional, system works without them
+- Four independent bot processes (Telegram Admin, Telegram Public, Discord Trainer, Discord Quiz) share one Core package
+- AI-driven orchestration: user messages are interpreted by Claude, which returns structured JSON actions
+- Three-tier memory system (core/working/archival) with temporal decay and semantic search
+- Event-driven inter-bot communication via `formation_events` DB table (polled by cron)
+- Autonomous agent jobs persisted in DB, processed by cron every minute
+- Graceful degradation: Redis cache and embedding server are optional
 
 ## Layers
 
-**Entry Points (Bot Layer):**
-- Purpose: Handle user interactions via platform APIs (Telegram grammY, Discord.js)
-- Location: `packages/bot-telegram/src/index.ts`, `packages/bot-telegram-public/src/index.ts`, `packages/bot-discord/src/index.ts`
-- Contains: Bot initialization, event routing to handlers, error handlers
-- Depends on: grammY, discord.js, Core (AI, DB, scheduler)
+**Bot Layer (Platform Clients):**
+- Purpose: Handle user interactions via platform-specific APIs
+- Location: `packages/bot-telegram/src/index.ts`, `packages/bot-telegram-public/src/index.ts`, `packages/bot-discord/src/index.ts`, `packages/bot-discord-quiz/src/index.ts`
+- Contains: Bot initialization, dotenv loading, handler/command/cron registration, error handling
+- Depends on: grammY (Telegram), discord.js (Discord), `@assistme/core`
 - Used by: End users via Telegram/Discord
+- Pattern: Each bot has a `main()` function that initializes client, registers handlers, then starts
 
-**Handler Layer (Event Processors):**
-- Purpose: Process incoming events from platforms and route to appropriate agents/commands
-- Location: `packages/bot-telegram/src/handlers/`, `packages/bot-telegram-public/src/handlers/`, `packages/bot-discord/src/handlers/`
+**Handler Layer:**
+- Purpose: Route incoming platform events to appropriate AI agents or direct DB operations
+- Location: `packages/bot-telegram/src/handlers/`, `packages/bot-telegram-public/src/handlers/`, `packages/bot-discord/src/handlers/`, `packages/bot-discord-quiz/src/handlers/`
 - Contains:
-  - `free-text.ts` - Telegram admin message handler → Orchestrator
-  - `voice.ts` - Telegram voice messages → Whisper transcription → Orchestrator
-  - `dm-handler.ts` - Discord DMs from students → DM Agent
-  - `admin-handler.ts` - Discord #admin messages → Tsarag Agent
-  - `faq.ts` - Discord message patterns → FAQ Agent
-  - `review-buttons.ts` - Discord button interactions → Exercise review handlers
-- Depends on: Core (AI, DB, agents)
+  - `packages/bot-telegram/src/handlers/free-text.ts` -- Routes admin free text to Orchestrator, then dispatches actions (memory, research, agent invocation, client discovery)
+  - `packages/bot-telegram/src/handlers/voice.ts` -- Transcribes voice via Whisper, then routes to Orchestrator
+  - `packages/bot-telegram-public/src/handlers/message.ts` -- Public Q&A with lead detection via Claude tags
+  - `packages/bot-discord/src/handlers/dm-handler.ts` -- Multi-turn DM Agent conversations with exercise submission flow
+  - `packages/bot-discord/src/handlers/admin-handler.ts` -- Tsarag Agent for admin channel management
+  - `packages/bot-discord/src/handlers/faq.ts` -- FAQ channel auto-answering with knowledge base
+  - `packages/bot-discord-quiz/src/handlers/quiz-start.ts`, `quiz-answer.ts`, `quiz-dm.ts` -- Quiz interaction flow via buttons and DMs
+- Depends on: Core (AI agents, DB functions)
 - Used by: Bot layer event emitters
 
 **Command Layer:**
-- Purpose: Execute explicit user commands (backup, manual operations)
-- Location: `packages/bot-telegram/src/commands/`, `packages/bot-discord/src/commands/admin/`
-- Contains: Task commands (/plan, /tasks, /next), Client commands (/clients, /newclient), Admin commands (/session, /session-update)
-- Depends on: Core (DB, logger)
-- Used by: Handlers that detect command syntax
-
-**Cron/Scheduler Layer:**
-- Purpose: Execute time-based autonomous jobs
-- Location: `packages/bot-telegram/src/cron/`, `packages/bot-discord/src/cron/`
+- Purpose: Handle explicit slash commands and bot commands
+- Location: `packages/bot-telegram/src/commands/`, `packages/bot-discord/src/commands/`, `packages/bot-discord-quiz/src/commands/`
 - Contains:
-  - `dynamic-notifications.ts` - Daily plan generation (07:00), notification dispatch (*/2 min)
-  - `formation-events.ts` - Event polling and forwarding between Discord/Telegram
-  - `admin-digest.ts` - Daily exercise submission summary (Discord)
-  - `deadline-reminders.ts` - Deadline notifications to students (24h and 48h before)
-  - `exercise-digest.ts` - Daily exercise activity report
-  - `dropout-detector.ts` - Student engagement monitoring
-- Depends on: Core (scheduler module, AI, DB)
-- Used by: Core scheduler (node-cron)
+  - Telegram: `/plan`, `/tasks`, `/next`, `/done`, `/add`, `/skip`, `/clients`, `/newclient`, `/notifs`, `/voice`, `/kb`
+  - Discord Trainer: `/add-student`, `/announce`, `/review`, `/approve`, `/revision`, `/student-list`, `/session`, `/session-update`, `/create`
+  - Discord Quiz: `/quiz-create` (upload TXT, AI parses, sends to students), `/quiz-status`, `/quiz-close`
+- Depends on: Core (DB, agents, logger)
+- Used by: Handlers that detect command syntax or slash command interactions
 
-**Core/AI Layer (Brain):**
-- Purpose: Decision-making and response generation for all user interactions
+**Cron Layer:**
+- Purpose: Execute time-based background jobs autonomously
+- Location: `packages/bot-telegram/src/cron/`, `packages/bot-discord/src/cron/`, `packages/bot-discord-quiz/src/cron/`
+- Contains:
+  - Telegram: memory consolidation (03:00), zombie reminder cleanup (06:55), daily notification plan (07:00), notification dispatch (every 2 min), formation event dispatch (every 5 min), agent job processor (every 1 min)
+  - Discord: exercise digest (09:00), dropout detection (Mon 10:00), event dispatch (every 5 min), deadline reminders (10:00), storage cleanup (03:00), admin digest (09:00/21:00), agent job processor (every 1 min)
+  - Quiz: close expired quiz sessions (every 30 min)
+- Depends on: Core (scheduler, AI, DB, agents)
+- Used by: Core scheduler (node-cron) -- registered at bot startup
+
+**AI Agent Layer:**
+- Purpose: Decision-making and response generation using Claude API
 - Location: `packages/core/src/ai/`
 - Contains:
-  - `orchestrator.ts` - Main entry point for admin messages (Telegram). Analyzes user input, decides actions (create_task, manage_memory, start_research), generates response
-  - `memory-agent.ts` - Background service that extracts and stores long-term learnings from orchestrator actions
-  - `memory-manager.ts` - Specialized agent for memory CRUD operations (create/update/delete/search)
-  - `research-agent.ts` - Deep research mode with extended token budget (16k) for complex topics
-  - `client-discovery-agent.ts` - Interactive discovery for new client leads
-  - `memory-consolidator.ts` - Daily cleanup (03:00) that archives/deletes expired working memories
-  - `formation/dm-agent.ts` - DM handler for Discord students: file uploads, exercise submission, course search (tool use)
-  - `formation/tsarag-agent.ts` - Admin conversational interface (Discord #admin): student lookup, exercise actions, announcements
-  - `formation/faq-agent.ts` - Answers FAQ questions with confidence scoring
-  - `formation/exercise-reviewer.ts` - Reviews student exercise submissions with session context
-  - `context-builder.ts` - Assembles dynamic context (memory, tasks, clients, time) for orchestrator prompts
-  - `notification-planner.ts` - Generates daily notification plan (topics, times, messages)
-  - `planner.ts` - Parses daily plan generation from Claude
-  - `transcribe.ts` - Whisper API for voice messages (FR/RU)
-  - `embeddings.ts` - Calls embedding server or returns zero vector
-- Depends on: Core (DB, logger, cache), Claude API, Supabase, Embedding Server (optional)
+  - `packages/core/src/ai/orchestrator.ts` -- Telegram admin Orchestrator: interprets free text, returns structured JSON actions
+  - `packages/core/src/ai/formation/dm-agent.ts` -- Discord DM Agent: multi-turn tool-use loop for student interactions (5 tool types)
+  - `packages/core/src/ai/formation/tsarag-agent.ts` -- Discord Admin Agent: formation management with propose/confirm action flow
+  - `packages/core/src/ai/formation/faq-agent.ts` -- FAQ answering with existing FAQ matching
+  - `packages/core/src/ai/formation/exercise-reviewer.ts` -- AI exercise review with attachment analysis
+  - `packages/core/src/ai/memory-agent.ts` -- Background memory extraction from conversations
+  - `packages/core/src/ai/memory-manager.ts` -- Explicit memory CRUD operations
+  - `packages/core/src/ai/memory-consolidator.ts` -- Nightly memory tier consolidation
+  - `packages/core/src/ai/research-agent.ts` -- Deep research report generation
+  - `packages/core/src/ai/client-discovery-agent.ts` -- Client qualification question generation
+  - `packages/core/src/ai/planner.ts` -- Daily plan generation
+  - `packages/core/src/ai/notification-planner.ts` -- AI-driven notification scheduling
+  - `packages/core/src/ai/context-builder.ts` -- Assembles dynamic prompt context from memory tiers + live data
+  - `packages/core/src/ai/client.ts` -- Claude API client wrapper (singleton, model selection)
+  - `packages/core/src/ai/embeddings.ts` -- OpenAI text-embedding-3-small for semantic search
+  - `packages/core/src/ai/transcribe.ts` -- OpenAI Whisper transcription
+  - `packages/core/src/ai/tts.ts` -- Text-to-speech generation
+  - `packages/bot-discord-quiz/src/ai/parse-quiz.ts` -- Quiz TXT parsing via Claude with Zod validation
+- Depends on: Claude API, OpenAI API, Core DB, Supabase
 - Used by: Handlers, Cron jobs, Commands
 
-**Core/DB Layer (State):**
-- Purpose: Persistent storage abstraction over Supabase
+**Autonomous Agent Framework:**
+- Purpose: Async background agent jobs with DB persistence and chaining
+- Location: `packages/core/src/agents/`
+- Contains:
+  - `packages/core/src/agents/registry.ts` -- Agent registration and invocation with permission checks
+  - `packages/core/src/agents/types.ts` -- AgentDefinition, AgentJob, AgentOrigin, CallerRole types
+  - `packages/core/src/agents/permissions.ts` -- Role-based access control for agent invocation
+  - `packages/core/src/agents/db.ts` -- Agent job DB operations (create, get, mark status)
+  - `packages/core/src/agents/job-processor.ts` -- Polls pending jobs, executes, uploads files to Storage, chains jobs
+  - `packages/core/src/agents/artisan/` -- PPTX presentation generator agent
+  - `packages/core/src/agents/chercheur.ts` -- Deep research agent (chains to artisan)
+- Pattern: `registerAgent()` at startup, `invoke()` creates DB job, cron polls and executes
+
+**Database Layer:**
+- Purpose: Persistent storage abstraction over Supabase (PostgreSQL)
 - Location: `packages/core/src/db/`
 - Contains:
-  - `client.ts` - Supabase singleton initialization
-  - `tasks.ts` - Task CRUD (create, read, update completion status)
-  - `clients.ts` - Client/lead pipeline management
-  - `memory.ts` - Personal memory CRUD (core/working/archival tiers, semantic search, embedding storage)
-  - `reminders.ts` - Notification scheduling with state tracking (active/sent/expired)
-  - `daily-plans.ts` - Session plans with task snapshots
-  - `public-knowledge.ts` - Knowledge base for public bot (Telegram public)
-  - `formation/` - Formation-specific tables:
-    - `students.ts` - Student profiles linked to Discord IDs
-    - `sessions.ts` - Training session metadata
-    - `exercises.ts` - Exercise definitions
-    - `knowledge.ts` - Course content with hybrid search RPC
-    - `faq.ts` - FAQ entries with approval workflow
-    - `attachments.ts` - Exercise submission file metadata
-    - `events.ts` - Cross-bot events (Discord ↔ Telegram)
+  - `packages/core/src/db/client.ts` -- Singleton Supabase client
+  - `packages/core/src/db/tasks.ts` -- Task CRUD (personal task management)
+  - `packages/core/src/db/daily-plans.ts` -- Daily plan persistence
+  - `packages/core/src/db/clients.ts` -- Client/lead pipeline CRUD
+  - `packages/core/src/db/memory.ts` -- Three-tier memory operations (core/working/archival) with decay and hybrid search
+  - `packages/core/src/db/reminders.ts` -- Reminder scheduling and lifecycle
+  - `packages/core/src/db/public-knowledge.ts` -- Public bot knowledge base
+  - `packages/core/src/db/formation/students.ts` -- Student CRUD and lookup by Discord ID
+  - `packages/core/src/db/formation/exercises.ts` -- Exercise submission, review, status management
+  - `packages/core/src/db/formation/sessions.ts` -- Session CRUD and publishing
+  - `packages/core/src/db/formation/faq.ts` -- FAQ entries CRUD
+  - `packages/core/src/db/formation/events.ts` -- Inter-bot event creation and polling
+  - `packages/core/src/db/formation/attachments.ts` -- Exercise attachment management with Supabase Storage
+  - `packages/core/src/db/formation/knowledge.ts` -- Formation knowledge base with hybrid search (BM25 + vector)
+  - `packages/core/src/db/quiz/quizzes.ts` -- Quiz CRUD
+  - `packages/core/src/db/quiz/questions.ts` -- Quiz question operations
+  - `packages/core/src/db/quiz/sessions.ts` -- Student quiz session tracking
+  - `packages/core/src/db/quiz/answers.ts` -- Student answer recording and evaluation
 - Depends on: Supabase client
 - Used by: All agents, handlers, cron jobs
 
-**Core/Cache Layer (Performance):**
-- Purpose: Optional in-memory caching for memory contexts (Redis)
+**Cache Layer:**
+- Purpose: Optional in-memory caching for memory contexts
 - Location: `packages/core/src/cache/redis.ts`
-- Contains: Singleton Redis client, TTL-based get/set for memory tiers
-- Graceful degradation: If Redis unavailable, queries go directly to Supabase
-- Used by: Context Builder
+- Contains: Singleton Redis client, TTL-based get/set/delete
+- Pattern: Graceful degradation -- if Redis unavailable, returns null and callers fall through to DB
+- Used by: Context Builder (memory tiers cached: core 5 min, working 2 min)
 
-**Core/Types Layer:**
-- Purpose: Centralized TypeScript interfaces and enums
+**Type System:**
+- Purpose: Centralized TypeScript interfaces and type unions
 - Location: `packages/core/src/types/index.ts`
-- Contains: Task, DailyPlanTask, Client, MemoryEntry, Student, Session, Exercise, Event, Reminder types
-- Used by: All layers
+- Contains: Task, Student, StudentExercise, Client, Session, Quiz, QuizQuestion, MemoryEntry, Reminder, FormationEvent, PublicKnowledge, FaqEntry, and all related status/category enums
+- Used by: All layers via `import type { ... } from '@assistme/core'`
 
-**Core/Scheduler Layer:**
-- Purpose: Cron job registration and execution
+**Scheduler:**
+- Purpose: Centralized cron job registration and lifecycle
 - Location: `packages/core/src/scheduler/index.ts`
-- Contains: Job registry, error-wrapped execution
-- Used by: Bot cron entry points
-
-**External Services Layer:**
-- **Supabase (PostgreSQL)**: Master state store for all entities
-- **Claude API**: All AI decisions and agent logic (async agent tools)
-- **Embedding Server**: MiniLM-L6-v2 embeddings via HTTP (optional, FastAPI)
-- **OpenAI Whisper**: Audio transcription for voice messages
-- **Redis**: Optional cache for performance
-- **Google APIs**: Meet link generation for sessions
+- Contains: `registerJob()`, `startAllJobs()`, `stopAllJobs()` with error-wrapped execution
+- Used by: Bot cron modules register jobs at startup
 
 ## Data Flow
 
-**Flow 1: Admin Text Message → Orchestrator → Action Execution**
+**Telegram Admin Message Flow:**
 
-1. User sends text message to Telegram Admin bot
-2. `handlers/free-text.ts` receives message
-3. Message added to conversation history cache (20 messages, 30 min TTL)
-4. `processWithOrchestrator(text, history)` called
-5. Context Builder assembles: memory (3 tiers), active tasks, clients, time
-6. Claude Sonnet analyzes with orchestrator prompt (direct actions: create_task, complete_task, etc.)
-7. Claude returns JSON: `{ actions: [...], response: "..." }`
-8. Inline actions executed (task/client creation)
-9. Response sent to user
-10. If `manage_memory` action detected → `processMemoryRequest()` called
-11. If `start_research` action detected → `runResearchAgent()` called
-12. Background: Memory Agent analyzes significant extracts and stores as archival memories
+1. User sends text message to Telegram admin bot
+2. `packages/bot-telegram/src/handlers/free-text.ts` catches non-command text
+3. `isAdmin(ctx)` validates sender (`packages/bot-telegram/src/utils/auth.ts`)
+4. Message added to in-memory conversation history (`packages/bot-telegram/src/utils/conversation.ts`)
+5. `processWithOrchestrator()` called (`packages/core/src/ai/orchestrator.ts`):
+   a. `buildContext()` assembles memory tiers + live tasks/clients + temporal data
+   b. Claude API called with context-enriched system prompt
+   c. JSON response parsed: `{ actions: [...], response: "..." }`
+   d. Actions executed inline: `create_task`, `complete_task`, `create_client`
+   e. Deferred actions returned: `manage_memory`, `start_research`, `invoke_agent`, `start_client_discovery`
+6. Handler dispatches deferred actions (memory manager, research agent, agent invocation)
+7. Memory Agent runs in background (fire-and-forget) to extract long-term memories
+8. Response sent back to user via `smartReply()` (plain text or TTS)
 
-**Flow 2: Memory Modification (Specialized Agent)**
+**Discord Student DM Flow:**
 
-1. User indicates memory change intent (e.g., "Je change d'objectif")
-2. Orchestrator detects → returns `manage_memory` action
-3. Handler calls `processMemoryRequest(userMessage, history)`
-4. Memory Manager agent loads full memory state (core + working + public knowledge)
-5. Claude analyzes: table (memory vs public_knowledge), action (create/update/delete), category, key
-6. Execute on Supabase, invalidate cache (memory:core, memory:working)
-7. Return confirmation with diff (old → new)
+1. Student sends DM to Discord Trainer bot
+2. `packages/bot-discord/src/handlers/dm-handler.ts` catches DM messages
+3. Per-user processing lock acquired (prevents concurrent processing)
+4. Attachments downloaded to buffer, URLs detected in text
+5. `runDmAgent()` called (`packages/core/src/ai/formation/dm-agent.ts`):
+   a. Student identified by Discord ID
+   b. Claude API called with tool-use loop (max 5 iterations)
+   c. Tools: `get_student_progress`, `get_session_exercise`, `create_submission`, `get_pending_feedback`, `search_course_content`
+   d. If `create_submission` tool used, returns `submissionIntent` (not DB write)
+6. If submission intent present, handler shows preview-confirm flow:
+   a. Embed with session info, files, comments
+   b. Confirm/Cancel buttons with 2-minute timeout
+   c. On confirm: uploads files to Supabase Storage, creates DB records, triggers AI review (fire-and-forget)
+   d. Admin notification sent to `#admin` channel
+7. Stale conversations cleaned up every 5 minutes (30 min TTL)
 
-**Flow 3: Notification Dispatch (Scheduled)**
+**Discord Quiz Flow:**
 
-1. 07:00 Cron: `planDay()`
-   - Reads preference: notifications per day (default 15)
-   - Cancel previous day's reminders
-   - Build context (tasks, clients, time)
-   - Claude plans N notifications: topics, times, messages
-   - Batch create reminders in DB (status: 'active')
+1. Admin uploads TXT file via `/quiz-create` command (`packages/bot-discord-quiz/src/commands/quiz-create.ts`)
+2. `parseQuizFromTxt()` sends TXT to Claude for structured parsing (`packages/bot-discord-quiz/src/ai/parse-quiz.ts`)
+3. Zod validates parsed quiz structure (MCQ, true/false, open questions)
+4. Admin sees preview embed with confirm/cancel buttons
+5. On confirm: quiz + questions saved to DB, quiz sent to all active students via DM
+6. Students answer question-by-question via buttons (MCQ/true_false) or DM text (open)
+7. Each answer evaluated (exact match for MCQ/TF, AI for open questions)
+8. Session completed when all questions answered; score calculated
+9. Expired sessions closed by cron every 30 minutes
 
-2. Every 2 min: `dispatchNotifications()`
-   - Query: reminders with trigger_at <= NOW() AND status = 'active'
-   - Send each via `bot.api.sendMessage(chatId, message)`
-   - Mark as sent (status: 'sent')
+**Inter-Bot Communication (Event System):**
 
-3. User responds → Flow 1 (normal orchestrator)
-
-**Flow 4: Student Exercise Submission (Discord DM)**
-
-1. Student sends text + file/link in Discord DM
-2. `dm-handler.ts` intercepts (guild === null check)
-3. Files validated: MIME type + size (max 25 MB)
-4. Uploaded to Supabase Storage: `exercise-submissions/{student_id}/{session-N|misc}/{timestamp}-{filename}`
-5. Conversation state accumulated (max 20 messages, 30 min TTL)
-6. `runDmAgent({ studentId, discordId, messages, pendingAttachments })`
-   - Claude with tool loop (max 5 iterations):
-     - Tool 1: `get_student_progress` → student profile + submission status
-     - Tool 2: `get_session_exercise` → deliverables, deadline
-     - Tool 3: `create_submission` → inserts student_exercises + exercise_attachments, creates event
-     - Tool 4: `get_pending_feedback` → reviews student hasn't seen
-     - Tool 5: `search_course_content` → hybrid search in formation_knowledge
-   - Returns text response + submissionId
-7. Event created: type='exercise_submitted', target='telegram-admin'
-8. Bot Discord sends response (split if >2000 chars)
-9. Conversation state cleared
-
-**Flow 5: Formation Knowledge (Hybrid Search)**
-
-1. On seed (`pnpm seed:knowledge`):
-   - Read 14 markdown files from `learning-knowledge/`
-   - Chunk by H2 headings, split H3 if >3000 chars
-   - Extract tags from bold text
-   - Upsert to `formation_knowledge` table (idempotent by source_file+title)
-   - Background embed: `getEmbedding()` → HTTP call to embedding server
-
-2. On query (DM Agent, FAQ Agent, context):
-   - `getEmbedding(query_text)` → 384-dim vector (HTTP if available, else zero vector)
-   - Call RPC `search_formation_knowledge(query_text, embedding, filters)`
-   - RPC scores: `vector_weight * cosine + text_weight * BM25`
-   - Returns sorted results (threshold 0.25)
-
-**Flow 6: Admin Actions via Tsarag Agent (Discord #admin)**
-
-1. Admin writes message in #admin channel
-2. `admin-handler.ts` intercepts (role check @tsarag)
-3. Conversation state per channel (50 messages, 60 min TTL)
-4. `runTsaragAgent(context)`
-   - Claude with tool loop (max 8 iterations):
-     - READ tools (7): list_students, get_student_details, list_pending_exercises, etc.
-     - ACTION tools (2): propose_action (stores pending action), execute_pending
-   - Pattern: READ → propose_action → wait for confirmation → execute
-5. Returns: text, proposedAction, executedActionId
-6. Admin confirms: "Tu confirmes ?" → User replies "oui" → execute_pending called
-7. Execution side effects:
-   - Create/update/approve: creates events (Telegram notification)
-   - Approve exercise: DM student with feedback
-   - Send announcement: posts in #annonces
+1. Producer creates event: `createFormationEvent({ type, source, target, data })`
+   - Sources: Discord handlers, AI agents
+   - Types: `exercise_submitted`, `exercise_reviewed`, `student_alert`, `announcement`, `ai_review_complete`
+2. Events stored in `formation_events` table (Supabase)
+3. Consumers poll every 5 minutes:
+   - Telegram cron (`packages/bot-telegram/src/cron/formation-events.ts`) processes events targeted at `telegram-admin`
+   - Discord cron (`packages/bot-discord/src/cron/event-dispatcher.ts`) processes events targeted at `discord`
+4. Event marked as processed after delivery
 
 **State Management:**
-
-- **Conversation state**: In-memory maps per chat/channel (TTL 30-60 min), cleared after agent completion
-- **Memory cache**: Redis with 2-5 min TTL for tier contexts, invalidated on upsert/delete
-- **Reminder state**: Persistent in Supabase (active → sent → expired)
-- **Event queue**: Persistent in Supabase (unprocessed → processed)
-- **Formation knowledge embeddings**: Stored in pgvector columns, fetched on seed/search
+- Conversation state: In-memory Maps per chat/channel (TTL 30-60 min), cleared after inactivity
+- Processing locks: Per-user Promise chains prevent concurrent agent executions
+- Memory tiers: Persistent in Supabase, cached in Redis (core 5 min, working 2 min)
+- Agent jobs: Persistent in Supabase `agent_jobs` table (pending -> processing -> completed/failed)
+- Quiz sessions: Persistent in Supabase `student_quiz_sessions` table
 
 ## Key Abstractions
 
-**Orchestrator Pattern:**
+**Orchestrator (`packages/core/src/ai/orchestrator.ts`):**
 - Purpose: Single entry point for admin message interpretation
-- Location: `packages/core/src/ai/orchestrator.ts`
-- Pattern: Claude analyzes text + context → returns structured JSON with actions + response
-- Used by: Telegram admin handlers
+- Pattern: Claude analyzes text + context -> returns structured JSON with actions + response
+- Actions executed inline or deferred to handler
+- Memory Agent runs in background after every message (unless memory action triggered)
 
-**Agent Pattern (Tool-Use Loop):**
+**Tool-Use Agent Loop (`packages/core/src/ai/formation/dm-agent.ts`, `tsarag-agent.ts`):**
 - Purpose: Multi-turn Claude interactions for complex workflows
-- Examples: DM Agent, Tsarag Agent, FAQ Agent, Exercise Reviewer
-- Pattern: Register tools → Claude calls tools in loop (max N iterations) → extract final text
-- Tool categories: READ (queries DB/API) and ACTION (modify state with confirmation)
+- Pattern: Register tools -> Claude calls tools in loop (max 5 iterations) -> extract final text
+- DM Agent tools: read-only (progress, session info, search) + write (create_submission)
+- Tsarag Agent tools: read (list students/sessions/exercises) + action (propose_action/execute_pending with confirm flow)
 
-**Context Builder Pattern:**
+**Context Builder (`packages/core/src/ai/context-builder.ts`):**
 - Purpose: Assemble dynamic prompt context without manual parameter passing
-- Location: `packages/core/src/ai/context-builder.ts`
-- Pattern: `buildContext(options)` loads tiers, live data, formats into text block → inject into system prompt
-- Caching: Memory tiers cached separately (core 5 min, working 2 min)
+- Pattern: `buildContext(options)` loads tiers, live data, formats into text block -> inject into system prompt
+- Tiers: Core (always loaded, identity), Working (sorted by temporal decay), Archival (semantic search on user message)
+- Live data: Active tasks, client pipeline, temporal info (date/time)
 
-**Memory Tier System:**
-- Purpose: Organize long-term knowledge with different retention/search policies
-- Core (permanent, identity): Personality, skills, life structure
-- Working (30-day expiry, situation/preference/relationship): Current activities, goals, people
-- Archival (permanent, lessons): Past experiences, learnings (semantic search only)
-- Consolidation: Daily 03:00 cron reviews expired working memories, archives or deletes
+**Three-Tier Memory:**
+- Core (permanent, identity): `packages/core/src/db/memory.ts` `getCoreMemory()`
+- Working (30-day expiry): `getWorkingMemory()` with `computeDecay(last_confirmed)` scoring
+- Archival (permanent, semantic search): `searchMemoryHybrid()` with BM25 + vector + decay
+- Consolidation: `packages/core/src/ai/memory-consolidator.ts` runs nightly, reviews expired working memories
 
-**Event-Driven Cross-Bot Communication:**
-- Purpose: Async notifications without tight coupling
-- Table: `events` (id, source, target, type, data, created_at, processed_at)
-- Producers: DM Agent, Tsarag Agent, handlers
-- Consumers: Cron jobs (event-dispatcher every 2 min), handlers
-- Pattern: Create event → cron polls → format and send → mark processed
+**Agent Job System (`packages/core/src/agents/`):**
+- Purpose: Async agent execution with DB persistence
+- Pattern: `registerAgent(definition)` at startup -> `invoke(name, input, origin)` creates DB job -> cron calls `processAgentJobs()` -> agent executes -> files uploaded to Storage -> result event created
+- Job chaining: agent output can specify `chainTo: { agentName, input }` for pipeline execution
+- Zombie recovery: jobs stuck in `processing` for too long are reset to `pending`
 
-**Embedding Search Pipeline:**
-- Purpose: Semantic retrieval for course content and memory
-- Query flow: getText() → getEmbedding(text) → HTTP to embedding server → pgvector similarity
-- Fallback: If embedding server down, use zero vector (BM25 only, graceful degradation)
-- RPC: `search_formation_knowledge()` combines vector + BM25 scores
+**Formation Event Bus:**
+- Purpose: Loose coupling between bots for cross-platform notifications
+- Table: `formation_events` (type, source, target, data, processed)
+- Producers: Discord handlers, AI agents (exercise submission, review, alerts)
+- Consumers: Cron jobs poll and dispatch (Telegram: every 5 min, Discord: every 5 min)
 
 ## Entry Points
 
-**Telegram Admin Bot (`packages/bot-telegram/src/index.ts`):**
-- Location: Entry point at main() function
-- Triggers: Incoming Telegram updates (messages, voice, buttons)
-- Responsibilities:
-  - Load .env, initialize grammY Bot
-  - Register autonomous agents (Artisan, Chercheur)
-  - Register handlers (commands, voice, free text)
-  - Register cron jobs
-  - Error handling
-- Outputs: Messages to chat, notifications
+**`packages/bot-telegram/src/index.ts` (Telegram Admin Copilot):**
+- Triggers: Incoming Telegram updates (text messages, voice, commands)
+- Responsibilities: Register commands, handlers, cron jobs; register autonomous agents (Artisan, Chercheur)
+- Language: French (admin interface)
 
-**Telegram Public Bot (`packages/bot-telegram-public/src/index.ts`):**
-- Location: Entry point at main() function
-- Triggers: Incoming Telegram updates from non-admin users
-- Responsibilities:
-  - Load .env, initialize grammY Bot
-  - Handle /start command
-  - Register voice + message handlers
-  - Transcribe voice (Whisper RU)
-  - Load public_knowledge from DB
-  - Error handling
-- Outputs: Messages to chat, lead notifications to admin
+**`packages/bot-telegram-public/src/index.ts` (Telegram Public Bot):**
+- Triggers: Incoming Telegram updates from public users
+- Responsibilities: Answer questions in Russian using public knowledge base, detect leads, notify admin
+- Language: Russian (audience-facing)
 
-**Discord Bot (`packages/bot-discord/src/index.ts`):**
-- Location: Entry point at main() function
-- Triggers: Discord gateway events (ready, messages, interactions)
-- Responsibilities:
-  - Load .env, initialize Discord.js Client
-  - Register autonomous agents
-  - Register slash commands via REST API
-  - Setup handlers (DM, admin #channel, FAQ, buttons, member join)
-  - Register cron jobs
-  - Error handling
-- Outputs: Messages, DMs, channel announcements, button responses
+**`packages/bot-discord/src/index.ts` (Discord Trainer Bot):**
+- Triggers: Discord gateway events (messages, slash commands, button interactions, guild member events)
+- Responsibilities: Student DM conversations, exercise submission/review, FAQ, admin management, cron jobs
+- Language: Russian (student-facing), French (admin channel)
 
-**Core Index (`packages/core/src/index.ts`):**
-- Location: Module export aggregator
-- Exports: All public types, DB functions, AI functions, scheduler, agents, logger
-- Used by: All bots import this as `import { ... } from '@assistme/core'`
+**`packages/bot-discord-quiz/src/index.ts` (Discord Quiz Bot - TeacherBot):**
+- Triggers: Discord slash commands, button interactions, DM messages
+- Responsibilities: Quiz creation from TXT files, question delivery via DM, answer evaluation, score tracking
+- Language: Russian (student-facing), French (admin commands)
+
+**`packages/core/src/index.ts` (Core Package):**
+- Barrel export aggregating all public types, DB functions, AI functions, scheduler, agents, logger
+- Used by: All bots import as `import { ... } from '@assistme/core'`
 
 ## Error Handling
 
-**Strategy:** Explicit try-catch blocks with structured logging, never silent failures.
+**Strategy:** Explicit throws for critical errors, graceful degradation for non-critical services, fire-and-forget for background operations.
 
 **Patterns:**
-
-1. **Cron jobs** (`packages/core/src/scheduler/index.ts`):
-```
-try {
-  await job.handler()
-  logger.info({ job: job.name }, 'Cron job completed')
-} catch (error) {
-  logger.error({ job: job.name, error }, 'Cron job failed')
-  // Continue to next job, don't crash
-}
-```
-
-2. **Agent tool calls** (DM Agent, Tsarag Agent):
-```
-try {
-  const result = await tool()
-  // Use result
-} catch (error) {
-  logger.error({ tool: name, error }, 'Tool failed')
-  // Return error message to Claude via tool_use_error response
-}
-```
-
-3. **External service failures** (Redis, Embedding Server):
-```
-try {
-  return await redis.get(key)
-} catch {
-  logger.debug('Cache miss, querying DB directly')
-  return await db.query() // Graceful degradation
-}
-```
-
-4. **Database constraints** (unique keys, foreign keys):
-```
-try {
-  await db.upsert(record)
-} catch (error) {
-  if (error.code === 'UNIQUE_VIOLATION') {
-    logger.warn('Duplicate entry, updating instead')
-    await db.update(record)
-  } else {
-    throw error // Re-throw unexpected errors
-  }
-}
-```
-
-5. **Handler-level** (Telegram/Discord):
-```
-bot.catch((err) => {
-  logger.error({ error: err.error, ctx: err.ctx?.update }, 'Bot error')
-  // Don't reply to user, just log
-})
-```
+- Supabase errors: check `error` field in response, log with context, rethrow
+- Claude API: throw on missing text block, JSON parse fallback to plain text response
+- Redis/Embedding: silent degradation -- return null, callers fall through to direct DB queries
+- Background operations (AI review, admin notification, memory agent): `void promise.catch(err => logger.error(...))`
+- Agent jobs: errors caught per-job, marked as `failed` in DB without stopping other jobs
+- Handler-level: try/catch around full message processing, user-facing error message sent back
+- Conversation locks: prevent concurrent processing per user to avoid race conditions
 
 ## Cross-Cutting Concerns
 
 **Logging:**
-- Framework: Pino (structured JSON logging)
-- Configuration: `packages/core/src/logger.ts`
-- Pretty-print in dev, JSON in production
-- Levels: debug (disabled by default), info, warn, error
-- Pattern: `logger.info({ context }, 'Message')` for all meaningful actions
+- Framework: Pino (`packages/core/src/logger.ts`)
+- Singleton export: `export const logger = pino({ ... })`
+- Pretty-print in dev (pino-pretty), JSON in production
+- Levels: debug (default disabled), info, warn, error
+- Pattern: `logger.info({ contextObj }, 'Message')` -- structured first arg, string second
+- Level controlled by `LOG_LEVEL` env var
 
 **Validation:**
-- Tool: Zod for runtime validation of external data (Supabase responses, Claude outputs)
-- Location: `packages/core/src/types/` and AI modules
-- Pattern: Parse and validate before use, throw explicit errors if invalid
+- Tool: Zod for runtime validation of external data (Claude responses, API inputs, quiz parsing)
+- Agent input validated via `agent.inputSchema.safeParse(input)` before job creation
+- Quiz parsing: discriminated union schema for MCQ/true_false/open questions
+- JSON responses from Claude: try/catch with fallback to plain text
 
 **Authentication:**
-- Telegram: Admin check via `isAdmin(ctx)` helper in `packages/bot-telegram/src/utils/auth.ts`
-- Discord: Role check via `isAdmin(interaction)` or role verification in handlers
-- No JWT/OAuth (trust incoming message routing from platform APIs)
+- Telegram Admin: `isAdmin(ctx)` checks `ctx.from.id` against `TELEGRAM_ADMIN_ID` env var (`packages/bot-telegram/src/utils/auth.ts`)
+- Discord Trainer: Role-based via `isAdmin(message)`, `isStudent(message)`, `isMentor(message)` checking Discord role names (`packages/bot-discord/src/utils/auth.ts`)
+- Discord Quiz: Same role-based pattern (`packages/bot-discord-quiz/src/utils/auth.ts`)
+- Agent invocation: `CallerRole` ('admin'|'mentor'|'student'|'public') checked against `agent.allowedRoles`
+- No JWT/OAuth -- trust platform API message routing
 
-**Concurrency Control:**
-- Conversation state: Per-channel/chat locks prevent concurrent agent executions
-- Location: Lock maps in handler modules
-- Pattern: Acquire lock → run agent → release lock → process other messages sequentially
+**Concurrency:**
+- Per-user processing locks in DM handlers prevent concurrent agent executions
+- Pattern: Promise chain per userId -- new messages queue behind existing processing
+- Location: `processingLocks` Maps in `dm-handler.ts` and `admin-handler.ts`
 
-**Performance Considerations:**
-- **Memory contexts cached**: Core (5 min), Working (2 min) to reduce DB queries
-- **Embedding server optional**: Zero vector fallback if unavailable
-- **Batch operations**: Formation knowledge seeded in chunks, reminders created in batch
-- **Cron schedule staggering**: 03:00 consolidation before 07:00 plan before 07:02 dispatch
+**Caching:**
+- Redis optional: `packages/core/src/cache/redis.ts` with TTL-based get/set
+- Memory tiers cached separately (core 5 min, working 2 min)
+- Graceful degradation: if Redis unavailable, goes directly to Supabase
+
+**Configuration:**
+- Channel/role names centralized: `packages/bot-discord/src/config.ts`, `packages/bot-discord-quiz/src/config.ts`
+- Must match Discord server setup exactly
+- Environment: dotenv loaded from project root `.env` (and `.env.dev` for Discord bots)
 
 ---
 
-*Architecture analysis: 2026-03-24*
+*Architecture analysis: 2026-03-31*

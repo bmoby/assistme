@@ -1,233 +1,258 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-24
+**Analysis Date:** 2026-03-31
 
 ## Naming Patterns
 
 **Files:**
-- Lowercase with hyphens for directories and modules: `agent-jobs.ts`, `memory-agent.ts`, `bot-telegram`
-- PascalCase for type/interface files if exporting types: `types/index.ts` contains interfaces like `Task`, `Student`
-- Index files (`index.ts`) as module entry points for directory-based organization
-- Function files use kebab-case that matches functionality: `memory-agent.ts`, `context-builder.ts`, `pptx-builder.ts`
+- Use kebab-case for all source files: `dm-agent.ts`, `context-builder.ts`, `quiz-eval.ts`
+- Use kebab-case for directories: `bot-discord-quiz`, `formation`
+- Index files (`index.ts`) as module entry points for directories: `packages/core/src/db/index.ts`, `packages/core/src/ai/index.ts`
+- Test files: co-located with source, `*.test.ts` suffix: `dm-agent.test.ts` next to `dm-agent.ts`
+- Integration tests: `*.integration.test.ts` suffix: `knowledge.integration.test.ts`
+- E2E tests: `*.e2e.test.ts` suffix in `test/e2e/`: `dm-student-flow.e2e.test.ts`
 
 **Functions:**
-- camelCase for all function names
-- Async functions follow same naming convention without async suffix: `createTask()`, `getSupabase()`, `runMemoryAgent()`
-- Private helper functions prefixed with underscore discouraged; instead use module scoping
-- Action-verb prefix for database operations: `getTask()`, `createTask()`, `updateTask()`, `deleteMemory()`
-- Query functions: `get*` for single/array returns, `search*` for filtered results
-- Boolean functions: `is*`, `has*`, `can*` prefix: `isOpen` (redis check pattern)
+- camelCase for all function names: `askClaude()`, `getStudentByDiscordId()`, `runDmAgent()`
+- Action-verb prefix for DB operations: `get*`, `create*`, `update*`, `delete*`, `search*`
+- `run*` prefix for agent execution: `runDmAgent()`, `runTsaragAgent()`, `runMemoryAgent()`
+- `handle*` prefix for event/interaction handlers: `handleSession()`, `handleQuizAnswer()`
+- `setup*` prefix for wiring handler registration: `setupFaqHandler()`, `setupDmHandler()`
+- `build*` prefix for constructing formatted output: `buildSessionForumContent()`, `buildContext()`
+- `is*` / `has*` / `can*` for boolean functions: `isAdmin()`, `isStudent()`, `isMentor()`
+- `parse*` prefix for parsing external data: `parseQuizFromTxt()`, `parseUserMessage()`
 
 **Variables:**
-- camelCase for all local variables and parameters
-- Constant strings (prompts, messages): UPPER_SNAKE_CASE
-- Example: `MEMORY_AGENT_PROMPT`, `ORCHESTRATOR_PROMPT`, `TABLE = 'tasks'`
-- Interface implementations use camelCase properties
-- Configuration objects: camelCase keys
+- camelCase for local variables and parameters: `discordUserId`, `queryEmbedding`, `pendingSubmissionIntent`
+- UPPER_SNAKE_CASE for constants (especially prompts and table names):
+  ```typescript
+  const SYSTEM_PROMPT = `...`;
+  const TABLE = 'students';
+  const EVAL_SYSTEM_PROMPT = '...';
+  ```
 
-**Types:**
-- PascalCase for all type and interface names: `Task`, `AgentJob`, `AgentDefinition`, `AgentOutput`
-- Union types: PascalCase: `TaskStatus`, `TaskPriority`, `CallerRole`
-- Zod schemas: PascalCase suffix with "Schema": `ArtisanInputSchema`, `AgentOriginSchema`
-- Type inference from Zod: `type ArtisanInput = z.infer<typeof ArtisanInputSchema>`
+**Types/Interfaces:**
+- PascalCase for all types and interfaces: `Student`, `DmAgentContext`, `ExerciseReviewResult`
+- Union types: PascalCase: `TaskStatus`, `StudentQuizSessionStatus`, `QuizQuestionType`
+- `New*` type alias using `Omit` for creation payloads: `type NewStudent = Omit<Student, 'id' | 'created_at' | 'updated_at'>`
+- Zod schemas: PascalCase with `Schema` suffix: `ParsedQuizSchema`, `AgentOriginSchema`, `InvokeAgentDataSchema`
+- Type inference from Zod: `type ParsedQuiz = z.infer<typeof ParsedQuizSchema>`
+- Interfaces for function parameter objects: `DmAgentContext`, `TsaragAgentContext`
+- Interfaces for function return objects: `DmAgentResponse`, `ExerciseReviewResult`, `EvalResult`
 
 ## Code Style
 
 **Formatting:**
-- ESM modules only (`import`/`export`, no `require`)
-- Import `.js` extension explicitly in ESM files: `import { logger } from '../logger.js'`
-- No auto-formatting tool configured (prettier/eslint configs missing)
-- Standard indentation observed: 2 spaces
-- Line length: typically under 100 characters for readability
+- No ESLint config or Prettier config files present at project root
+- Root `package.json` defines lint commands (`pnpm lint`, `pnpm format`) but no `.eslintrc` / `.prettierrc` files exist
+- De facto formatting: 2-space indentation, single quotes for strings
+- Line length: typically under 100 characters
+- Trailing commas used in multi-line structures
 
-**Linting:**
-- Root package.json defines lint commands but no config files present
-- Commands available: `pnpm lint` (eslint), `pnpm lint:fix`, `pnpm format` (prettier)
-- Actual linting configuration files not present in repo (may be inherited from node_modules)
-- No strict linting enforcement observed in codebase review
+**TypeScript Strictness:**
+- `strict: true` in root `tsconfig.json`
+- `noUncheckedIndexedAccess: true` -- array/object index access returns `T | undefined`
+- `noImplicitOverride: true`, `noFallthroughCasesInSwitch: true`
+- Target: ES2022, Module: ESNext, moduleResolution: bundler
+- Always use bracket notation with string literal for env access: `process.env['ANTHROPIC_API_KEY']` (enforced by `noUncheckedIndexedAccess`)
+
+**ESM Modules:**
+- All packages use `"type": "module"` in `package.json`
+- ESM only: `import`/`export` syntax, no `require`
+- Import paths include `.js` extension explicitly: `import { logger } from '../logger.js'`
+- Exception: imports from `@assistme/core` use bare specifier (resolved by workspace): `import { askClaude } from '@assistme/core'`
 
 ## Import Organization
 
-**Order:**
-1. External npm packages (`import { z } from 'zod'`)
-2. Type-only imports from other modules (`import type { Task } from '../types/index.js'`)
-3. Regular imports from core modules (`import { logger } from '../logger.js'`)
-4. Relative imports from same package (`import { registerAgent } from '../registry.js'`)
-5. Sub-package imports (e.g., `import { getSupabase } from '../db/client.js'`)
-
-**Example from `packages/core/src/agents/artisan/index.ts`:**
-```typescript
-import { z } from 'zod';
-import { askClaude } from '../../ai/client.js';
-import { logger } from '../../logger.js';
-import type { AgentDefinition, AgentOutput, AgentExecutionContext } from '../types.js';
-import { registerAgent } from '../registry.js';
-import { ARTISAN_SYSTEM_PROMPT, buildArtisanPrompt } from './prompt.js';
-import { buildPptx } from './pptx-builder.js';
-```
+**Order (observed pattern):**
+1. External SDK/framework imports: `import Anthropic from '@anthropic-ai/sdk'`
+2. Workspace package imports: `import { askClaude } from '@assistme/core'`
+3. Relative imports (deepest first): `import { getStudentByDiscordId } from '../../db/formation/index.js'`
+4. Type-only imports: `import type { Student } from '../../types/index.js'`
 
 **Path Aliases:**
-- No path aliases configured (no `@/` or `~` patterns)
-- Direct relative paths used throughout: `../../ai/client.js`, `../db/memory.js`
+- No path aliases in source code (`@/` not used)
+- Direct relative paths everywhere: `../../ai/client.js`, `../db/memory.js`
+- The `@assistme/core` alias is resolved at vitest level via `resolve.alias` in `vitest.config.ts`
+
+**Barrel Files:**
+- `packages/core/src/index.ts` -- single export point for entire core package
+- `packages/core/src/ai/index.ts` -- re-exports all AI functions and types
+- `packages/core/src/db/index.ts` -- re-exports all DB modules
+- `packages/core/src/ai/formation/index.ts` -- re-exports formation agents
+- `packages/bot-discord/src/__mocks__/fixtures/domain/index.ts` -- re-exports all fixture factories
 
 ## Error Handling
 
-**Patterns:**
-- Throw explicit Error objects with descriptive messages: `throw new Error('Missing ANTHROPIC_API_KEY environment variable')`
-- Error messages are developer-facing strings that include context
-- Database errors logged before rethrowing: `logger.error({ error }, 'Failed to get task'); throw error;`
-- Non-critical operations use graceful degradation (see cache module):
+**Database Operations:**
+- Supabase errors checked via `error` field in response, not exceptions
+- Pattern: log error, then throw
   ```typescript
+  const { data, error } = await db.from(TABLE).select().eq('id', id).single();
   if (error) {
-    logger.error({ error, id }, 'Failed to get task');
-    return null;  // Return null instead of throwing
+    if (error.code === 'PGRST116') return null; // Not found -> null
+    logger.error({ error, id }, 'Failed to get student');
+    throw error;
   }
+  return data as Student;
   ```
-- Try-catch used for JSON parsing, graceful fallback to plain text:
+- "Not found" returns `null` (check `PGRST116` Supabase error code), other errors throw
+
+**AI/Claude Responses:**
+- JSON parsing with try/catch, fallback to degraded result:
   ```typescript
   try {
-    parsed = JSON.parse(jsonString);
+    const parsed = JSON.parse(raw) as { isCorrect: boolean; reasoning: string };
+    return { isCorrect: Boolean(parsed.isCorrect), reasoning: String(parsed.reasoning) };
   } catch {
-    const cleanResponse = response.replace(/```json\s*/g, '').replace(/```/g, '').trim();
-    return { response: cleanResponse, actions: [] };
+    return {
+      isCorrect: studentAnswer.toLowerCase().includes(question.correct_answer.toLowerCase()),
+      reasoning: 'parsing fallback',
+    };
   }
   ```
-- Async operations use Promise.all for parallel execution: `const [coreMemory, workingMemory] = await Promise.all([...])`
-- Supabase errors checked via `error` field in response object, not exceptions
+- Extract JSON from Claude preamble text: `raw.match(/\{[\s\S]*\}/)`
+- Markdown code block stripping for JSON extraction
+
+**Agent Tool Loops:**
+- Each tool call wrapped in try/catch individually
+- Error results returned as JSON tool_result so Claude can recover:
+  ```typescript
+  } catch (err) {
+    logger.error({ err, tool: toolUse.name }, 'DM agent tool error');
+    result = JSON.stringify({ error: 'internal_error', message: '...' });
+  }
+  ```
+- Maximum iteration limit prevents infinite tool loops (typically 5 iterations)
+
+**Handler Error Handling:**
+- Top-level try/catch in handlers, reply with user-facing error message:
+  ```typescript
+  // On error, reply with generic error to user
+  expect(interaction.editReply).toHaveBeenCalledWith(expect.stringContaining('Ошибка'));
+  ```
+
+**Environment Variables:**
+- Throw explicit `Error` if required env var is missing at initialization:
+  ```typescript
+  const apiKey = process.env['ANTHROPIC_API_KEY'];
+  if (!apiKey) {
+    throw new Error('Missing ANTHROPIC_API_KEY environment variable');
+  }
+  ```
 
 ## Logging
 
-**Framework:** pino (with pino-pretty for development)
+**Framework:** pino (structured JSON logging)
 
-**Setup location:** `packages/core/src/logger.ts`
+**Configuration:** `packages/core/src/logger.ts`
+- Log level from `LOG_LEVEL` env var, defaults to `'info'`
+- Pretty-print in development, JSON in production
+- Tests use `LOG_LEVEL=silent`
 
 **Patterns:**
-- Centralized logger instance exported: `export const logger = pino({ ... })`
-- Log levels: 'debug', 'info', 'warn', 'error' observed in use
-- Context object as first parameter (structured logging): `logger.error({ error, id }, 'Failed to get task')`
-- Informational logs use logger.info: `logger.info('Supabase client initialized')`
-- Debug logs for detailed traces: `logger.debug({ model, promptLength }, 'Calling Claude API')`
-- Warning logs for recoverable issues: `logger.warn({ count }, 'Recovered zombie agent jobs')`
-- Non-critical failures (cache) logged at debug level to avoid noise
-- Log level determined by `LOG_LEVEL` env var, defaults to 'info'
-
-## Comments
-
-**When to Comment:**
-- Block comments for major system prompts (multi-line, placed above constant)
-- Comments on complex logic like zombie job recovery or memory tier classification
-- Section comments for grouping related functionality (e.g., `// ============================================` separators in types)
-- No JSDoc observed in codebase; type inference from TypeScript sufficient
-
-**Example style from types:**
-```typescript
-// ============================================
-// Task Types
-// ============================================
-
-export type TaskCategory = 'client' | 'student' | 'content' | 'personal' | 'dev' | 'team';
-```
-
-## Function Design
-
-**Size:**
-- Typical functions 10-40 lines for database operations
-- Larger functions (50-100+ lines) used for complex orchestration logic (orchestrator, agents)
-- Agent execute functions contain substantial business logic but maintain readability through clear sections
-
-**Parameters:**
-- Single object parameter preferred for functions with 2+ arguments: `{ agentName, input, origin }`
-- Type-safe via TypeScript interfaces or Zod schemas
-- Optional parameters use `?` nullability or defaults: `slideCount?: number`, `model?: ModelChoice`
-- Default values provided in function body: `category: task.category ?? 'personal'`
-
-**Return Values:**
-- Explicit return types always specified in function signature
-- Async functions return Promise<T>: `Promise<Task>`, `Promise<void>`, `Promise<AgentOutput>`
-- Database functions return entity types or null: `Task | null`, `Task[]`
-- Orchestration functions return structured objects: `{ response: string; actions: Array<{...}> }`
-- Errors thrown explicitly rather than returning Result<T> types
-
-## Module Design
-
-**Exports:**
-- Default export rare; named exports preferred
-- Each module exports main functions plus supporting types
-- Database modules (`packages/core/src/db/`) export CRUD operations and query functions
-- AI modules (`packages/core/src/ai/`) export main entry points with clear names: `askClaude()`, `runMemoryAgent()`
-- Agents register themselves via `registerAgent()` pattern
-
-**Barrel Files:**
-- `packages/core/src/index.ts` serves as single export point for entire core package
-- `packages/core/src/agents/index.ts` exports all agent registration functions
-- `packages/core/src/ai/formation/index.ts` exports formation-related agents
-- Internal barrel files re-export from subdirectories for clean API surface
-
-## Validation
-
-**Approach:** Zod for runtime validation of external data
-
-**Usage patterns:**
-- Agent input validation via Zod schemas: `ArtisanInputSchema.parse(input)`
-- API data validation before database operations
-- Example schema:
+- Always use structured context object as first parameter:
   ```typescript
-  const ArtisanInputSchema = z.object({
-    topic: z.string().min(1),
-    slideCount: z.number().min(1).max(50).optional(),
-    details: z.string().optional(),
-  });
+  logger.info({ studentId: student.id, iterations }, 'DM agent response ready');
+  logger.error({ error, id }, 'Failed to get student');
+  logger.debug({ model, promptLength: params.prompt.length }, 'Calling Claude API');
   ```
-- Type inference from schema: `type ArtisanInput = z.infer<typeof ArtisanInputSchema>`
-- JSON response parsing with fallback: `JSON.parse()` with catch block returning degraded result
+- `debug`: detailed traces, API call params, token counts
+- `info`: operation completed successfully, initialization
+- `warn`: recoverable issues
+- `error`: operation failures with error object included
 
-## Database Access Pattern
+**In Tests:**
+- Logger always mocked to silence output:
+  ```typescript
+  vi.mock('../../logger.js', () => ({
+    logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() },
+  }));
+  ```
 
-**Centralization:** All database queries through `packages/core/src/db/` modules
+## Type Patterns
 
-**File locations:**
-- `packages/core/src/db/client.ts` — Supabase client initialization
-- `packages/core/src/db/tasks.ts` — Task CRUD operations
-- `packages/core/src/db/clients.ts` — Client/lead operations
-- `packages/core/src/db/memory.ts` — Memory tier operations
-- `packages/core/src/db/formation/` — Formation-specific queries
-- `packages/core/src/db/formation/knowledge.ts` — Knowledge base operations
+**Interface Design:**
+- Separate interfaces for context (input) and response (output): `DmAgentContext` / `DmAgentResponse`
+- Use `Record<string, unknown>` for flexible JSON objects: `payment_details: Record<string, unknown> | null`
+- Union literal types for status fields: `type StudentStatus = 'interested' | 'registered' | 'paid' | 'active' | 'completed' | 'dropped'`
+- Section comments with `// ============================================` separators between type groups
 
-**Pattern:**
-```typescript
-export async function createTask(task: Partial<NewTask> & { title: string }): Promise<Task> {
-  const db = getSupabase();
-  const { data, error } = await db.from(TABLE).insert({...}).select().single();
-  if (error) {
-    logger.error({ error }, 'Failed to create task');
-    throw error;
-  }
-  return data as Task;
-}
-```
+**Explicit Return Types:**
+- Always specify return type on exported functions:
+  ```typescript
+  export async function getStudent(id: string): Promise<Student | null> { ... }
+  export async function runDmAgent(context: DmAgentContext): Promise<DmAgentResponse> { ... }
+  ```
 
-## API Call Pattern
+**Null vs Undefined:**
+- `null` for DB fields that are empty: `phone: string | null`
+- `undefined` for optional function params: `model?: ModelChoice`
+- Nullish coalescing for defaults: `params.model ?? 'sonnet'`
 
-**Centralization:** All Claude API calls through `packages/core/src/ai/client.ts`
+**Zod Usage:**
+- Runtime validation for external data (Claude API output, file parsing):
+  ```typescript
+  const result = ParsedQuizSchema.parse(parsed); // throws ZodError if malformed
+  ```
+- Located in: `packages/bot-discord-quiz/src/ai/parse-quiz.ts`, `packages/core/src/agents/types.ts`
+- Discriminated unions for complex structures: `z.discriminatedUnion('type', [McqSchema, TrueFalseSchema, OpenSchema])`
 
-**File location:** `packages/core/src/ai/client.ts`
+## Database Access
 
-**Pattern:**
-```typescript
-export async function askClaude(params: {
-  prompt: string;
-  systemPrompt?: string;
-  model?: ModelChoice;
-  maxTokens?: number;
-}): Promise<string>
-```
+**Singleton Client:**
+- `packages/core/src/db/client.ts` exports `getSupabase()` -- lazy singleton initialization
+- Same pattern for Anthropic client: `packages/core/src/ai/client.ts` with `getClient()`, `getFormationClient()`
 
-**Usage:**
-- Model selection via enum: `'sonnet' | 'opus'` mapped to full model names
-- System prompts passed separately for cleaner separation
-- Token usage logged for monitoring
-- Singleton client pattern (initialized once, reused)
+**CRUD Pattern:**
+- Each entity module in `packages/core/src/db/`:
+  - `const TABLE = 'table_name';` at top
+  - `get*()` returns `Entity | null` for single, `Entity[]` for multiple
+  - `create*()` accepts `Partial<NewEntity> & { required_field: string }`
+  - `update*()` adds `updated_at: new Date().toISOString()` automatically
+  - `search*()` uses `ilike` for text search
+- Always cast Supabase result: `return data as Student`
+- Empty arrays default: `return (data ?? []) as Student[]`
+
+**Query Patterns:**
+- Filter by foreign key: `.eq('discord_id', discordId)`
+- Multiple status filter: `.in('status', ['paid', 'active'])`
+- Ordering: `.order('created_at', { ascending: false })`
+- Text search: `.ilike('name', `%${name}%`)`
+
+## AI/Agent Patterns
+
+**Simple AI Call (askClaude):**
+- `packages/core/src/ai/client.ts` -- `askClaude({ prompt, systemPrompt?, model?, maxTokens?, formation? })`
+- Model choice: `'sonnet' | 'opus'` mapped to full model names
+- Used by: FAQ agent, quiz evaluator, quiz parser
+
+**Tool-Use Agent Loop:**
+- Pattern in `packages/core/src/ai/formation/dm-agent.ts`, `packages/core/src/ai/formation/tsarag-agent.ts`
+- Steps: (1) define TOOLS array, (2) call Claude with tools, (3) check for tool_use blocks, (4) execute tools, (5) feed tool_result back, (6) repeat until end_turn or max iterations
+- Max iterations guard (typically 5) prevents infinite loops
+- Tool results returned as JSON strings via `JSON.stringify()`
+
+**Agent Return Pattern:**
+- Agents return structured objects with text + optional intent/action data:
+  ```typescript
+  return { text, submissionIntent: pendingSubmissionIntent };
+  ```
+- The handler layer processes intents (e.g., showing a confirmation UI), NOT the agent itself
+
+**System Prompts:**
+- Stored as `const SYSTEM_PROMPT = \`...\`` at module level
+- Admin-facing prompts in French
+- Student-facing prompts in Russian
+- Security instructions embedded in prompts (ignore injection attempts)
+
+**Config Constants:**
+- Role and channel names centralized in `packages/bot-discord/src/config.ts`:
+  ```typescript
+  export const ROLES = { admin: 'tsarag', student: 'student', mentor: 'mentor' } as const;
+  export const CHANNELS = { annonces: 'объявления', sessions: 'сессии', ... } as const;
+  ```
 
 ---
 
-*Convention analysis: 2026-03-24*
+*Convention analysis: 2026-03-31*

@@ -23,12 +23,6 @@ vi.mock('../utils/format.js', () => ({
     toJSON: () => ({}),
   }),
   formatStudentFeedbackDM: vi.fn().mockReturnValue('feedback dm'),
-  formatReviewThreadMessages: vi.fn().mockReturnValue({
-    submissionMsg: 'Submission content',
-    aiReviewMsg: 'AI review formatted text',
-    historyMsg: null,
-    imageUrl: null,
-  }),
 }));
 vi.mock('../config.js', () => ({
   CHANNELS: {
@@ -58,8 +52,6 @@ import {
   addAttachment,
   getSupabase,
   deleteAttachmentsByExercise,
-  reviewExercise,
-  getSignedUrl,
 } from '@assistme/core';
 import { MessageBuilder, resetSeq } from '../__mocks__/discord/builders.js';
 import { createStudent, createExercise, createSession } from '../__mocks__/fixtures/domain/index.js';
@@ -109,12 +101,9 @@ function makeClient() {
         find: vi.fn().mockReturnValue(mockAdminChannel),
         get: vi.fn().mockReturnValue(mockAdminChannel),
       },
-      // fetch used by triggerAiReview for thread message edit (D-06)
       fetch: vi.fn().mockResolvedValue(mockThread),
     },
     _mockAdminChannel: mockAdminChannel,
-    _mockThread: mockThread,
-    _mockThreadMessage: mockThreadMessage,
   };
 }
 
@@ -128,8 +117,6 @@ const mockGetExercise = vi.mocked(getExercise);
 const mockGetSession = vi.mocked(getSession);
 const mockGetAttachmentsByExercise = vi.mocked(getAttachmentsByExercise);
 const mockUpdateExercise = vi.mocked(updateExercise);
-const mockReviewExercise = vi.mocked(reviewExercise);
-const mockGetSignedUrl = vi.mocked(getSignedUrl);
 
 // Phase 6 — submission flow mocks
 const mockGetSessionByNumber = vi.mocked(getSessionByNumber);
@@ -184,16 +171,6 @@ describe('dm-handler', () => {
         }),
       },
     } as never);
-
-    // triggerAiReview mocks
-    mockReviewExercise.mockResolvedValue({
-      score: 7,
-      recommendation: 'approve',
-      strengths: [],
-      improvements: [],
-      detailedReview: '',
-    } as never);
-    mockGetSignedUrl.mockResolvedValue('https://signed-url.example.com');
 
     client = makeClient();
     setupDmHandler(client as unknown as Client);
@@ -755,8 +732,60 @@ describe('dm-handler', () => {
     await drainProcessing(200);
 
     expect(mockSubmitExercise).toHaveBeenCalledWith(
-      expect.objectContaining({ student_id: student.id, session_id: 'sess-c' })
+      expect.objectContaining({ student_id: student.id, session_id: 'sess-c', student_comment: 'Мой ответ' })
     );
+    fetchSpy.mockRestore();
+  });
+
+  // ============================================
+  // Test 16b: student_comment passed to resubmitExercise on re-submission
+  // ============================================
+
+  it('passes student_comment to resubmitExercise on re-submission', async () => {
+    const student = createStudent({ discord_id: 'discord-resub-comment' });
+    mockGetStudentByDiscordId.mockResolvedValue(student);
+
+    const existingExercise = createExercise({
+      id: 'ex-resub-comment',
+      student_id: student.id,
+      session_id: 'sess-rc',
+      status: 'revision_needed',
+      submission_count: 1,
+    });
+    mockGetExercisesByStudent.mockResolvedValue([existingExercise]);
+    mockGetExerciseByStudentAndSession.mockResolvedValue(null);
+    mockGetSessionByNumber.mockResolvedValue(
+      createSession({ id: 'sess-rc', session_number: 6, status: 'published' })
+    );
+    mockResubmitExercise.mockResolvedValue(
+      createExercise({ id: 'ex-resub-comment', status: 'submitted', submission_count: 2 })
+    );
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+    } as Response);
+
+    const replyMock = makeReplyMessageMock('submission_confirm');
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Переотправляю.',
+      submissionIntent: { session_number: 6, student_comment: 'Исправил' },
+    });
+
+    const message = new MessageBuilder()
+      .asDM().withContent('Исправил задание').withAuthorId('discord-resub-comment')
+      .withAttachment('att-1', { url: 'https://cdn.discord.com/f.png', name: 'fix.png', contentType: 'image/png', size: 100 })
+      .build();
+    (message.reply as ReturnType<typeof vi.fn>).mockResolvedValueOnce(replyMock);
+
+    await client.__emit('messageCreate', message);
+    await drainProcessing(200);
+
+    expect(mockResubmitExercise).toHaveBeenCalledWith(
+      'ex-resub-comment',
+      expect.objectContaining({ student_comment: 'Исправил' })
+    );
+    expect(mockSubmitExercise).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
 
@@ -930,134 +959,5 @@ describe('dm-handler', () => {
     );
     expect(mockSubmitExercise).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
-  });
-
-  // ============================================
-  // triggerAiReview thread message edit tests (D-06, Phase 07)
-  // ============================================
-
-  describe('triggerAiReview thread message edit', () => {
-    /**
-     * Helper: trigger the full submission flow (submissionIntent + confirm button)
-     * so that triggerAiReview fires (requires storagePaths.length > 0 from file attachment).
-     *
-     * triggerAiReview is called only from executeSubmission when storagePaths.length > 0.
-     * This means we need a real file attachment downloaded to a buffer, uploaded to storage,
-     * and a submit button confirm to execute the submission.
-     */
-    async function triggerSubmissionWithAttachment(
-      exerciseForTrigger: ReturnType<typeof createExercise>,
-      discordUserId = 'discord-trigger',
-    ): Promise<{ message: ReturnType<typeof MessageBuilder.prototype.build>; fetchSpy: ReturnType<typeof vi.spyOn> }> {
-      mockGetStudentByDiscordId.mockResolvedValue(
-        createStudent({ id: 'student-1', discord_id: discordUserId })
-      );
-      mockGetSessionByNumber.mockResolvedValue(
-        createSession({ id: 'session-1', session_number: 1, status: 'published', module: 1, exercise_description: null })
-      );
-      mockGetSession.mockResolvedValue(
-        createSession({ id: 'session-1', session_number: 1, status: 'published', module: 1, exercise_description: null })
-      );
-      // No active submission (not a resubmission)
-      mockGetExerciseByStudentAndSession.mockResolvedValue(null);
-      mockGetExercisesByStudent.mockResolvedValue([]);
-      // submitExercise returns exercise (triggerAiReview will call getExercise for fresh data)
-      mockSubmitExercise.mockResolvedValue(exerciseForTrigger);
-      // getExercise returns the same exercise with thread IDs (fresh fetch inside triggerAiReview)
-      mockGetExercise.mockResolvedValue(exerciseForTrigger);
-      mockGetAttachmentsByExercise.mockResolvedValue([]);
-      // runDmAgent returns submissionIntent to go through preview-confirm flow
-      mockRunDmAgent.mockResolvedValue({
-        text: 'Задание принято!',
-        submissionIntent: { session_number: 1, student_comment: 'My submission' },
-      });
-
-      // Mock global fetch for attachment download
-      const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
-        ok: true,
-        arrayBuffer: async () => new ArrayBuffer(100),
-      } as Response);
-
-      // Simulate confirm button click
-      const replyMock = makeReplyMessageMock('submission_confirm');
-
-      const message = new MessageBuilder()
-        .asDM()
-        .withContent('Вот мой файл')
-        .withAuthorId(discordUserId)
-        .withAttachment('att-trigger', {
-          url: 'https://cdn.discord.com/trigger.png',
-          name: 'trigger.png',
-          contentType: 'image/png',
-          size: 100,
-        })
-        .build();
-      (message.reply as ReturnType<typeof vi.fn>).mockResolvedValueOnce(replyMock);
-
-      await client.__emit('messageCreate', message);
-      // Extra drain: triggerAiReview is fire-and-forget, needs more time to complete
-      await drainProcessing(300);
-
-      return { message, fetchSpy };
-    }
-
-    it('triggerAiReview edits thread AI message when review_thread_ai_message_id exists', async () => {
-      const exercise = createExercise({
-        id: 'ex-trigger-1',
-        status: 'submitted',
-        review_thread_id: 'thread-1',
-        review_thread_ai_message_id: 'ai-msg-1',
-      });
-
-      const { fetchSpy } = await triggerSubmissionWithAttachment(exercise);
-
-      // channels.fetch should have been called with the thread ID
-      expect(client.channels.fetch).toHaveBeenCalledWith('thread-1');
-      // Thread message edit should have been called with AI review text
-      expect(client._mockThreadMessage.edit).toHaveBeenCalledOnce();
-      expect(client._mockThreadMessage.edit).toHaveBeenCalledWith(
-        expect.any(String)
-      );
-
-      fetchSpy.mockRestore();
-    });
-
-    it('triggerAiReview skips thread edit when review_thread_ai_message_id is null', async () => {
-      const exercise = createExercise({
-        id: 'ex-trigger-1',
-        status: 'submitted',
-        review_thread_id: null,
-        review_thread_ai_message_id: null,
-      });
-
-      const { fetchSpy } = await triggerSubmissionWithAttachment(exercise);
-
-      // Thread message edit should NOT have been called (guard: both IDs must be set)
-      expect(client._mockThreadMessage.edit).not.toHaveBeenCalled();
-
-      fetchSpy.mockRestore();
-    });
-
-    it('triggerAiReview degrades gracefully when thread fetch fails (non-blocking)', async () => {
-      const exercise = createExercise({
-        id: 'ex-trigger-1',
-        status: 'submitted',
-        review_thread_id: 'thread-1',
-        review_thread_ai_message_id: 'ai-msg-1',
-      });
-
-      // Override channels.fetch to reject (simulates Discord API error)
-      (client.channels as { fetch: ReturnType<typeof vi.fn> }).fetch =
-        vi.fn().mockRejectedValue(new Error('Discord API error'));
-
-      const { message, fetchSpy } = await triggerSubmissionWithAttachment(exercise, 'discord-degrade');
-
-      // The DM handler still completed — user got a confirm reply (submission successful)
-      expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('✅'));
-      // Thread message edit was NOT called (fetch failed before we got there)
-      expect(client._mockThreadMessage.edit).not.toHaveBeenCalled();
-
-      fetchSpy.mockRestore();
-    });
   });
 });

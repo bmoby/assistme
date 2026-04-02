@@ -13,6 +13,7 @@ import { CHANNELS } from '../config.js';
 
 export async function sendExerciseDigest(client: Client, guildId: string): Promise<void> {
   try {
+    // Archived exercises excluded at DB query level: getExerciseSummary and getPendingExercises filter .neq('status', 'archived') (ARCH-03)
     const summary = await getExerciseSummary();
     const pending = await getPendingExercises();
 

@@ -35,7 +35,7 @@ export async function handleRevision(interaction: ChatInputCommandInteraction): 
 
     const student = students[0]!;
     const exercises = await getExercisesByStudent(student.id);
-    let pending = exercises.filter((e) => e.status === 'submitted' || e.status === 'ai_reviewed');
+    let pending = exercises.filter((e) => e.status === 'submitted');
 
     if (pending.length === 0) {
       await interaction.reply({ content: `У ${student.name} нет заданий на проверку.`, ephemeral: true });
