@@ -77,8 +77,14 @@ None yet.
 
 - Existing exercises with `ai_reviewed` status must remain consultable (backward compat constraint from PROJECT.md)
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260402-bhl | Fix student_comment not stored in DB or shown in admin review thread | 2026-04-02 | 8f3c008 | [260402-bhl-fix-student-comment-not-stored-in-db-or-](./quick/260402-bhl-fix-student-comment-not-stored-in-db-or-/) |
+
 ## Session Continuity
 
-Last session: 2026-04-01T10:11:54.473Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-04-02T01:27:00.000Z
+Stopped at: Completed quick task 260402-bhl
 Resume file: None
