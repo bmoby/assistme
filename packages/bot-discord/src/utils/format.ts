@@ -196,6 +196,11 @@ export function formatReviewThreadMessages(
     }
   }
 
+  // Student comment
+  if (exercise.student_comment) {
+    submissionLines.push('', '\u{1F4AC} **Commentaire etudiant :**', exercise.student_comment);
+  }
+
   const submissionMsg = submissionLines.join('\n').slice(0, 1900);
 
   // Message 2: AI Review
