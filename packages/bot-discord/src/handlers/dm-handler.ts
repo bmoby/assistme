@@ -190,6 +190,7 @@ async function executeSubmission(
     exercise = await resubmitExercise(revisionExercise.id, {
       submission_url: submissionUrl || null,
       submission_type: submissionType,
+      student_comment: intent.student_comment,
     });
 
     // Delete old files from storage (fire-and-forget)
@@ -210,6 +211,7 @@ async function executeSubmission(
       exercise_number: session.session_number,
       submission_url: submissionUrl,
       submission_type: submissionType,
+      student_comment: intent.student_comment,
     });
 
     logger.info(

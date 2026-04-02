@@ -11,6 +11,7 @@ export async function submitExercise(params: {
   exercise_number: number;
   submission_url: string;
   submission_type?: string;
+  student_comment?: string;
 }): Promise<StudentExercise> {
   const db = getSupabase();
   const { data, error } = await db
@@ -23,6 +24,7 @@ export async function submitExercise(params: {
       submission_url: params.submission_url,
       submission_type: params.submission_type ?? 'link',
       status: 'submitted',
+      student_comment: params.student_comment ?? null,
     })
     .select()
     .single();
@@ -252,6 +254,7 @@ export async function resubmitExercise(
   params: {
     submission_url: string | null;
     submission_type: string;
+    student_comment?: string;
   }
 ): Promise<StudentExercise> {
   const db = getSupabase();
@@ -292,6 +295,7 @@ export async function resubmitExercise(
       reviewed_at: null,
       submission_url: params.submission_url,
       submission_type: params.submission_type,
+      student_comment: params.student_comment ?? null,
       submission_count: exercise.submission_count + 1,
       review_history: updatedHistory,
       notification_message_id: null,

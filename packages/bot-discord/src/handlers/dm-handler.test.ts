@@ -732,8 +732,60 @@ describe('dm-handler', () => {
     await drainProcessing(200);
 
     expect(mockSubmitExercise).toHaveBeenCalledWith(
-      expect.objectContaining({ student_id: student.id, session_id: 'sess-c' })
+      expect.objectContaining({ student_id: student.id, session_id: 'sess-c', student_comment: 'Мой ответ' })
     );
+    fetchSpy.mockRestore();
+  });
+
+  // ============================================
+  // Test 16b: student_comment passed to resubmitExercise on re-submission
+  // ============================================
+
+  it('passes student_comment to resubmitExercise on re-submission', async () => {
+    const student = createStudent({ discord_id: 'discord-resub-comment' });
+    mockGetStudentByDiscordId.mockResolvedValue(student);
+
+    const existingExercise = createExercise({
+      id: 'ex-resub-comment',
+      student_id: student.id,
+      session_id: 'sess-rc',
+      status: 'revision_needed',
+      submission_count: 1,
+    });
+    mockGetExercisesByStudent.mockResolvedValue([existingExercise]);
+    mockGetExerciseByStudentAndSession.mockResolvedValue(null);
+    mockGetSessionByNumber.mockResolvedValue(
+      createSession({ id: 'sess-rc', session_number: 6, status: 'published' })
+    );
+    mockResubmitExercise.mockResolvedValue(
+      createExercise({ id: 'ex-resub-comment', status: 'submitted', submission_count: 2 })
+    );
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(100),
+    } as Response);
+
+    const replyMock = makeReplyMessageMock('submission_confirm');
+    mockRunDmAgent.mockResolvedValue({
+      text: 'Переотправляю.',
+      submissionIntent: { session_number: 6, student_comment: 'Исправил' },
+    });
+
+    const message = new MessageBuilder()
+      .asDM().withContent('Исправил задание').withAuthorId('discord-resub-comment')
+      .withAttachment('att-1', { url: 'https://cdn.discord.com/f.png', name: 'fix.png', contentType: 'image/png', size: 100 })
+      .build();
+    (message.reply as ReturnType<typeof vi.fn>).mockResolvedValueOnce(replyMock);
+
+    await client.__emit('messageCreate', message);
+    await drainProcessing(200);
+
+    expect(mockResubmitExercise).toHaveBeenCalledWith(
+      'ex-resub-comment',
+      expect.objectContaining({ student_comment: 'Исправил' })
+    );
+    expect(mockSubmitExercise).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
 

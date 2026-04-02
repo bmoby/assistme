@@ -21,6 +21,7 @@ export function createExercise(overrides: Partial<StudentExercise> = {}): Studen
     status: 'submitted',
     reviewed_at: null,
     feedback: null,
+    student_comment: null,
     session_id: 'session-1',
     submission_count: 1,
     review_history: [],
