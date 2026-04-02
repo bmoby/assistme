@@ -104,6 +104,7 @@ export interface StudentExercise {
   status: ExerciseStatus;
   reviewed_at: string | null;
   feedback: string | null;
+  student_comment: string | null;
   session_id: string | null;
   submission_count: number;
   review_history: ReviewHistoryEntry[];
