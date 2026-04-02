@@ -38,6 +38,7 @@ import type {
   StudentExercise,
 } from '@assistme/core';
 import { formatSubmissionNotification } from '../utils/format.js';
+import { createReviewThread } from '../utils/review-thread.js';
 import { CHANNELS } from '../config.js';
 
 // Discord client reference (set in setupDmHandler)
@@ -629,6 +630,13 @@ async function notifyAdminChannel(exerciseId: string, discordUserId: string): Pr
 
   // Store message ID for later status updates
   await updateExercise(exerciseId, { notification_message_id: msg.id });
+
+  // If re-submission with existing thread, update the thread with new content
+  if (isResubmission && exercise.review_thread_id) {
+    void createReviewThread(adminChannel, exercise, student, session, discordClient).catch((err) => {
+      logger.error({ err, exerciseId }, 'Failed to update review thread for re-submission');
+    });
+  }
 
   logger.info({ exerciseId, messageId: msg.id, isResubmission }, 'Admin notification sent');
 }
