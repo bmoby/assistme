@@ -14,7 +14,6 @@ dist/
 .claude/hooks/
 .claude/package.json
 .claude/gsd-file-manifest.json
-.planning/
 
 # Supabase local state
 supabase/.branches/
