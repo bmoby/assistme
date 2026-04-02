@@ -8,8 +8,6 @@ jobs:
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
-      bot-telegram: ${{ steps.changes.outputs.bot-telegram }}
-      bot-telegram-public: ${{ steps.changes.outputs.bot-telegram-public }}
       bot-discord: ${{ steps.changes.outputs.bot-discord }}
       bot-discord-quiz: ${{ steps.changes.outputs.bot-discord-quiz }}
       knowledge: ${{ steps.changes.outputs.knowledge }}
@@ -22,12 +20,6 @@ jobs:
         id: changes
         with:
           filters: |
-            bot-telegram:
-              - 'packages/bot-telegram/**'
-              - 'packages/core/**'
-            bot-telegram-public:
-              - 'packages/bot-telegram-public/**'
-              - 'packages/core/**'
             bot-discord:
               - 'packages/bot-discord/**'
               - 'packages/core/**'
@@ -48,8 +40,6 @@ jobs:
       - id: anything
         run: |
           if [[ \
-            "${{ steps.changes.outputs.bot-telegram }}" == "true" || \
-            "${{ steps.changes.outputs.bot-telegram-public }}" == "true" || \
             "${{ steps.changes.outputs.bot-discord }}" == "true" || \
             "${{ steps.changes.outputs.bot-discord-quiz }}" == "true" || \
             "${{ steps.changes.outputs.knowledge }}" == "true" || \
@@ -139,20 +129,17 @@ jobs:
             # Always ensure infra services are running
             docker compose -f docker-compose.prod.yml up -d redis
 
+            # Stop disabled telegram bots if still running
+            docker compose -f docker-compose.prod.yml rm -sf bot-telegram bot-telegram-public 2>/dev/null || true
+
             # Determine which bot services to rebuild
             SERVICES=""
 
-            # If migrations or infra changed, rebuild all bots
+            # If migrations or infra changed, rebuild all active bots
             if [ "${{ needs.detect-changes.outputs.migrations }}" == "true" ] || \
                [ "${{ needs.detect-changes.outputs.infra }}" == "true" ]; then
-              SERVICES="bot-telegram bot-telegram-public bot-discord bot-discord-quiz"
+              SERVICES="bot-discord bot-discord-quiz"
             else
-              if [ "${{ needs.detect-changes.outputs.bot-telegram }}" == "true" ]; then
-                SERVICES="$SERVICES bot-telegram"
-              fi
-              if [ "${{ needs.detect-changes.outputs.bot-telegram-public }}" == "true" ]; then
-                SERVICES="$SERVICES bot-telegram-public"
-              fi
               if [ "${{ needs.detect-changes.outputs.bot-discord }}" == "true" ]; then
                 SERVICES="$SERVICES bot-discord"
               fi

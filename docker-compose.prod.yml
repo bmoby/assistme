@@ -1,6 +1,6 @@
 # Production deployment — Docker Compose
 # Embeddings: OpenAI text-embedding-3-small API (no self-hosted server needed)
-# Services: redis, bot-telegram, bot-telegram-public, bot-discord, bot-discord-quiz
+# Services: redis, bot-discord, bot-discord-quiz
 services:
   redis:
     image: redis:7-alpine
@@ -15,45 +15,8 @@ services:
         max-size: "5m"
         max-file: "2"
 
-  bot-telegram:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: vibe-bot-telegram
-    command: node packages/bot-telegram/dist/index.js
-    env_file: .env
-    environment:
-      - NODE_ENV=production
-      - TZ=Asia/Bangkok
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  bot-telegram-public:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: vibe-bot-telegram-public
-    command: node packages/bot-telegram-public/dist/index.js
-    env_file: .env
-    environment:
-      - NODE_ENV=production
-      - TZ=Asia/Bangkok
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+  # bot-telegram: DISABLED — no longer needed (admin notifications handled in Discord #admin)
+  # bot-telegram-public: DISABLED — no longer needed
 
   bot-discord:
     build:
