@@ -600,15 +600,19 @@ pilote-hub/
 
 ## Тизер С6
 
-На следующей сессии можно будет ввести :
+À la prochaine session :
 
-- почему, когда проект растет, нужна методология
-- как лучше просить ИИ работать внутри настоящего проекта
-- как структурировать задачи до того, как начинать производить
+- on ajoutera presque aucune nouvelle théorie
+- on va surtout pratiquer Next.js
+- on créera ou relancera un projet
+- on l'allumera, on l'éteindra, puis on le rallumera
+- on créera des pages et un composant
+- on naviguera d'une page à l'autre sur `localhost`
+- on apprendra à corriger les premières erreurs sans paniquer
 
 ### Финальная фраза
 
-> "Сегодня вы запустили приложение. Следующий шаг — научиться лучше им управлять."
+> "Aujourd'hui, vous avez lancé l'application. La prochaine fois, vous allez la manipuler jusqu'à ce que cela devienne normal."
 
 ---
 
