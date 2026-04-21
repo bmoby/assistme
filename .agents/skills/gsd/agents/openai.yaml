@@ -1,0 +1,7 @@
+interface:
+  display_name: "GSD Workflow"
+  short_description: "Run this repo's Get Shit Done workflow"
+  default_prompt: "Use $gsd to route this task through the repository's GSD workflow."
+
+policy:
+  allow_implicit_invocation: true
