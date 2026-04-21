@@ -13,7 +13,7 @@ Creer un quiz pour la Session 7 de la formation en respectant le template TXT du
 
 ## files
 
-- `learning-knowledge/module-2/session-07-quiz-01.txt`
+- `learning-knowledge/quizzes/session-07/mixed-01.txt`
 - `.planning/quick/260421-session-07-quiz/260421-session-07-quiz-PLAN.md`
 - `.planning/quick/260421-session-07-quiz/260421-session-07-quiz-SUMMARY.md`
 - `.planning/STATE.md`

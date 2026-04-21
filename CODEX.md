@@ -160,9 +160,13 @@ Format attendu :
 - langue etudiant : russe
 - source : `learning-knowledge/quiz-format-template.txt`
 - types de questions autorises : `QCM`, `VF`, `OPEN`
+- stockage repo : `learning-knowledge/quizzes/session-XX/`
+- par defaut, les nouveaux quiz sont des QCM de 10 a 15 questions
+- regler les cas particuliers dans `learning-knowledge/quizzes/QUIZ_RULES.md`
 
 Pipeline reel du bot quiz :
-- l'admin cree un fichier `.txt`
+- l'admin cree ou genere un fichier `.txt` avec `pnpm quiz:generate`
+- l'admin valide le fichier avec `pnpm quiz:check <fichier>`
 - upload via `/quiz-create`
 - le bot telecharge le TXT
 - Claude parse le fichier
@@ -190,14 +194,19 @@ Quand l'utilisateur demande un quiz :
 - respecter le niveau pedagogique reel de la session
 - ecrire le quiz en russe sauf demande contraire
 - respecter strictement le template TXT existant
-- melanger les types de questions
+- produire par defaut un QCM de 10 a 15 questions
+- utiliser `learning-knowledge/quizzes/QUIZ_RULES.md` comme regle de qualite
 - rendre les mauvaises reponses plausibles
 - privilegier la comprehension plutot que la recitation
-- ajouter `EXPLANATION` quand c'est utile
+- ajouter `EXPLANATION` a chaque question QCM
 
 Si plusieurs quiz sont necessaires pour une meme session :
 - les separer par blocs cognitifs ou thematiques
-- reutiliser la convention `session-XX-quiz-01.txt`, `session-XX-quiz-02.txt`, etc.
+- stocker les quiz dans `learning-knowledge/quizzes/session-XX/`
+- utiliser `qcm-01.txt`, `qcm-02.txt` pour les QCM standards
+- utiliser `revision-s05-s06-qcm-01.txt` pour un QCM multi-sessions livre en session XX
+- reserver `mixed-01.txt` aux anciens quiz ou aux quiz speciaux avec `QCM`, `VF` et `OPEN`
+- lancer `pnpm quiz:check <fichier>` avant commit ou upload Discord
 
 Pour la Session 4 en particulier :
 - il est coherent de separer

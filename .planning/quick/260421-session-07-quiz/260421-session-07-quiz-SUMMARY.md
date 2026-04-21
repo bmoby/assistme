@@ -2,7 +2,7 @@
 
 ## outcome
 
-Created and revised a Session 7 quiz in `learning-knowledge/module-2/session-07-quiz-01.txt`.
+Created and revised a Session 7 quiz, now stored in `learning-knowledge/quizzes/session-07/mixed-01.txt`.
 
 The quiz covers:
 
@@ -18,7 +18,7 @@ The quiz covers:
 
 ## files changed
 
-- Added `learning-knowledge/module-2/session-07-quiz-01.txt`
+- Added `learning-knowledge/quizzes/session-07/mixed-01.txt`
 - Added this GSD quick task note
 - Updated `.planning/STATE.md` quick task history
 
