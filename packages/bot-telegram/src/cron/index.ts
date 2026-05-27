@@ -1,12 +1,24 @@
 import type { Bot } from 'grammy';
-import { scheduler, logger, expireZombieReminders, runMemoryConsolidation, agents } from '@assistme/core';
+import { scheduler, logger, expireZombieReminders, runMemoryConsolidation, agents, cancelActiveReminders } from '@assistme/core';
 import { planDay, dispatchNotifications } from './dynamic-notifications.js';
 import { processFormationEvents } from './formation-events.js';
+
+function areTelegramNotificationsEnabled(): boolean {
+  return process.env['TELEGRAM_NOTIFICATIONS_ENABLED'] === 'true';
+}
 
 export function registerCronJobs(bot: Bot): void {
   const chatId = process.env['TELEGRAM_ADMIN_CHAT_ID'];
   if (!chatId) {
     logger.warn('TELEGRAM_ADMIN_CHAT_ID not set, skipping cron jobs');
+    return;
+  }
+
+  if (!areTelegramNotificationsEnabled()) {
+    void cancelActiveReminders()
+      .then((cancelled) => logger.info({ cancelled }, 'Telegram notifications disabled; active reminders cancelled'))
+      .catch((error) => logger.error({ error }, 'Failed to cancel active reminders while disabling Telegram notifications'));
+    logger.info('Telegram notification cron jobs disabled by TELEGRAM_NOTIFICATIONS_ENABLED');
     return;
   }
 

@@ -29,6 +29,8 @@ services:
       - NODE_ENV=production
       - TZ=Asia/Bangkok
       - REDIS_URL=redis://redis:6379
+      - TELEGRAM_NOTIFICATIONS_ENABLED=false
+      - DISCORD_FAQ_HANDLER_ENABLED=false
     depends_on:
       - redis
     restart: unless-stopped

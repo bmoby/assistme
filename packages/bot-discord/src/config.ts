@@ -15,3 +15,12 @@ export const CHANNELS = {
   wins: 'победы',
   admin: 'админ',
 } as const;
+
+export function isFaqHandlerEnabled(
+  env: Record<string, string | undefined> = process.env
+): boolean {
+  const value = env['DISCORD_FAQ_HANDLER_ENABLED'];
+  if (!value) return true;
+
+  return !['0', 'false', 'no', 'off'].includes(value.trim().toLowerCase());
+}

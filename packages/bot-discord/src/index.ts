@@ -18,6 +18,7 @@ import { setupDmHandler } from './handlers/dm-handler.js';
 import { setupAdminHandler } from './handlers/admin-handler.js';
 import { registerCronJobs } from './cron/index.js';
 import { registerReviewButtons } from './handlers/review-buttons.js';
+import { isFaqHandlerEnabled } from './config.js';
 
 async function main(): Promise<void> {
   const token = process.env['DISCORD_BOT_TOKEN'];
@@ -56,7 +57,11 @@ async function main(): Promise<void> {
 
   // Setup handlers
   setupCommandHandler(client);
-  setupFaqHandler(client);
+  if (isFaqHandlerEnabled()) {
+    setupFaqHandler(client);
+  } else {
+    logger.info('Discord FAQ handler disabled by DISCORD_FAQ_HANDLER_ENABLED');
+  }
   setupGuildMemberHandler(client);
   setupDmHandler(client);
   setupAdminHandler(client);

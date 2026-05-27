@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: Milestone complete
 stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-04-01T10:20:54.598Z"
+last_updated: "2026-04-21T04:35:00Z"
 progress:
   total_phases: 3
   completed_phases: 3
@@ -82,9 +82,13 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260402-bhl | Fix student_comment not stored in DB or shown in admin review thread | 2026-04-02 | 8f3c008 | [260402-bhl-fix-student-comment-not-stored-in-db-or-](./quick/260402-bhl-fix-student-comment-not-stored-in-db-or-/) |
+| 260419-session-08-ai-methodique | Prepare Session 8 on methodical AI usage, rules, skills, and agents | 2026-04-19 | uncommitted | [260419-session-08-ai-methodique](./quick/260419-session-08-ai-methodique/) |
+| 260419-ai-structures-pdf | Create three PDFs for AI skills and agents folder structures | 2026-04-19 | uncommitted | [260419-ai-structures-pdf](./quick/260419-ai-structures-pdf/) |
+| 260421-session-07-quiz | Create Session 7 quiz in bot TXT template | 2026-04-21 | uncommitted | [260421-session-07-quiz](./quick/260421-session-07-quiz/) |
+| 260421-quiz-generation-system | Add repo workflow to generate, store and validate pedagogical QCM quizzes | 2026-04-21 | uncommitted | [260421-quiz-generation-system](./quick/260421-quiz-generation-system/) |
 
 ## Session Continuity
 
-Last session: 2026-04-02T01:27:00.000Z
-Stopped at: Completed quick task 260402-bhl
+Last session: 2026-04-21T04:35:00.000Z
+Stopped at: Implementing quick task 260421-quiz-generation-system
 Resume file: None

@@ -14,6 +14,8 @@
     "format": "prettier --write 'packages/*/src/**/*.ts'",
     "typecheck": "pnpm -F @assistme/core build && pnpm -r run typecheck",
     "seed:knowledge": "pnpm exec tsx scripts/seed-formation-knowledge.ts",
+    "quiz:generate": "tsx scripts/generate-quiz.ts",
+    "quiz:check": "tsx scripts/check-quiz.ts",
     "test": "vitest run --project core --project bot-discord --project bot-discord-quiz",
     "test:unit": "vitest run --project core --project bot-discord --project bot-discord-quiz",
     "test:integration": "vitest run --project core-integration --project bot-discord-integration",
