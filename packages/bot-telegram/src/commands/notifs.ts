@@ -3,10 +3,19 @@ import { upsertMemory, logger } from '@assistme/core';
 import { isAdmin } from '../utils/auth.js';
 import { planDay, getNotificationsSummary } from '../cron/dynamic-notifications.js';
 
+function areTelegramNotificationsEnabled(): boolean {
+  return process.env['TELEGRAM_NOTIFICATIONS_ENABLED'] === 'true';
+}
+
 export function registerNotifsCommand(bot: Bot): void {
   // /notifs — Show notification status or change count
   bot.command('notifs', async (ctx: Context) => {
     if (!isAdmin(ctx)) return;
+
+    if (!areTelegramNotificationsEnabled()) {
+      await ctx.reply('Notifications Telegram desactivees.');
+      return;
+    }
 
     const arg = ctx.match?.toString().trim();
 
@@ -53,6 +62,11 @@ export function registerNotifsCommand(bot: Bot): void {
   // /replan — Force replan notifications
   bot.command('replan', async (ctx: Context) => {
     if (!isAdmin(ctx)) return;
+
+    if (!areTelegramNotificationsEnabled()) {
+      await ctx.reply('Notifications Telegram desactivees.');
+      return;
+    }
 
     try {
       await ctx.reply('Replanification en cours...');
